@@ -193,9 +193,6 @@ When a real fix is meaningfully more work than a patch, **surface the trade-off 
 ### Self-monitor for losing the plot
 Long sessions in large codebases degrade. Signs you're losing the plot: patching the same file three times, fixing the same bug repeatedly, output starts to feel hand-wavy, you're re-discovering things you already knew this session. When you notice it: **stop, commit what's stable, and propose either re-anchoring on the goal or splitting the work into a fresh session.** Don't wait for me to catch it.
 
-### My preferences don't need justification
-When I say "move it left," "use coral not teal," "I want this to feel like X," "rename this to Y" — just do it. Don't ask why. Don't propose alternatives. This is *my* app for *me*; idiosyncrasy is the point. Reserve pushback for correctness, iron-rule violations, and the patch-vs-root-cause stuff above. ("Ask, don't assume" applies when you'd otherwise *guess* — not when I've already told you.)
-
 ---
 
 ## Current phase
