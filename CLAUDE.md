@@ -91,13 +91,119 @@ In a `hub` schema:
 
 ## Visual style — applies to the hub AND every app
 
-- Clean, flat, minimal.
-- White surfaces, **0.5px borders**, generous whitespace.
-- **No gradients. No shadows.**
-- Mobile-first (Pixel 8 viewport — design for that first, then scale up).
-- Color palette is fixed — pick `color` for each app/tile from exactly this set:
-  `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
-- Tabler icons only.
+### Mode
+**Dark mode only.** No light mode, no system toggle.
+
+### Color foundation — Radix Colors
+
+Use the [Radix Colors](https://www.radix-ui.com/colors) palette (`npm install @radix-ui/colors`). Purpose-built for app UI with proper dark-mode tuning and accessibility pre-tested per step. **Step semantics:** 1–2 = page backgrounds · 3–5 = UI element backgrounds (rest → hover → active) · 6–8 = borders (subtle → focus) · 9–10 = solid backgrounds (rest → hover) · 11–12 = text (low → high contrast). Stick to these conventions when picking shades.
+
+**Neutral scale: `mauve`** (subtle warm tint, complements every accent). Import `@radix-ui/colors/mauve-dark.css`.
+
+| Token | Radix var | Approx. hex |
+| ----- | --------- | ----------- |
+| Background base | `--mauve-1` | `#161618` |
+| Surface (cards, tiles, panels) | `--mauve-3` | `#232326` |
+| Surface elevated (modals, popovers) | `--mauve-4` | `#28282c` |
+| Border subtle | `--mauve-6` | `#3a3a3f` |
+| Border focus | `--mauve-8` | `#504f57` |
+| Text low / disabled | `--mauve-9` | `#7e7d86` |
+| Text medium | `--mauve-11` | `#a09fa6` |
+| Text high emphasis | `--mauve-12` | `#ededef` |
+
+### Accent palette (for app tiles and per-app theming)
+
+The `color` field in `apps.json` picks one of these. Each name maps to a Radix scale at **step 9** (solid background). Foreground follows Radix's contrasted-text rule per scale (amber needs a dark foreground; the rest take white).
+
+| Name     | Radix scale | Step 9 hex | Icon / text on tile |
+| -------- | ----------- | ---------- | ------------------- |
+| `coral`  | `red`       | `#e5484d`  | white               |
+| `teal`   | `teal`      | `#12a594`  | white               |
+| `purple` | `purple`    | `#8e4ec6`  | white               |
+| `amber`  | `amber`     | `#ffb224`  | `--mauve-1` (dark)  |
+| `blue`   | `blue`      | `#0090ff`  | white               |
+| `pink`   | `pink`      | `#d6409f`  | white               |
+| `green`  | `green`     | `#30a46c`  | white               |
+| `gray`   | `mauve`     | `#46464d` (step 7) | white       |
+
+Import the dark variants only: `@radix-ui/colors/{red,teal,purple,amber,blue,pink,green,mauve}-dark.css`.
+
+In `tailwind.config.js`, alias the names so `bg-coral` / `text-coral` work in JSX:
+
+```js
+theme: {
+  extend: {
+    colors: {
+      // surfaces
+      bg: 'var(--mauve-1)',
+      surface: 'var(--mauve-3)',
+      'surface-elevated': 'var(--mauve-4)',
+      border: 'var(--mauve-6)',
+      'border-focus': 'var(--mauve-8)',
+      'text-low': 'var(--mauve-9)',
+      'text-muted': 'var(--mauve-11)',
+      text: 'var(--mauve-12)',
+      // accents
+      coral: 'var(--red-9)',
+      teal: 'var(--teal-9)',
+      purple: 'var(--purple-9)',
+      amber: 'var(--amber-9)',
+      blue: 'var(--blue-9)',
+      pink: 'var(--pink-9)',
+      green: 'var(--green-9)',
+      gray: 'var(--mauve-7)',
+    },
+  },
+},
+```
+
+### Typography
+- **Font stack:** `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif`. Renders as **SF Pro on iOS, Roboto on Android**, system sans on desktop. Native feel without shipping a custom font.
+- **Scale** (Tailwind classes):
+  - Hero / page title — `text-2xl font-semibold`
+  - Section heading — `text-lg font-medium`
+  - Body — `text-base`
+  - Caption / secondary — `text-sm` + medium-emphasis color
+  - Micro / labels — `text-xs uppercase tracking-wide`
+
+### Spacing
+4px grid via Tailwind defaults. Default page padding: `px-4 py-6` on mobile, `px-6 py-8` on tablet+.
+
+### Border radius
+- Buttons, inputs, chips: `rounded-md` (6px)
+- Cards, tiles, sheets: `rounded-2xl` (16px)
+- Modal full sheets: `rounded-t-3xl` (24px) on top edge only
+- Avoid `rounded-full` except for genuinely circular elements (avatars, status dots)
+
+### Elevation
+No decorative shadows. The single exception: floating UI (dropdowns, popovers, toasts) uses `shadow-[0_8px_24px_rgba(0,0,0,0.5)]` plus a 1px highlight border `border-white/10` to lift it against the dark background — that's usability, not decoration.
+
+### Motion
+- Colors / hover / press: `transition-colors duration-150 ease-out`
+- Layout: `transition-all duration-200 ease-out`
+- Modal/sheet enter: 250ms slide-up from bottom (mobile) / fade (desktop)
+- No bouncy spring physics. Crisp, fast, exit-quickly.
+
+### Touch and platform polish (non-negotiable for native feel on both iPhone and Pixel)
+- **Min touch target:** 44×44px. Use `min-h-11 min-w-11` on tap-only elements.
+- **Disable iOS tap highlight:** `-webkit-tap-highlight-color: transparent` globally.
+- **Disable iOS text-size auto-adjust:** `-webkit-text-size-adjust: 100%` on `<html>`.
+- **Safe areas:** every full-screen layout respects `env(safe-area-inset-top/bottom/left/right)`. Critical for iPhone home indicators, notches, Dynamic Island, AND Pixel 8 gesture nav.
+- **Use `100dvh`** not `100vh` for full-height layouts (correct on dynamic mobile viewports — browser chrome / keyboard collapse).
+- **Viewport meta:** `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">` — edge-to-edge.
+- **Reset native form styling on iOS:** `appearance: none` on `<input>`, `<select>`, `<button>` (iOS Safari otherwise over-styles them).
+- **Momentum scrolling** on scrollable containers: `-webkit-overflow-scrolling: touch`.
+
+### PWA chrome (per-app AND hub)
+- `<meta name="theme-color" content="#161618">` → Android status bar blends into the app background (matches `--mauve-1`).
+- `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">` → iOS status bar overlays content edge-to-edge.
+- `manifest.json`: `"display": "standalone"`, `"background_color": "#161618"`, `"theme_color": "#161618"`.
+
+### Icons
+Tabler icons only. Default 20px or 24px, `stroke-width: 1.5`. Tint via `text-{color}`.
+
+### Viewport targets
+Design at **Pixel 8 width (412px CSS)** first. Verify nothing breaks at **iPhone SE width (375px)** — the smallest mainstream target. Scale gracefully to tablet (768px+) and desktop, but the polish target is mobile.
 
 ---
 
@@ -171,6 +277,27 @@ Ask one targeted question rather than guessing. 30 seconds of clarification save
 - **Flag any paid-service implication immediately.** Free tier or bust.
 - **No speculative abstractions.** Build the thing in front of you. Refactor only when a second use case actually exists.
 - **Mobile-first, always.**
+
+---
+
+## How to actually build — failure modes to actively resist
+
+These are things AI coding agents default to. Override them.
+
+### Don't agree just because I said it
+If I say "this is a hack," "this is broken," or "you're wrong" — **verify before agreeing.** Read the actual code. If I'm right, agree and fix it. **If I'm wrong, push back plainly with the reason.** Sycophantic "you're right, sorry" wastes my time and lets bad patches ship. You are more useful as an honest second opinion than a yes-machine. The same applies to product direction within a session: if I push toward a design choice that contradicts something we agreed earlier, surface the contradiction.
+
+### Fix root causes, never paper over symptoms
+When a bug appears the question is **why**, not "how do I make this symptom disappear." Specifically forbidden:
+- Deleting the feature to "fix" its bug.
+- Wrapping errors in `try`/`catch` (or equivalent) to silence them.
+- Adding conditionals that work around a wrong assumption elsewhere instead of fixing the assumption.
+- "Fixing" the same bug a third time — that means the diagnosis is wrong; stop patching and re-architect that area.
+
+When a real fix is meaningfully more work than a patch, **surface the trade-off explicitly** ("quick patch is 3 lines; root cause is X and needs Y — which?") rather than silently choosing the patch.
+
+### Self-monitor for losing the plot
+Long sessions in large codebases degrade. Signs you're losing the plot: patching the same file three times, fixing the same bug repeatedly, output starts to feel hand-wavy, you're re-discovering things you already knew this session. When you notice it: **stop, commit what's stable, and propose either re-anchoring on the goal or splitting the work into a fresh session.** Don't wait for me to catch it.
 
 ---
 
