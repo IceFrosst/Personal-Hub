@@ -94,30 +94,68 @@ In a `hub` schema:
 ### Mode
 **Dark mode only.** No light mode, no system toggle.
 
-### Color tokens
-- **Background base:** `#0a0a0c` — near-black with a hint of cool gray. Not pure black (avoids OLED harshness).
-- **Surface** (cards, tiles, panels): `#16161a`
-- **Surface elevated** (modals, dropdowns, popovers): `#1f1f25`
-- **Border:** `rgba(255,255,255,0.08)` at 0.5px width
-- **Text high emphasis:** `rgba(255,255,255,0.92)`
-- **Text medium:** `rgba(255,255,255,0.65)`
-- **Text low / disabled:** `rgba(255,255,255,0.4)`
+### Color foundation — Radix Colors
+
+Use the [Radix Colors](https://www.radix-ui.com/colors) palette (`npm install @radix-ui/colors`). Purpose-built for app UI with proper dark-mode tuning and accessibility pre-tested per step. **Step semantics:** 1–2 = page backgrounds · 3–5 = UI element backgrounds (rest → hover → active) · 6–8 = borders (subtle → focus) · 9–10 = solid backgrounds (rest → hover) · 11–12 = text (low → high contrast). Stick to these conventions when picking shades.
+
+**Neutral scale: `mauve`** (subtle warm tint, complements every accent). Import `@radix-ui/colors/mauve-dark.css`.
+
+| Token | Radix var | Approx. hex |
+| ----- | --------- | ----------- |
+| Background base | `--mauve-1` | `#161618` |
+| Surface (cards, tiles, panels) | `--mauve-3` | `#232326` |
+| Surface elevated (modals, popovers) | `--mauve-4` | `#28282c` |
+| Border subtle | `--mauve-6` | `#3a3a3f` |
+| Border focus | `--mauve-8` | `#504f57` |
+| Text low / disabled | `--mauve-9` | `#7e7d86` |
+| Text medium | `--mauve-11` | `#a09fa6` |
+| Text high emphasis | `--mauve-12` | `#ededef` |
 
 ### Accent palette (for app tiles and per-app theming)
-The `color` field in `apps.json` picks one of these. Each name maps to a Tailwind class pair — implementation is a one-line lookup:
 
-| Name     | Tile bg          | Icon / text on tile |
-| -------- | ---------------- | ------------------- |
-| `coral`  | `bg-rose-400`    | `text-white`        |
-| `teal`   | `bg-teal-400`    | `text-slate-900`    |
-| `purple` | `bg-violet-400`  | `text-white`        |
-| `amber`  | `bg-amber-400`   | `text-slate-900`    |
-| `blue`   | `bg-sky-400`     | `text-white`        |
-| `pink`   | `bg-pink-400`    | `text-white`        |
-| `green`  | `bg-emerald-400` | `text-slate-900`    |
-| `gray`   | `bg-slate-700`   | `text-white`        |
+The `color` field in `apps.json` picks one of these. Each name maps to a Radix scale at **step 9** (solid background). Foreground follows Radix's contrasted-text rule per scale (amber needs a dark foreground; the rest take white).
 
-The `-400` shades are deliberate — `-500` is too saturated against near-black and creates eye strain on OLED.
+| Name     | Radix scale | Step 9 hex | Icon / text on tile |
+| -------- | ----------- | ---------- | ------------------- |
+| `coral`  | `red`       | `#e5484d`  | white               |
+| `teal`   | `teal`      | `#12a594`  | white               |
+| `purple` | `purple`    | `#8e4ec6`  | white               |
+| `amber`  | `amber`     | `#ffb224`  | `--mauve-1` (dark)  |
+| `blue`   | `blue`      | `#0090ff`  | white               |
+| `pink`   | `pink`      | `#d6409f`  | white               |
+| `green`  | `green`     | `#30a46c`  | white               |
+| `gray`   | `mauve`     | `#46464d` (step 7) | white       |
+
+Import the dark variants only: `@radix-ui/colors/{red,teal,purple,amber,blue,pink,green,mauve}-dark.css`.
+
+In `tailwind.config.js`, alias the names so `bg-coral` / `text-coral` work in JSX:
+
+```js
+theme: {
+  extend: {
+    colors: {
+      // surfaces
+      bg: 'var(--mauve-1)',
+      surface: 'var(--mauve-3)',
+      'surface-elevated': 'var(--mauve-4)',
+      border: 'var(--mauve-6)',
+      'border-focus': 'var(--mauve-8)',
+      'text-low': 'var(--mauve-9)',
+      'text-muted': 'var(--mauve-11)',
+      text: 'var(--mauve-12)',
+      // accents
+      coral: 'var(--red-9)',
+      teal: 'var(--teal-9)',
+      purple: 'var(--purple-9)',
+      amber: 'var(--amber-9)',
+      blue: 'var(--blue-9)',
+      pink: 'var(--pink-9)',
+      green: 'var(--green-9)',
+      gray: 'var(--mauve-7)',
+    },
+  },
+},
+```
 
 ### Typography
 - **Font stack:** `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif`. Renders as **SF Pro on iOS, Roboto on Android**, system sans on desktop. Native feel without shipping a custom font.
@@ -157,9 +195,9 @@ No decorative shadows. The single exception: floating UI (dropdowns, popovers, t
 - **Momentum scrolling** on scrollable containers: `-webkit-overflow-scrolling: touch`.
 
 ### PWA chrome (per-app AND hub)
-- `<meta name="theme-color" content="#0a0a0c">` → Android status bar blends into the app background.
+- `<meta name="theme-color" content="#161618">` → Android status bar blends into the app background (matches `--mauve-1`).
 - `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">` → iOS status bar overlays content edge-to-edge.
-- `manifest.json`: `"display": "standalone"`, `"background_color": "#0a0a0c"`, `"theme_color": "#0a0a0c"`.
+- `manifest.json`: `"display": "standalone"`, `"background_color": "#161618"`, `"theme_color": "#161618"`.
 
 ### Icons
 Tabler icons only. Default 20px or 24px, `stroke-width: 1.5`. Tint via `text-{color}`.
