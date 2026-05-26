@@ -121,18 +121,22 @@ In a `hub` schema:
 
 ## When I ask to ADD A NEW APP — discovery FIRST, code SECOND
 
-Do **NOT** start scaffolding or writing code until you've understood the app. Use the `AskUserQuestion` tool to walk through these **one at a time** (not all at once):
+Do **NOT** start scaffolding or writing code until you genuinely understand the app. Use the `AskUserQuestion` tool to ask **one question at a time**, picking each question to resolve the biggest remaining ambiguity given what I've already told you.
 
-1. **What problem does this solve for you, in one sentence?** If I can't answer crisply, the app isn't ready to build.
-2. **What's the simplest version that would still be useful?** Aggressively cut features. Anything beyond v1 goes on a follow-up list.
-3. **What are the 2–3 core actions a user takes in the app?** (e.g. "log a workout, view past workouts, see weekly volume per exercise")
-4. **What gets stored?** Sketch the data model — tables, columns, JSON shapes. Confirm it with me before touching schema. **Schema is additive-only forever, so the first cut matters.**
-5. **Just me, or shared with friends?** Affects RLS, sharing model, possibly schema.
-6. **Online-only, or does offline matter?** Affects PWA / service worker / local cache design.
-7. **Any external APIs needed?** If yes, confirm they're free and rate-limit-tolerant on the free tier.
-8. **Slug, icon (Tabler name), color (from the palette).** Lock these LAST, once the app's shape is clear.
+**There is no fixed number of questions. Ask as many or as few as you actually need. Stop when — and only when — you could write a 5–10 bullet plan that I'd thumbs-up without edits.** If my opening description already answers something, don't ask it again as ritual. If after ten questions you're still unclear, keep asking.
 
-After all answers, **summarize the plan back to me in 5–10 bullets and wait for a thumbs-up.** Only then start building.
+Areas typically worth probing — **not a checklist**, only touch what's still unclear:
+
+- **The problem.** What does this solve, in one sentence?
+- **The minimum viable shape.** What's the simplest version that's still useful? What can wait until v2?
+- **Core actions.** What does the user actually DO in the app? (Usually 2–3 verbs.)
+- **Data.** What gets stored? Sketch the model — tables, columns, JSON shapes. **Confirm before any schema work, because schema is additive-only forever.**
+- **Audience.** Just me, or shared with friends? Affects RLS, sharing model, sometimes data shape.
+- **Connectivity.** Online-only or does offline matter? Affects PWA / service worker design.
+- **External APIs.** Anything needed? Confirm it's free and tolerant of free-tier rate limits.
+- **Identity bits.** Slug, Tabler icon name, color from the palette. Lock LAST, once the app's shape is clear.
+
+When you're done probing, **summarize back to me in 5–10 bullets and wait for a thumbs-up.** Only then start building.
 
 When `TEMPLATE.md` exists in this repo, follow it for the mechanical scaffolding (new GitHub repo + Vercel project + branches + Supabase schema + entry in `apps.json`). It does not exist yet — it will be created **after** the first app ships, once the pattern is real and not guessed.
 
