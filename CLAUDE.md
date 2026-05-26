@@ -47,6 +47,7 @@ Policy template (no exceptions): users can only `SELECT/INSERT/UPDATE/DELETE` ro
 ## Architecture
 
 - Each app = **its own Next.js repo** + its own Vercel project + its own `*.vercel.app` URL.
+- Every personal-app repo gets the GitHub topic **`personal-apps`** so they list and filter together. (GitHub has no native "folder" for repos; the topic is how we group.)
 - Apps are **independent** — one breaking doesn't affect others.
 - The hub is **just a launcher.** It reads `config/apps.json`, renders tiles, lets the user pick a version, opens it in a new tab.
 
