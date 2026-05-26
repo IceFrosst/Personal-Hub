@@ -8,10 +8,10 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 
 ## Who and what
 
-- **User:** Ignas (`ign3107s@gmail.com`), GitHub `icefrosst`. Primarily on a Pixel 8; PC for deep work.
+- **User:** Ignas (`ign3107s@gmail.com`), GitHub `icefrosst`. 
 - **Workflow:** Everything happens in Claude Code on the web. **No local dev.** Code is pushed from cloud sessions, Vercel auto-deploys, Ignas tests on the live URL.
-- **Goal:** A growing set of small, useful PWAs that solve real problems. Each app should be shippable in 1–2 sessions. The hub lists them.
-- **Hard constraint: 100% free to run.** Vercel free tier + Supabase free tier. The only acceptable future cost is ~$12/year for a custom domain. If a request would require ANY other paid service, **stop and flag it before implementing.**
+- **Goal:** Ship PWAs fast and iterate. Each app should be shippable in 1–2 sessions. The hub lists them.
+- **Hard constraint: 100% free to run.** Vercel free tier + Supabase free tier. If a request would require ANY other paid service, **stop and flag it before implementing.**
 
 ---
 
@@ -218,7 +218,7 @@ Design at **Pixel 8 width (412px CSS)** first. Verify nothing breaks at **iPhone
 
 ## Workflow rules
 
-- **Never push directly to `main` of the hub repo without my confirmation.** Open feature branches; I'll merge.
+- **Never push directly to `main` of the hub repo without my confirmation.** Open feature branches; ask for permission to ship when we test that it works. 
 - **App repos use three permanent branches:** `stable`, `previous`, `main`. Treat them as deploy targets, not feature branches. New work lands on `main` first; promote to `stable` only when I confirm; copy old `stable` to `previous` before overwriting.
 - **Commit early, commit clear.** Each commit message says *why*, not just *what*.
 - **PR descriptions** include the live preview URL once Vercel deploys it, so I can test on phone.
@@ -229,7 +229,7 @@ Design at **Pixel 8 width (412px CSS)** first. Verify nothing breaks at **iPhone
 
 Do **NOT** start scaffolding or writing code until you genuinely understand the app. Use the `AskUserQuestion` tool to ask **one question at a time**, picking each question to resolve the biggest remaining ambiguity given what I've already told you.
 
-**There is no fixed number of questions. Ask as many or as few as you actually need. Stop when — and only when — you could write a 5–10 bullet plan that I'd thumbs-up without edits.** If my opening description already answers something, don't ask it again as ritual. If after ten questions you're still unclear, keep asking.
+**There is no fixed number of questions. Ask as many or as few as you actually need. 
 
 Areas typically worth probing — **not a checklist**, only touch what's still unclear:
 
@@ -276,7 +276,7 @@ Ask one targeted question rather than guessing. 30 seconds of clarification save
 - **Flag iron-rule conflicts loudly.** If a request would violate rule 1–4, stop and raise it.
 - **Flag any paid-service implication immediately.** Free tier or bust.
 - **No speculative abstractions.** Build the thing in front of you. Refactor only when a second use case actually exists.
-- **Mobile-first, always.** I'm reading this on a Pixel 8.
+- **Mobile-first, always.**
 
 ---
 
