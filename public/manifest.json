@@ -1,0 +1,25 @@
+{
+  "name": "Personal Apps",
+  "short_name": "Personal Apps",
+  "description": "Launcher for Ignas's personal apps.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#161618",
+  "theme_color": "#161618",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
