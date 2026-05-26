@@ -91,13 +91,81 @@ In a `hub` schema:
 
 ## Visual style — applies to the hub AND every app
 
-- Clean, flat, minimal.
-- White surfaces, **0.5px borders**, generous whitespace.
-- **No gradients. No shadows.**
-- Mobile-first (Pixel 8 viewport — design for that first, then scale up).
-- Color palette is fixed — pick `color` for each app/tile from exactly this set:
-  `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
-- Tabler icons only.
+### Mode
+**Dark mode only.** No light mode, no system toggle.
+
+### Color tokens
+- **Background base:** `#0a0a0c` — near-black with a hint of cool gray. Not pure black (avoids OLED harshness).
+- **Surface** (cards, tiles, panels): `#16161a`
+- **Surface elevated** (modals, dropdowns, popovers): `#1f1f25`
+- **Border:** `rgba(255,255,255,0.08)` at 0.5px width
+- **Text high emphasis:** `rgba(255,255,255,0.92)`
+- **Text medium:** `rgba(255,255,255,0.65)`
+- **Text low / disabled:** `rgba(255,255,255,0.4)`
+
+### Accent palette (for app tiles and per-app theming)
+The `color` field in `apps.json` picks one of these. Each name maps to a Tailwind class pair — implementation is a one-line lookup:
+
+| Name     | Tile bg          | Icon / text on tile |
+| -------- | ---------------- | ------------------- |
+| `coral`  | `bg-rose-400`    | `text-white`        |
+| `teal`   | `bg-teal-400`    | `text-slate-900`    |
+| `purple` | `bg-violet-400`  | `text-white`        |
+| `amber`  | `bg-amber-400`   | `text-slate-900`    |
+| `blue`   | `bg-sky-400`     | `text-white`        |
+| `pink`   | `bg-pink-400`    | `text-white`        |
+| `green`  | `bg-emerald-400` | `text-slate-900`    |
+| `gray`   | `bg-slate-700`   | `text-white`        |
+
+The `-400` shades are deliberate — `-500` is too saturated against near-black and creates eye strain on OLED.
+
+### Typography
+- **Font stack:** `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif`. Renders as **SF Pro on iOS, Roboto on Android**, system sans on desktop. Native feel without shipping a custom font.
+- **Scale** (Tailwind classes):
+  - Hero / page title — `text-2xl font-semibold`
+  - Section heading — `text-lg font-medium`
+  - Body — `text-base`
+  - Caption / secondary — `text-sm` + medium-emphasis color
+  - Micro / labels — `text-xs uppercase tracking-wide`
+
+### Spacing
+4px grid via Tailwind defaults. Default page padding: `px-4 py-6` on mobile, `px-6 py-8` on tablet+.
+
+### Border radius
+- Buttons, inputs, chips: `rounded-md` (6px)
+- Cards, tiles, sheets: `rounded-2xl` (16px)
+- Modal full sheets: `rounded-t-3xl` (24px) on top edge only
+- Avoid `rounded-full` except for genuinely circular elements (avatars, status dots)
+
+### Elevation
+No decorative shadows. The single exception: floating UI (dropdowns, popovers, toasts) uses `shadow-[0_8px_24px_rgba(0,0,0,0.5)]` plus a 1px highlight border `border-white/10` to lift it against the dark background — that's usability, not decoration.
+
+### Motion
+- Colors / hover / press: `transition-colors duration-150 ease-out`
+- Layout: `transition-all duration-200 ease-out`
+- Modal/sheet enter: 250ms slide-up from bottom (mobile) / fade (desktop)
+- No bouncy spring physics. Crisp, fast, exit-quickly.
+
+### Touch and platform polish (non-negotiable for native feel on both iPhone and Pixel)
+- **Min touch target:** 44×44px. Use `min-h-11 min-w-11` on tap-only elements.
+- **Disable iOS tap highlight:** `-webkit-tap-highlight-color: transparent` globally.
+- **Disable iOS text-size auto-adjust:** `-webkit-text-size-adjust: 100%` on `<html>`.
+- **Safe areas:** every full-screen layout respects `env(safe-area-inset-top/bottom/left/right)`. Critical for iPhone home indicators, notches, Dynamic Island, AND Pixel 8 gesture nav.
+- **Use `100dvh`** not `100vh` for full-height layouts (correct on dynamic mobile viewports — browser chrome / keyboard collapse).
+- **Viewport meta:** `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">` — edge-to-edge.
+- **Reset native form styling on iOS:** `appearance: none` on `<input>`, `<select>`, `<button>` (iOS Safari otherwise over-styles them).
+- **Momentum scrolling** on scrollable containers: `-webkit-overflow-scrolling: touch`.
+
+### PWA chrome (per-app AND hub)
+- `<meta name="theme-color" content="#0a0a0c">` → Android status bar blends into the app background.
+- `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">` → iOS status bar overlays content edge-to-edge.
+- `manifest.json`: `"display": "standalone"`, `"background_color": "#0a0a0c"`, `"theme_color": "#0a0a0c"`.
+
+### Icons
+Tabler icons only. Default 20px or 24px, `stroke-width: 1.5`. Tint via `text-{color}`.
+
+### Viewport targets
+Design at **Pixel 8 width (412px CSS)** first. Verify nothing breaks at **iPhone SE width (375px)** — the smallest mainstream target. Scale gracefully to tablet (768px+) and desktop, but the polish target is mobile.
 
 ---
 
