@@ -207,12 +207,25 @@ Design at **Pixel 8 width (412px CSS)** first. Verify nothing breaks at **iPhone
 
 ---
 
-## Environment variables (for context — Ignas doesn't need to set anything in cloud sessions)
+## Supabase project (`icefrosst-apps`)
 
-- Each app's deployed code needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-- These live in **Vercel's project settings** (per Vercel project, one-time setup). Both values are the same across all apps since they all share one Supabase project.
-- The anon key is public-by-design (gated by RLS); it's safe in client bundles.
-- The `service_role` key is NEVER used in app code and never committed anywhere.
+The one shared project for the whole portfolio (iron rule #3). Region: Europe. Created from `ign3107s@gmail.com`. `Enable automatic RLS` is on at the project level so every new table gets RLS by default — never disable that.
+
+**Project ref:** `qcsyihymmaktkbqfxlkl` — appears in dashboard URLs, e.g. `https://supabase.com/dashboard/project/qcsyihymmaktkbqfxlkl/sql/new` for the SQL editor.
+
+**Env vars to paste into every Vercel project** (same values for hub AND every app, since one shared Supabase project):
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://qcsyihymmaktkbqfxlkl.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc3lpaHltbWFrdGticWZ4bGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3OTI0MTAsImV4cCI6MjA5NTM2ODQxMH0.VbFjbjtPjhD36NE9Fhi4Sgcb8WbE8DU7AsLtTQs6J-8
+```
+
+- The anon key is **public by design** (RLS gates every query); safe in client bundles, safe in this file.
+- The `service_role` key is NEVER used in app code and never committed anywhere — lives only in Ignas's password manager.
+- The DB password lives only in Ignas's password manager — not needed for app code.
+
+### Deferred — revisit later
+- **Wire up Supabase GitHub integration** so schema migrations push from a repo and Supabase deploys them automatically. Requires us to first pick where migrations live (probably `supabase/migrations/` in the hub repo, or a dedicated `icefrosst-supabase` repo). Skipped during initial setup to keep friction low.
 
 ---
 
