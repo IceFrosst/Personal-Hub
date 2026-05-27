@@ -227,65 +227,71 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 
 ---
 
-## Available AI capabilities
+## Session env vars — all keys documented
 
-### `GEMINI_API_KEY` — Google Gemini (free tier, already set in session)
+All five are set in the Claude Code cloud env vars panel and available in every session. If one stops working, see the "Renew at" link for that key.
 
-- **Model to use:** `gemini-2.0-flash` — fast, capable, free
-- **API endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}`
-- **Free tier limits:** 15 requests/min, 1,500 requests/day, 1M tokens/min — more than enough for personal use
-- **Good for:** smart suggestions, summarisation, categorisation, natural language parsing, any "make this intelligent" feature
-- **Not good for:** image generation, real-time streaming UX (latency), anything needing >1M tokens in one call
+### `GITHUB_TOKEN`
+- **What it is:** GitHub Personal Access Token (classic)
+- **Used by:** GitHub MCP server — every git operation (create repo, push files, create branches, update files)
+- **Scopes needed:** `repo` (full control of private repos) + `workflow`
+- **Renew at:** github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)
+- **Expiry:** set to "No expiration" — if you set a date, update it here when it expires
+- **Notes:** Never use this token in app code or commit it. It's for Claude's build tooling only.
 
-**Important rules for any app using Gemini:**
-1. `GEMINI_API_KEY` is in the **session env** but must be **manually added to the Vercel project** after creation — it is not injected automatically like the Supabase vars
-2. **Always write a graceful fallback** for when the key is absent or the API fails — the app must still work without it, just without the smart feature
-3. Call Gemini **server-side only** (Next.js Route Handler / API route) — never expose the key to the client bundle
-4. Keep prompts tight — include only what Gemini needs; don't send full database dumps
-5. Ask for JSON output via `generationConfig: { responseMimeType: 'application/json' }` when you need structured data — avoids markdown-wrapping issues
+### `VERCEL_TOKEN`
+- **What it is:** Vercel API token scoped to your account/team
+- **Used by:** `scripts/setup-vercel-project.mjs` — creates projects, links GitHub repos, injects env vars, sets production branch
+- **Renew at:** vercel.com → Settings → Tokens → Create
+- **Expiry:** no expiry by default — revoke and recreate if compromised
+- **Notes:** Requires the `api.vercel.com` network allowlist entry to work from Claude Code sessions.
 
----
+### `VERCEL_TEAM_ID`
+- **What it is:** Your Vercel account/team ID (not a secret, but needed to scope API calls)
+- **Used by:** All Vercel API calls — appended as `?teamId=...` query param
+- **Find it at:** vercel.com → Settings → General → "Your ID" (for personal accounts) or "Team ID" (for teams)
+- **Expiry:** never changes — set once and forget
+- **Notes:** This is a stable identifier, not a secret. The value starting with `team_` is a team ID; one starting with `user_` is a personal account ID.
 
-## Full automation — env vars & network policy
+### `SUPABASE_ACCESS_TOKEN`
+- **What it is:** Supabase Personal Access Token — authenticates to the Supabase Management API
+- **Used by:** Running SQL migrations (`POST /v1/projects/{ref}/database/query`) and configuring auth redirect URLs (`PATCH /v1/projects/{ref}/config/auth`)
+- **Renew at:** supabase.com → avatar (top-right) → Account → Access Tokens → Generate new token
+- **Expiry:** does not expire unless manually revoked
+- **Notes:** Requires the `api.supabase.com` network allowlist entry. This token has full management access to all your Supabase projects — do not commit it anywhere.
 
-When the four session env vars below are set **and** the network policy allows outbound to `api.vercel.com` and `api.supabase.com`, building a new app is fully hands-off from idea to live URL. No manual dashboard steps.
+### `GEMINI_API_KEY`
+- **What it is:** Google AI Studio API key for Gemini models
+- **Used by:** App-level AI features — called server-side from Next.js API routes
+- **Model:** `gemini-2.0-flash` — fast, capable, permanently free tier
+- **Free tier limits:** 15 requests/min · 1,500 requests/day · 1M tokens/min
+- **Renew at:** aistudio.google.com → Get API key → Create API key in project `icefrosst-apps`
+- **Expiry:** does not expire unless revoked
+- **Notes:** Available in the session but **must be added manually to each Vercel project** that uses AI features — the setup script only auto-injects the Supabase public vars. Always write a graceful fallback for when this key is absent. Call Gemini server-side only — never expose the key to the client. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
 
-### Session env vars (set in the Claude Code cloud env vars panel)
+### Network policy — required allowlist additions
 
-| Var | What it unlocks |
-|-----|-----------------|
-| `GITHUB_TOKEN` | Creating repos, pushing code, branches, updating files — via GitHub MCP |
-| `VERCEL_TOKEN` | Creating Vercel projects, linking GitHub repos, setting production branch, injecting env vars |
-| `VERCEL_TEAM_ID` | Scopes all Vercel API calls to the correct team |
-| `SUPABASE_ACCESS_TOKEN` | Running SQL migrations + updating auth redirect URLs — via Supabase Management API. Get it at: supabase.com → avatar → Account → Access Tokens |
-| `GEMINI_API_KEY` | Gemini 2.0 Flash — AI features in apps. Free tier: 15 RPM / 1,500 RPD. Session-only; add manually to each Vercel project that needs it |
-
-**All five are already set in the environment.**
-
-### Network policy — add these two domains to the outbound allowlist
-
-In the Claude Code environment settings (same place as env vars), add to the network allowlist:
+For `VERCEL_TOKEN` and `SUPABASE_ACCESS_TOKEN` to actually reach their APIs from within Claude Code sessions, these two domains must be in the outbound network allowlist (same settings panel as env vars):
 - `api.vercel.com`
 - `api.supabase.com`
 
-GitHub is already allowed (GitHub MCP server requires it).
+---
 
-### Complete new-app automation checklist
+## Full automation — new app checklist
 
-With tokens + network policy in place, Claude does **all** of this without any manual steps:
+With all five tokens set and both domains allowlisted, Claude does everything below without any manual steps:
 
 1. ✅ **GitHub repo** — created via GitHub MCP
-2. ✅ **Code scaffold** — pushed to `main` via GitHub MCP (24+ files: Next.js, Tailwind, Supabase, PWA)
+2. ✅ **Code scaffold** — pushed to `main` via GitHub MCP (Next.js 15, Tailwind, Supabase SSR, PWA manifest + SW)
 3. ✅ **Branches** — `stable` and `previous` created from `main`
-4. ✅ **Vercel project** — created via `scripts/setup-vercel-project.mjs`: linked to GitHub, `stable` as production, Supabase env vars injected automatically
-5. ✅ **SQL migration** — run via `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query`
-6. ✅ **Auth redirect URL** — added via `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
+4. ✅ **Vercel project** — `scripts/setup-vercel-project.mjs`: linked to GitHub, `stable` as production, Supabase env vars injected
+5. ✅ **SQL migration** — `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query`
+6. ✅ **Auth redirect URL** — `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
 7. ✅ **apps.json** — entry added to hub repo via GitHub MCP
 
-### What will never be automated
-
-- **`GEMINI_API_KEY` in Vercel** — must be added manually per app in the Vercel dashboard (it's a secret; the setup script only injects the Supabase public vars)
-- **Testing on phone** — the whole point; a human needs to verify the live URL
+**Still manual after creation:**
+- Add `GEMINI_API_KEY` (and any other app-specific secrets) in the Vercel project dashboard
+- Test the live URL on phone
 
 ---
 
@@ -295,7 +301,7 @@ For the "speak idea into existence" flow, repetitive setup is scripted.
 
 ### `scripts/setup-vercel-project.mjs`
 
-Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, pastes the Supabase env vars. Requires `VERCEL_TOKEN` + `VERCEL_TEAM_ID` in env (set in the Claude Code cloud env vars panel — already done).
+Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, pastes the Supabase env vars. Requires `VERCEL_TOKEN` + `VERCEL_TEAM_ID` in env (already set).
 
 ```bash
 npm run setup-vercel -- --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
