@@ -214,22 +214,13 @@ The one shared project for the whole portfolio (iron rule #3). Region: Europe. C
 
 **Project ref:** `qcsyihymmaktkbqfxlkl` — appears in dashboard URLs, e.g. `https://supabase.com/dashboard/project/qcsyihymmaktkbqfxlkl/sql/new` for the SQL editor.
 
-**Env vars to paste into every Vercel project** (same values for hub AND every app, since one shared Supabase project):
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://qcsyihymmaktkbqfxlkl.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc3lpaHltbWFrdGticWZ4bGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3OTI0MTAsImV4cCI6MjA5NTM2ODQxMH0.VbFjbjtPjhD36NE9Fhi4Sgcb8WbE8DU7AsLtTQs6J-8
-```
-
-- The anon key is **public by design** (RLS gates every query); safe in client bundles, safe in this file.
-- The `service_role` key is NEVER used in app code and never committed anywhere — lives only in Ignas's password manager.
-- The DB password lives only in Ignas's password manager — not needed for app code.
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are available in the session env vars and are injected automatically into every Vercel project by the setup script. The anon key is public by design (RLS gates every query). The `service_role` key and DB password are never used in app code — live only in Ignas's password manager.
 
 ---
 
 ## Session env vars — all keys documented
 
-All five are set in the Claude Code cloud env vars panel and available in every session. If one stops working, see the "Renew at" link for that key.
+All seven are set in the Claude Code cloud env vars panel and available in every session. If one stops working, see the "Renew at" link for that key.
 
 ### `GITHUB_TOKEN`
 - **What it is:** GitHub Personal Access Token (classic)
@@ -249,16 +240,26 @@ All five are set in the Claude Code cloud env vars panel and available in every 
 ### `VERCEL_TEAM_ID`
 - **What it is:** Your Vercel account/team ID (not a secret, but needed to scope API calls)
 - **Used by:** All Vercel API calls — appended as `?teamId=...` query param
-- **Find it at:** vercel.com → Settings → General → "Your ID" (for personal accounts) or "Team ID" (for teams)
+- **Find it at:** vercel.com → Settings → General → "Your ID" (personal) or "Team ID" (team)
 - **Expiry:** never changes — set once and forget
-- **Notes:** This is a stable identifier, not a secret. The value starting with `team_` is a team ID; one starting with `user_` is a personal account ID.
 
 ### `SUPABASE_ACCESS_TOKEN`
 - **What it is:** Supabase Personal Access Token — authenticates to the Supabase Management API
 - **Used by:** Running SQL migrations (`POST /v1/projects/{ref}/database/query`) and configuring auth redirect URLs (`PATCH /v1/projects/{ref}/config/auth`)
 - **Renew at:** supabase.com → avatar (top-right) → Account → Access Tokens → Generate new token
 - **Expiry:** does not expire unless manually revoked
-- **Notes:** Requires the `api.supabase.com` network allowlist entry. This token has full management access to all your Supabase projects — do not commit it anywhere.
+- **Notes:** Requires the `api.supabase.com` network allowlist entry. Do not commit anywhere.
+
+### `NEXT_PUBLIC_SUPABASE_URL`
+- **What it is:** The URL of the shared Supabase project
+- **Used by:** Setup script injects it into every Vercel project automatically. Also available in-session for any direct Supabase API calls.
+- **Renew at:** never changes — tied to the `icefrosst-apps` project for life
+
+### `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **What it is:** The public anon key for the shared Supabase project
+- **Used by:** Setup script injects it into every Vercel project automatically. Safe to use in client-side code (RLS enforces access control).
+- **Renew at:** supabase.com → project dashboard → Settings → API — only needed if the key is regenerated
+- **Notes:** Public by design. Not a secret.
 
 ### `GEMINI_API_KEY`
 - **What it is:** Google AI Studio API key for Gemini models
@@ -267,11 +268,11 @@ All five are set in the Claude Code cloud env vars panel and available in every 
 - **Free tier limits:** 15 requests/min · 1,500 requests/day · 1M tokens/min
 - **Renew at:** aistudio.google.com → Get API key → Create API key in project `icefrosst-apps`
 - **Expiry:** does not expire unless revoked
-- **Notes:** Available in the session but **must be added manually to each Vercel project** that uses AI features — the setup script only auto-injects the Supabase public vars. Always write a graceful fallback for when this key is absent. Call Gemini server-side only — never expose the key to the client. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
+- **Notes:** Available in the session but **must be added manually to each Vercel project** that uses AI features — the setup script only auto-injects the Supabase vars. Always write a graceful fallback. Call Gemini server-side only. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
 
 ### Network policy — required allowlist additions
 
-For `VERCEL_TOKEN` and `SUPABASE_ACCESS_TOKEN` to actually reach their APIs from within Claude Code sessions, these two domains must be in the outbound network allowlist (same settings panel as env vars):
+For `VERCEL_TOKEN` and `SUPABASE_ACCESS_TOKEN` to reach their APIs from within Claude Code sessions, add to the outbound network allowlist (same settings panel as env vars):
 - `api.vercel.com`
 - `api.supabase.com`
 
@@ -279,7 +280,7 @@ For `VERCEL_TOKEN` and `SUPABASE_ACCESS_TOKEN` to actually reach their APIs from
 
 ## Full automation — new app checklist
 
-With all five tokens set and both domains allowlisted, Claude does everything below without any manual steps:
+With all tokens set and both domains allowlisted, Claude does everything below without any manual steps:
 
 1. ✅ **GitHub repo** — created via GitHub MCP
 2. ✅ **Code scaffold** — pushed to `main` via GitHub MCP (Next.js 15, Tailwind, Supabase SSR, PWA manifest + SW)
@@ -297,11 +298,9 @@ With all five tokens set and both domains allowlisted, Claude does everything be
 
 ## Bootstrap automation (`scripts/`)
 
-For the "speak idea into existence" flow, repetitive setup is scripted.
-
 ### `scripts/setup-vercel-project.mjs`
 
-Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, pastes the Supabase env vars. Requires `VERCEL_TOKEN` + `VERCEL_TEAM_ID` in env (already set).
+Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, injects the Supabase env vars from session env. Requires `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in env (all already set).
 
 ```bash
 npm run setup-vercel -- --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
