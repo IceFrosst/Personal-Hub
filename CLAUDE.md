@@ -244,12 +244,12 @@ npm run setup-vercel -- --repo workout --name icefrosst-workout
 
 See `scripts/README.md` for full docs.
 
-### Not yet scripted (manual or session-driven for now)
-- Creating the GitHub repo (`gh` CLI not installed in cloud env; the GitHub MCP tools handle this)
-- Pushing initial app scaffold + creating `stable`/`previous`/`main` branches
-- Adding the new app's entry to `hub/config/apps.json`
+### Not yet scripted (Claude handles these in-session via its tools)
+- Creating the GitHub repo — via GitHub MCP tools
+- Pushing the initial app scaffold + creating `stable` / `previous` / `main` branches — via git + Bash
+- Adding the new app's entry to `hub/config/apps.json` — via Edit + git
 
-The plan: wrap all of these into a single `/new-app` slash command once the workout app validates the manual pattern.
+These don't need a wrapper slash command. Describing what you want in a fresh session — "let's build a workout app" — triggers the whole flow because CLAUDE.md documents both the discovery questions and the tool calls. The `setup-vercel-project.mjs` script above is plumbing Claude reaches for when it needs it.
 
 ---
 

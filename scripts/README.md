@@ -35,10 +35,10 @@ Three URLs once Vercel finishes the first build:
 
 Confirm the exact preview URLs in the Vercel dashboard after the first deploy (Vercel sometimes truncates long names; the `<team-slug>` segment also depends on your team's slug).
 
-### Not yet automated (manual steps after running this)
+### Surrounding steps (Claude does these in-session, no separate script needed)
 
 1. Create the three branches on GitHub (`stable`, `previous`, `main`) — Vercel won't deploy preview branches until they exist.
 2. Add an entry to `hub/config/apps.json` with the three URLs.
 3. Push to `main` of the hub repo so the new tile shows up.
 
-The plan is to wrap all of the above (plus repo creation, scaffolding from a template, and apps.json editing) into a `/new-app` slash command. This script is the deterministic Vercel-piece of that flow.
+These happen in-session via Claude's tools (git, GitHub MCP, Edit). Describing what you want in plain English — "let's build a workout app" — triggers the whole sequence because CLAUDE.md documents the discovery and execution flow. This script is the deterministic Vercel piece Claude reaches for.
