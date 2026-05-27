@@ -227,6 +227,25 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 
 ---
 
+## Available AI capabilities
+
+### `GEMINI_API_KEY` — Google Gemini (free tier, already set in session)
+
+- **Model to use:** `gemini-2.0-flash` — fast, capable, free
+- **API endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}`
+- **Free tier limits:** 15 requests/min, 1,500 requests/day, 1M tokens/min — more than enough for personal use
+- **Good for:** smart suggestions, summarisation, categorisation, natural language parsing, any "make this intelligent" feature
+- **Not good for:** image generation, real-time streaming UX (latency), anything needing >1M tokens in one call
+
+**Important rules for any app using Gemini:**
+1. `GEMINI_API_KEY` is in the **session env** but must be **manually added to the Vercel project** after creation — it is not injected automatically like the Supabase vars
+2. **Always write a graceful fallback** for when the key is absent or the API fails — the app must still work without it, just without the smart feature
+3. Call Gemini **server-side only** (Next.js Route Handler / API route) — never expose the key to the client bundle
+4. Keep prompts tight — include only what Gemini needs; don't send full database dumps
+5. Ask for JSON output via `generationConfig: { responseMimeType: 'application/json' }` when you need structured data — avoids markdown-wrapping issues
+
+---
+
 ## Full automation — env vars & network policy
 
 When the four session env vars below are set **and** the network policy allows outbound to `api.vercel.com` and `api.supabase.com`, building a new app is fully hands-off from idea to live URL. No manual dashboard steps.
@@ -239,8 +258,9 @@ When the four session env vars below are set **and** the network policy allows o
 | `VERCEL_TOKEN` | Creating Vercel projects, linking GitHub repos, setting production branch, injecting env vars |
 | `VERCEL_TEAM_ID` | Scopes all Vercel API calls to the correct team |
 | `SUPABASE_ACCESS_TOKEN` | Running SQL migrations + updating auth redirect URLs — via Supabase Management API. Get it at: supabase.com → avatar → Account → Access Tokens |
+| `GEMINI_API_KEY` | Gemini 2.0 Flash — AI features in apps. Free tier: 15 RPM / 1,500 RPD. Session-only; add manually to each Vercel project that needs it |
 
-**All four are already set in the environment.**
+**All five are already set in the environment.**
 
 ### Network policy — add these two domains to the outbound allowlist
 
@@ -264,7 +284,7 @@ With tokens + network policy in place, Claude does **all** of this without any m
 
 ### What will never be automated
 
-- **App-specific third-party API keys** (Gemini, etc.) — secrets only Ignas holds; must be added manually in the Vercel project dashboard after creation
+- **`GEMINI_API_KEY` in Vercel** — must be added manually per app in the Vercel dashboard (it's a secret; the setup script only injects the Supabase public vars)
 - **Testing on phone** — the whole point; a human needs to verify the live URL
 
 ---
@@ -298,7 +318,7 @@ See `scripts/README.md` for full docs.
 
 Do **NOT** start scaffolding or writing code until you genuinely understand the app. Use the `AskUserQuestion` tool to ask **one question at a time**, picking each question to resolve the biggest remaining ambiguity given what I've already told you.
 
-**There is no fixed number of questions. Ask as many or as few as you actually need. 
+**There is no fixed number of questions. Ask as many or as few as you actually need.**
 
 Areas typically worth probing — **not a checklist**, only touch what's still unclear:
 
