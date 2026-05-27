@@ -225,8 +225,47 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 - The `service_role` key is NEVER used in app code and never committed anywhere — lives only in Ignas's password manager.
 - The DB password lives only in Ignas's password manager — not needed for app code.
 
-### Deferred — revisit later
-- **Wire up Supabase GitHub integration** so schema migrations push from a repo and Supabase deploys them automatically. Requires us to first pick where migrations live (probably `supabase/migrations/` in the hub repo, or a dedicated `icefrosst-supabase` repo). Skipped during initial setup to keep friction low.
+---
+
+## Full automation — env vars & network policy
+
+When the four session env vars below are set **and** the network policy allows outbound to `api.vercel.com` and `api.supabase.com`, building a new app is fully hands-off from idea to live URL. No manual dashboard steps.
+
+### Session env vars (set in the Claude Code cloud env vars panel)
+
+| Var | What it unlocks |
+|-----|-----------------|
+| `GITHUB_TOKEN` | Creating repos, pushing code, branches, updating files — via GitHub MCP |
+| `VERCEL_TOKEN` | Creating Vercel projects, linking GitHub repos, setting production branch, injecting env vars |
+| `VERCEL_TEAM_ID` | Scopes all Vercel API calls to the correct team |
+| `SUPABASE_ACCESS_TOKEN` | Running SQL migrations + updating auth redirect URLs — via Supabase Management API. Get it at: supabase.com → avatar → Account → Access Tokens |
+
+**All four are already set in the environment.**
+
+### Network policy — add these two domains to the outbound allowlist
+
+In the Claude Code environment settings (same place as env vars), add to the network allowlist:
+- `api.vercel.com`
+- `api.supabase.com`
+
+GitHub is already allowed (GitHub MCP server requires it).
+
+### Complete new-app automation checklist
+
+With tokens + network policy in place, Claude does **all** of this without any manual steps:
+
+1. ✅ **GitHub repo** — created via GitHub MCP
+2. ✅ **Code scaffold** — pushed to `main` via GitHub MCP (24+ files: Next.js, Tailwind, Supabase, PWA)
+3. ✅ **Branches** — `stable` and `previous` created from `main`
+4. ✅ **Vercel project** — created via `scripts/setup-vercel-project.mjs`: linked to GitHub, `stable` as production, Supabase env vars injected automatically
+5. ✅ **SQL migration** — run via `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query`
+6. ✅ **Auth redirect URL** — added via `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
+7. ✅ **apps.json** — entry added to hub repo via GitHub MCP
+
+### What will never be automated
+
+- **App-specific third-party API keys** (Gemini, etc.) — secrets only Ignas holds; must be added manually in the Vercel project dashboard after creation
+- **Testing on phone** — the whole point; a human needs to verify the live URL
 
 ---
 
@@ -236,20 +275,13 @@ For the "speak idea into existence" flow, repetitive setup is scripted.
 
 ### `scripts/setup-vercel-project.mjs`
 
-Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, pastes the Supabase env vars. Requires `VERCEL_TOKEN` + `VERCEL_TEAM_ID` in env (paste these into the Claude Code cloud env vars panel; available in every session afterwards).
+Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, pastes the Supabase env vars. Requires `VERCEL_TOKEN` + `VERCEL_TEAM_ID` in env (set in the Claude Code cloud env vars panel — already done).
 
 ```bash
-npm run setup-vercel -- --repo workout --name icefrosst-workout
+npm run setup-vercel -- --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
 ```
 
 See `scripts/README.md` for full docs.
-
-### Not yet scripted (Claude handles these in-session via its tools)
-- Creating the GitHub repo — via GitHub MCP tools
-- Pushing the initial app scaffold + creating `stable` / `previous` / `main` branches — via git + Bash
-- Adding the new app's entry to `hub/config/apps.json` — via Edit + git
-
-These don't need a wrapper slash command. Describing what you want in a fresh session — "let's build a workout app" — triggers the whole flow because CLAUDE.md documents both the discovery questions and the tool calls. The `setup-vercel-project.mjs` script above is plumbing Claude reaches for when it needs it.
 
 ---
 
