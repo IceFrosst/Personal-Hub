@@ -230,6 +230,29 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 
 ---
 
+## Bootstrap automation (`scripts/`)
+
+For the "speak idea into existence" flow, repetitive setup is scripted.
+
+### `scripts/setup-vercel-project.mjs`
+
+Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, pastes the Supabase env vars. Requires `VERCEL_TOKEN` + `VERCEL_TEAM_ID` in env (paste these into the Claude Code cloud env vars panel; available in every session afterwards).
+
+```bash
+npm run setup-vercel -- --repo workout --name icefrosst-workout
+```
+
+See `scripts/README.md` for full docs.
+
+### Not yet scripted (manual or session-driven for now)
+- Creating the GitHub repo (`gh` CLI not installed in cloud env; the GitHub MCP tools handle this)
+- Pushing initial app scaffold + creating `stable`/`previous`/`main` branches
+- Adding the new app's entry to `hub/config/apps.json`
+
+The plan: wrap all of these into a single `/new-app` slash command once the workout app validates the manual pattern.
+
+---
+
 ## Workflow rules
 
 - **Never push directly to `main` of the hub repo without my confirmation.** Open feature branches; ask for permission to ship when we test that it works. 
