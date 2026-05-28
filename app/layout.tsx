@@ -11,7 +11,8 @@ export const metadata: Metadata = {
     title: 'Instagram',
   },
   icons: {
-    apple: '/icons/instagram-192.svg',
+    apple: '/icons/instagram-180.png',
+    icon: '/icons/instagram-192.png',
   },
 }
 
