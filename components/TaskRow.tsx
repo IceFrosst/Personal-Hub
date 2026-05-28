@@ -8,6 +8,7 @@ type Props = {
   task: Task
   onToggle: (task: Task) => void
   onLongPress: (task: Task) => void
+  completing?: boolean
 }
 
 const PRIORITY_DOT: Record<Task['priority'], string> = {
@@ -37,7 +38,7 @@ function formatDueChip(due: string | null): { text: string; overdue: boolean } |
 
 const LONG_PRESS_MS = 500
 
-export default function TaskRow({ task, onToggle, onLongPress }: Props) {
+export default function TaskRow({ task, onToggle, onLongPress, completing }: Props) {
   const [pressing, setPressing] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const triggeredRef = useRef(false)
@@ -65,12 +66,13 @@ export default function TaskRow({ task, onToggle, onLongPress }: Props) {
   }
 
   const due = formatDueChip(task.due_date)
+  const checked = task.is_completed || !!completing
 
   return (
     <div
       className={`flex items-start gap-3 py-2.5 px-2 rounded-xl transition-colors ${
         pressing ? 'bg-surface-elevated' : ''
-      }`}
+      } ${completing ? 'lock-in-task-complete' : ''}`}
       onPointerDown={startPress}
       onPointerUp={endPress}
       onPointerLeave={endPress}
@@ -87,13 +89,17 @@ export default function TaskRow({ task, onToggle, onLongPress }: Props) {
           onToggle(task)
         }}
         aria-label={task.is_completed ? 'Mark active' : 'Mark complete'}
-        className={`mt-0.5 shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-          task.is_completed
-            ? 'bg-gold border-gold text-black'
+        className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${
+          checked
+            ? 'bg-gold/10 border-gold text-gold'
             : 'border-border-focus text-transparent active:border-gold'
         }`}
       >
-        <IconCheck size={14} stroke={3} />
+        <IconCheck
+          size={14}
+          stroke={3}
+          className={completing ? 'lock-in-check-pop' : ''}
+        />
       </button>
 
       <span
@@ -103,7 +109,7 @@ export default function TaskRow({ task, onToggle, onLongPress }: Props) {
       <div className="flex-1 min-w-0">
         <p
           className={`text-base leading-snug break-words ${
-            task.is_completed ? 'text-text-low line-through' : 'text-text'
+            checked ? 'text-text-low line-through' : 'text-text'
           }`}
         >
           {task.title}

@@ -59,3 +59,50 @@ input[type='date']::-webkit-calendar-picker-indicator {
     background-position: 100% 50%;
   }
 }
+
+@keyframes lock-in-check-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.lock-in-check-pop {
+  animation: lock-in-check-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes lock-in-task-complete {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 96px;
+  }
+  28% {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 96px;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+
+.lock-in-task-complete {
+  overflow: hidden;
+  pointer-events: none;
+  animation: lock-in-task-complete 480ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}

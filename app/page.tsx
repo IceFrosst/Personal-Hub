@@ -29,6 +29,7 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [sheetTask, setSheetTask] = useState<Task | null>(null)
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -95,16 +96,26 @@ export default function HomePage() {
   )
 
   const toggleComplete = useCallback(
-    async (task: Task) => {
-      const next = !task.is_completed
-      setTasks((prev) =>
-        next ? prev.filter((t) => t.id !== task.id) : prev
-      )
-      await supabase
+    (task: Task) => {
+      setCompletingIds((prev) => {
+        if (prev.has(task.id)) return prev
+        const next = new Set(prev)
+        next.add(task.id)
+        return next
+      })
+      void supabase
         .schema('focus_gate')
         .from('tasks')
-        .update({ is_completed: next })
+        .update({ is_completed: true })
         .eq('id', task.id)
+      setTimeout(() => {
+        setTasks((prev) => prev.filter((t) => t.id !== task.id))
+        setCompletingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(task.id)
+          return next
+        })
+      }, 480)
     },
     [supabase]
   )
@@ -159,6 +170,7 @@ export default function HomePage() {
                 task={t}
                 onToggle={toggleComplete}
                 onLongPress={setSheetTask}
+                completing={completingIds.has(t.id)}
               />
             ))
           )}
