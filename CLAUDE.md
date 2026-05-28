@@ -9,7 +9,7 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 ## Who and what
 
 - **User:** Ignas (`ign3107s@gmail.com`), GitHub `icefrosst`.
-- **Workflow:** Everything happens in Claude Code on the web. **No local dev.** Code is pushed from cloud sessions, Vercel auto-deploys, Ignas tests on the live URL.
+- **Workflow:** Primary development happens in Claude Code on the web — code is pushed from cloud sessions, Vercel auto-deploys, Ignas tests on the live URL. Local dev in the cloud sandbox is fine and encouraged when useful (iterating on visuals, sanity-checking with `next dev`), but **the source of truth is the GitHub repos** — nothing ships without being committed and pushed.
 - **Goal:** Ship PWAs fast and iterate. Each app should be shippable in 1–2 sessions. The hub lists them.
 - **Hard constraint: 100% free to run.** Vercel free tier + Supabase free tier. If a request would require ANY other paid service, **stop and flag it before implementing.**
 
