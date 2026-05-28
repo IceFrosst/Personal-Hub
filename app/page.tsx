@@ -102,16 +102,16 @@ export default function GatePage() {
           </div>
         )}
 
-        <div className="w-full flex flex-col gap-3">
+        <div className="w-full flex flex-col items-center gap-4">
           <button
             onClick={() => router.push('/tasks')}
-            className="lock-in-button w-full min-h-14 py-4 px-4 rounded-2xl text-white text-lg font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
+            className="lock-in-button w-full min-h-12 py-3 px-4 rounded-xl text-white text-base font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
           >
             Lock in
           </button>
           <button
             onClick={openInstagram}
-            className="w-full min-h-11 py-3 px-4 rounded-md bg-transparent border border-border text-text-muted text-sm transition-colors duration-150 active:opacity-80"
+            className="text-text-muted text-sm py-1 px-2 underline underline-offset-4 decoration-text-low active:opacity-60"
           >
             Having a break
           </button>
