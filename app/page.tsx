@@ -105,13 +105,13 @@ export default function GatePage() {
             onClick={() => {
               window.location.href = 'https://icefrosst-lock-in.vercel.app'
             }}
-            className="lock-in-button w-full min-h-12 py-3 px-4 rounded-xl text-white text-base font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
+            className="lock-in-gold-button w-full min-h-12 py-3 px-4 rounded-xl text-black text-base font-bold tracking-wide active:scale-[0.97] transition-transform duration-150"
           >
             Lock in
           </button>
           <button
             onClick={openInstagram}
-            className="w-full min-h-12 py-3 px-4 rounded-xl text-text-muted text-base font-medium border border-border bg-surface active:bg-surface-elevated active:text-text transition-colors"
+            className="lock-in-button w-full min-h-12 py-3 px-4 rounded-xl text-white text-base font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
           >
             Having a break
           </button>
