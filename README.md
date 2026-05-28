@@ -1,26 +1,21 @@
-# Personal Hub
+# Personal App Portfolio
 
-Launcher PWA for Ignas's personal app portfolio. Lists each app as a tile, lets users sign in with Google and pick which version of an app to open (`stable`, `previous`, `experimental`).
+Ignas's personal app portfolio — a launcher PWA that lists every app as a tile. Sign in with Google, pick a version (stable / previous / experimental), open the app.
 
-See `CLAUDE.md` for the full project spec and rules. See `SCHEMA_RULES.md` for what's safe to change in the database.
+## Apps
+
+| App | What it does |
+|-----|--------------|
+| [Focus Gate](https://icefrosst-focus-gate-personal-app.vercel.app) | Intentional Instagram replacement — shows a pause screen with a task suggestion before letting you open Instagram |
 
 ## Stack
 
-- Next.js 15 (App Router) + TypeScript
-- Tailwind CSS + Radix Colors (dark mode only, mauve neutral)
-- Supabase (Postgres + Auth, Google OAuth) — one shared project for the whole portfolio
-- Vercel free tier
+Next.js 15 · TypeScript · Tailwind CSS · Radix Colors (dark only) · Supabase (Postgres + Google OAuth) · Vercel free tier
 
-## Configuration
+## Adding a new app
 
-The list of apps lives in `config/apps.json`. Each entry needs slug, name, description, Tabler icon name, color from the palette, and the three Vercel URLs (`stable` / `previous` / `experimental`).
+Open a new Claude Code session against this repo, describe the idea, and the session handles everything: builds the code, creates the GitHub repo, sets up Vercel, runs the database migration, and registers the app in `config/apps.json`.
 
-Per iron rule #1 in `CLAUDE.md`: **no hardcoded URLs anywhere else in the codebase**. Cross-app links must read from `apps.json`.
+Each app lives in its own GitHub repo with three permanent branches (`stable` / `previous` / `main`) mapped to three Vercel deployments. The hub reads `config/apps.json` — one entry per app.
 
-## Database
-
-Migrations live in `supabase/sql/`. Paste each file into the SQL editor in the Supabase dashboard to apply. Schema is additive-only — see `SCHEMA_RULES.md`.
-
-## Deploying
-
-Push to `main` → Vercel auto-deploys. Required env vars are documented in `CLAUDE.md` under the Supabase section.
+For the full spec, rules, and automation details see `CLAUDE.md`.

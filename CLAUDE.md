@@ -8,7 +8,7 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 
 ## Who and what
 
-- **User:** Ignas (`ign3107s@gmail.com`), GitHub `icefrosst`. 
+- **User:** Ignas (`ign3107s@gmail.com`), GitHub `icefrosst`.
 - **Workflow:** Everything happens in Claude Code on the web. **No local dev.** Code is pushed from cloud sessions, Vercel auto-deploys, Ignas tests on the live URL.
 - **Goal:** Ship PWAs fast and iterate. Each app should be shippable in 1–2 sessions. The hub lists them.
 - **Hard constraint: 100% free to run.** Vercel free tier + Supabase free tier. If a request would require ANY other paid service, **stop and flag it before implementing.**
@@ -17,76 +17,74 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 
 ## The four iron rules — never violate
 
-### 1. No hardcoded URLs anywhere except `hub/config/apps.json`
+### 1. No hardcoded URLs anywhere except `config/apps.json`
 All cross-app and hub→app URLs live in that one file. This makes a future custom-domain migration a single-file diff. If you find yourself typing `vercel.app` in any code file other than `config/apps.json`, stop.
 
 ### 2. Schema is additive — forever
-Add columns / tables / JSON fields. **Never rename, never delete, never narrow a type.** Users running older versions of an app must always be able to read/write data created by newer versions. This rule applies for the entire lifetime of the project. Every app repo gets a `SCHEMA_RULES.md` documenting this; check it before any migration.
+Add columns / tables / JSON fields. **Never rename, never delete, never narrow a type.** Users running older versions of an app must always be able to read/write data created by newer versions. Every app repo gets a `SCHEMA_RULES.md`; check it before any migration.
 
-### 3. One Supabase project (`icefrosst-apps`) for all apps
-Namespace tables per app via Postgres schemas: `workout.sessions`, `hydration.logs`, `notes.entries`, etc. One Google login covers the whole portfolio. Never create a new Supabase project for a new app.
+### 3. One Supabase project for all apps
+Namespace tables per app via Postgres schemas: `focus_gate.tasks`, `workout.sessions`, etc. One Google login covers the whole portfolio. Never create a new Supabase project for a new app.
 
 ### 4. Row Level Security on every user-data table
-Policy template (no exceptions): users can only `SELECT/INSERT/UPDATE/DELETE` rows where `user_id = auth.uid()`. Every table that holds user data has a `user_id uuid references auth.users not null` column and RLS enabled before it sees real data.
+Users can only `SELECT/INSERT/UPDATE/DELETE` rows where `user_id = auth.uid()`. Every user-data table has `user_id uuid references auth.users not null` and RLS enabled. No exceptions.
 
 ---
 
 ## Stack — non-negotiable
 
-- **Framework:** Next.js (App Router) + TypeScript
-- **Styling:** Tailwind CSS
+- **Framework:** Next.js 15 (App Router) + TypeScript
+- **Styling:** Tailwind CSS + Radix Colors (dark mode only)
 - **PWA:** Every app AND the hub are installable PWAs (manifest + service worker)
-- **Hosting:** Vercel free tier, `icefrosst-*` URL prefix
+- **Hosting:** Vercel free tier, `icefrosst-*` project names
 - **Backend:** Supabase (Postgres + Auth) free tier — one shared project, Google OAuth
 - **Code:** GitHub, one repo per app + this hub repo
-- **Icons:** Tabler icons (free, large set) — map an icon-name string to the Tabler component in code
-- **Auth:** Google OAuth via Supabase, single Google account covers the portfolio
+- **Icons:** Tabler icons — map icon-name strings to Tabler components in code
+- **Auth:** Google OAuth via Supabase, single account covers the whole portfolio
 
 ---
 
 ## Architecture
 
-- Each app = **its own Next.js repo** + its own Vercel project + its own `*.vercel.app` URL.
-- Every personal-app repo gets the GitHub topic **`personal-apps`** so they list and filter together. (GitHub has no native "folder" for repos; the topic is how we group.)
-- Apps are **independent** — one breaking doesn't affect others.
-- The hub is **just a launcher.** It reads `config/apps.json`, renders tiles, lets the user pick a version, opens it in a new tab.
+Each app = its own Next.js repo + its own Vercel project + its own `*.vercel.app` URL. Apps are independent — one breaking doesn't affect others. The hub just reads `config/apps.json` and renders tiles.
 
-### Three live versions per app (via Git branches → Vercel branch deployments)
+### Three live versions per app
 
-| Branch       | Role          | URL pattern                                                   |
-| ------------ | ------------- | ------------------------------------------------------------- |
-| `stable`     | Default for users      | `icefrosst-{slug}.vercel.app`                        |
-| `previous`   | Rollback safety net    | `icefrosst-{slug}-git-previous-icefrosst.vercel.app` |
-| `main`       | Experimental / bleeding edge | `icefrosst-{slug}-git-main-icefrosst.vercel.app` |
+| Branch | Role | URL pattern |
+|--------|------|-------------|
+| `stable` | Default for users | `icefrosst-{slug}.vercel.app` |
+| `previous` | Rollback safety net | `icefrosst-{slug}-git-previous-icefrosst.vercel.app` |
+| `main` | Experimental / bleeding edge | `icefrosst-{slug}-git-main-icefrosst.vercel.app` |
 
-> The exact `-git-{branch}-{owner}.vercel.app` form is what Vercel generates by default — confirm the literal URL Vercel gives you on the first deploy and use THAT in `config/apps.json`.
+Confirm the exact Vercel-generated URLs after first deploy and use those in `config/apps.json`.
 
-### `config/apps.json` schema
+### `config/apps.json` — schema and live example
 
 ```json
 {
   "apps": [
     {
-      "slug": "workout",
-      "name": "Workout tracker",
-      "description": "Lifts, sets, PRs",
-      "icon": "barbell",
-      "color": "coral",
+      "slug": "focus-gate",
+      "name": "Focus Gate",
+      "description": "Intentional Instagram replacement",
+      "icon": "brain",
+      "color": "purple",
       "versions": {
-        "stable": "https://icefrosst-workout.vercel.app",
-        "previous": "https://icefrosst-workout-git-previous-icefrosst.vercel.app",
-        "experimental": "https://icefrosst-workout-git-main-icefrosst.vercel.app"
+        "stable": "https://icefrosst-focus-gate-personal-app.vercel.app",
+        "previous": "https://icefrosst-focus-gate-personal-app-git-previous-icefrosst.vercel.app",
+        "experimental": "https://icefrosst-focus-gate-personal-app-git-main-icefrosst.vercel.app"
       },
-      "added_at": "YYYY-MM-DD"
+      "added_at": "2026-05-27"
     }
   ]
 }
 ```
 
+Field rules: `slug` is kebab-case and matches the repo name prefix. `icon` is a Tabler icon name (no `Icon` prefix). `color` is one of: `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
+
 ### Hub-specific Supabase tables
 
-In a `hub` schema:
-- `hub.user_app_preferences` — `(user_id uuid, app_slug text, preferred_version text)` — remembers each user's default version choice per app.
+In a `hub` schema: `hub.user_app_preferences` — `(user_id uuid, app_slug text, preferred_version text)` — remembers each user's preferred version per app.
 
 ---
 
@@ -97,202 +95,162 @@ In a `hub` schema:
 
 ### Color foundation — Radix Colors
 
-Use the [Radix Colors](https://www.radix-ui.com/colors) palette (`npm install @radix-ui/colors`). Purpose-built for app UI with proper dark-mode tuning and accessibility pre-tested per step. **Step semantics:** 1–2 = page backgrounds · 3–5 = UI element backgrounds (rest → hover → active) · 6–8 = borders (subtle → focus) · 9–10 = solid backgrounds (rest → hover) · 11–12 = text (low → high contrast). Stick to these conventions when picking shades.
+Use the [Radix Colors](https://www.radix-ui.com/colors) palette (`@radix-ui/colors`). Import dark variants only. **Step semantics:** 1–2 = page backgrounds · 3–5 = UI element backgrounds · 6–8 = borders · 9–10 = solid backgrounds · 11–12 = text.
 
-**Neutral scale: `mauve`** (subtle warm tint, complements every accent). Import `@radix-ui/colors/mauve-dark.css`.
+**Neutral base: `mauve`** — import `@radix-ui/colors/mauve-dark.css`.
 
-| Token | Radix var | Approx. hex |
-| ----- | --------- | ----------- |
-| Background base | `--mauve-1` | `#161618` |
-| Surface (cards, tiles, panels) | `--mauve-3` | `#232326` |
-| Surface elevated (modals, popovers) | `--mauve-4` | `#28282c` |
+| Token | Radix var | Hex |
+|-------|-----------|-----|
+| Background | `--mauve-1` | `#161618` |
+| Surface | `--mauve-3` | `#232326` |
+| Surface elevated | `--mauve-4` | `#28282c` |
 | Border subtle | `--mauve-6` | `#3a3a3f` |
 | Border focus | `--mauve-8` | `#504f57` |
-| Text low / disabled | `--mauve-9` | `#7e7d86` |
-| Text medium | `--mauve-11` | `#a09fa6` |
-| Text high emphasis | `--mauve-12` | `#ededef` |
+| Text low | `--mauve-9` | `#7e7d86` |
+| Text muted | `--mauve-11` | `#a09fa6` |
+| Text | `--mauve-12` | `#ededef` |
 
-### Accent palette (for app tiles and per-app theming)
+### Accent palette
 
-The `color` field in `apps.json` picks one of these. Each name maps to a Radix scale at **step 9** (solid background). Foreground follows Radix's contrasted-text rule per scale (amber needs a dark foreground; the rest take white).
+| Name | Radix scale | Hex |
+|------|-------------|-----|
+| `coral` | `red` | `#e5484d` |
+| `teal` | `teal` | `#12a594` |
+| `purple` | `purple` | `#8e4ec6` |
+| `amber` | `amber` | `#ffb224` |
+| `blue` | `blue` | `#0090ff` |
+| `pink` | `pink` | `#d6409f` |
+| `green` | `green` | `#30a46c` |
+| `gray` | `mauve` step 7 | `#46464d` |
 
-| Name     | Radix scale | Step 9 hex | Icon / text on tile |
-| -------- | ----------- | ---------- | ------------------- |
-| `coral`  | `red`       | `#e5484d`  | white               |
-| `teal`   | `teal`      | `#12a594`  | white               |
-| `purple` | `purple`    | `#8e4ec6`  | white               |
-| `amber`  | `amber`     | `#ffb224`  | `--mauve-1` (dark)  |
-| `blue`   | `blue`      | `#0090ff`  | white               |
-| `pink`   | `pink`      | `#d6409f`  | white               |
-| `green`  | `green`     | `#30a46c`  | white               |
-| `gray`   | `mauve`     | `#46464d` (step 7) | white       |
+In `tailwind.config.ts`:
 
-Import the dark variants only: `@radix-ui/colors/{red,teal,purple,amber,blue,pink,green,mauve}-dark.css`.
-
-In `tailwind.config.js`, alias the names so `bg-coral` / `text-coral` work in JSX:
-
-```js
-theme: {
-  extend: {
-    colors: {
-      // surfaces
-      bg: 'var(--mauve-1)',
-      surface: 'var(--mauve-3)',
-      'surface-elevated': 'var(--mauve-4)',
-      border: 'var(--mauve-6)',
-      'border-focus': 'var(--mauve-8)',
-      'text-low': 'var(--mauve-9)',
-      'text-muted': 'var(--mauve-11)',
-      text: 'var(--mauve-12)',
-      // accents
-      coral: 'var(--red-9)',
-      teal: 'var(--teal-9)',
-      purple: 'var(--purple-9)',
-      amber: 'var(--amber-9)',
-      blue: 'var(--blue-9)',
-      pink: 'var(--pink-9)',
-      green: 'var(--green-9)',
-      gray: 'var(--mauve-7)',
-    },
-  },
-},
+```ts
+colors: {
+  bg: 'var(--mauve-1)',
+  surface: 'var(--mauve-3)',
+  'surface-elevated': 'var(--mauve-4)',
+  border: 'var(--mauve-6)',
+  'border-focus': 'var(--mauve-8)',
+  'text-low': 'var(--mauve-9)',
+  'text-muted': 'var(--mauve-11)',
+  text: 'var(--mauve-12)',
+  coral: 'var(--red-9)',
+  teal: 'var(--teal-9)',
+  purple: 'var(--purple-9)',
+  amber: 'var(--amber-9)',
+  blue: 'var(--blue-9)',
+  pink: 'var(--pink-9)',
+  green: 'var(--green-9)',
+  gray: 'var(--mauve-7)',
+}
 ```
 
 ### Typography
-- **Font stack:** `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif`. Renders as **SF Pro on iOS, Roboto on Android**, system sans on desktop. Native feel without shipping a custom font.
-- **Scale** (Tailwind classes):
-  - Hero / page title — `text-2xl font-semibold`
-  - Section heading — `text-lg font-medium`
-  - Body — `text-base`
-  - Caption / secondary — `text-sm` + medium-emphasis color
-  - Micro / labels — `text-xs uppercase tracking-wide`
+- **Font:** `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif` (SF Pro on iOS, Roboto on Android)
+- Page title: `text-2xl font-semibold` · Section: `text-lg font-medium` · Body: `text-base` · Caption: `text-sm` · Label: `text-xs uppercase tracking-wide`
 
-### Spacing
-4px grid via Tailwind defaults. Default page padding: `px-4 py-6` on mobile, `px-6 py-8` on tablet+.
-
-### Border radius
-- Buttons, inputs, chips: `rounded-md` (6px)
-- Cards, tiles, sheets: `rounded-2xl` (16px)
-- Modal full sheets: `rounded-t-3xl` (24px) on top edge only
-- Avoid `rounded-full` except for genuinely circular elements (avatars, status dots)
-
-### Elevation
-No decorative shadows. The single exception: floating UI (dropdowns, popovers, toasts) uses `shadow-[0_8px_24px_rgba(0,0,0,0.5)]` plus a 1px highlight border `border-white/10` to lift it against the dark background — that's usability, not decoration.
+### Spacing & shape
+- 4px grid (Tailwind defaults). Page padding: `px-4 py-6` mobile, `px-6 py-8` tablet+.
+- Buttons/inputs: `rounded-md` · Cards: `rounded-2xl` · Modal sheets: `rounded-t-3xl` top edge only
+- No decorative shadows. Floating UI only: `shadow-[0_8px_24px_rgba(0,0,0,0.5)]` + `border-white/10`
 
 ### Motion
-- Colors / hover / press: `transition-colors duration-150 ease-out`
+- Colors/hover: `transition-colors duration-150 ease-out`
 - Layout: `transition-all duration-200 ease-out`
-- Modal/sheet enter: 250ms slide-up from bottom (mobile) / fade (desktop)
-- No bouncy spring physics. Crisp, fast, exit-quickly.
+- No spring physics. Crisp and fast.
 
-### Touch and platform polish (non-negotiable for native feel on both iPhone and Pixel)
-- **Min touch target:** 44×44px. Use `min-h-11 min-w-11` on tap-only elements.
-- **Disable iOS tap highlight:** `-webkit-tap-highlight-color: transparent` globally.
-- **Disable iOS text-size auto-adjust:** `-webkit-text-size-adjust: 100%` on `<html>`.
-- **Safe areas:** every full-screen layout respects `env(safe-area-inset-top/bottom/left/right)`. Critical for iPhone home indicators, notches, Dynamic Island, AND Pixel 8 gesture nav.
-- **Use `100dvh`** not `100vh` for full-height layouts (correct on dynamic mobile viewports — browser chrome / keyboard collapse).
-- **Viewport meta:** `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">` — edge-to-edge.
-- **Reset native form styling on iOS:** `appearance: none` on `<input>`, `<select>`, `<button>` (iOS Safari otherwise over-styles them).
-- **Momentum scrolling** on scrollable containers: `-webkit-overflow-scrolling: touch`.
+### Touch & platform polish (non-negotiable)
+- Min touch target: 44×44px (`min-h-11 min-w-11`)
+- `-webkit-tap-highlight-color: transparent` globally
+- `-webkit-text-size-adjust: 100%` on `<html>`
+- Safe areas: `env(safe-area-inset-*)` on every full-screen layout
+- `100dvh` not `100vh`
+- Viewport: `width=device-width, initial-scale=1, viewport-fit=cover`
+- `appearance: none` on all form elements
 
-### PWA chrome (per-app AND hub)
-- `<meta name="theme-color" content="#161618">` → Android status bar blends into the app background (matches `--mauve-1`).
-- `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">` → iOS status bar overlays content edge-to-edge.
-- `manifest.json`: `"display": "standalone"`, `"background_color": "#161618"`, `"theme_color": "#161618"`.
-
-### Icons
-Tabler icons only. Default 20px or 24px, `stroke-width: 1.5`. Tint via `text-{color}`.
-
-### Viewport targets
-Design at **Pixel 8 width (412px CSS)** first. Verify nothing breaks at **iPhone SE width (375px)** — the smallest mainstream target. Scale gracefully to tablet (768px+) and desktop, but the polish target is mobile.
+### PWA
+- `theme-color`: `#161618`
+- `apple-mobile-web-app-status-bar-style`: `black-translucent`
+- `manifest.json`: `display: standalone`, `background_color: #161618`
+- Icons: Tabler, 20–24px, `stroke-width: 1.5`
+- Design viewport: Pixel 8 (412px). Verify at iPhone SE (375px).
 
 ---
 
 ## Supabase project (`icefrosst-apps`)
 
-The one shared project for the whole portfolio (iron rule #3). Region: Europe. Created from `ign3107s@gmail.com`. `Enable automatic RLS` is on at the project level so every new table gets RLS by default — never disable that.
+One shared project for the whole portfolio (iron rule #3). Region: Europe. Project ref: `qcsyihymmaktkbqfxlkl`.
 
-**Project ref:** `qcsyihymmaktkbqfxlkl` — appears in dashboard URLs, e.g. `https://supabase.com/dashboard/project/qcsyihymmaktkbqfxlkl/sql/new` for the SQL editor.
-
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are available in the session env vars and are injected automatically into every Vercel project by the setup script. The anon key is public by design (RLS gates every query). The `service_role` key and DB password are never used in app code — live only in Ignas's password manager.
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are in the session env vars and are injected automatically into every Vercel project by the setup script. The anon key is public by design (RLS gates every query). The `service_role` key and DB password are never in app code — Ignas's password manager only.
 
 ---
 
-## Session env vars — all keys documented
+## Session env vars — all keys
 
-All seven are set in the Claude Code cloud env vars panel and available in every session. If one stops working, see the "Renew at" link for that key.
+All set in the Claude Code cloud env vars panel. Available every session.
 
 ### `GITHUB_TOKEN`
-- **What it is:** GitHub Personal Access Token (classic)
-- **Used by:** GitHub MCP server — every git operation (create repo, push files, create branches, update files)
-- **Scopes needed:** `repo` (full control of private repos) + `workflow`
-- **Renew at:** github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)
-- **Expiry:** set to "No expiration" — if you set a date, update it here when it expires
-- **Notes:** Never use this token in app code or commit it. It's for Claude's build tooling only.
+- GitHub Personal Access Token (classic), scopes: `repo` + `workflow`
+- Used by the GitHub MCP server for all git operations
+- Renew: github.com → Settings → Developer settings → Personal access tokens
+- Set to no expiration; update here if you add a date
 
 ### `VERCEL_TOKEN`
-- **What it is:** Vercel API token scoped to your account/team
-- **Used by:** `scripts/setup-vercel-project.mjs` — creates projects, links GitHub repos, injects env vars, sets production branch
-- **Renew at:** vercel.com → Settings → Tokens → Create
-- **Expiry:** no expiry by default — revoke and recreate if compromised
-- **Notes:** Requires the `api.vercel.com` network allowlist entry to work from Claude Code sessions.
+- Vercel API token
+- Used by `scripts/setup-vercel-project.mjs`
+- Renew: vercel.com → Settings → Tokens
+- Requires `api.vercel.com` in the network allowlist
 
 ### `VERCEL_TEAM_ID`
-- **What it is:** Your Vercel account/team ID (not a secret, but needed to scope API calls)
-- **Used by:** All Vercel API calls — appended as `?teamId=...` query param
-- **Find it at:** vercel.com → Settings → General → "Your ID" (personal) or "Team ID" (team)
-- **Expiry:** never changes — set once and forget
+- Vercel account/team ID — scopes API calls
+- Find: vercel.com → Settings → General → Your ID
+- Never changes
 
 ### `SUPABASE_ACCESS_TOKEN`
-- **What it is:** Supabase Personal Access Token — authenticates to the Supabase Management API
-- **Used by:** Running SQL migrations (`POST /v1/projects/{ref}/database/query`) and configuring auth redirect URLs (`PATCH /v1/projects/{ref}/config/auth`)
-- **Renew at:** supabase.com → avatar (top-right) → Account → Access Tokens → Generate new token
-- **Expiry:** does not expire unless manually revoked
-- **Notes:** Requires the `api.supabase.com` network allowlist entry. Do not commit anywhere.
+- Supabase Personal Access Token — Supabase Management API
+- Used to run SQL migrations and set auth redirect URLs
+- Renew: supabase.com → avatar → Account → Access Tokens
+- Requires `api.supabase.com` in the network allowlist
+- Do not commit anywhere
 
 ### `NEXT_PUBLIC_SUPABASE_URL`
-- **What it is:** The URL of the shared Supabase project
-- **Used by:** Setup script injects it into every Vercel project automatically. Also available in-session for any direct Supabase API calls.
-- **Renew at:** never changes — tied to the `icefrosst-apps` project for life
+- URL of the shared Supabase project. Never changes.
+- Injected into every Vercel project automatically by the setup script
 
 ### `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- **What it is:** The public anon key for the shared Supabase project
-- **Used by:** Setup script injects it into every Vercel project automatically. Safe to use in client-side code (RLS enforces access control).
-- **Renew at:** supabase.com → project dashboard → Settings → API — only needed if the key is regenerated
-- **Notes:** Public by design. Not a secret.
+- Public anon key. Safe in client bundles (RLS enforces access).
+- Injected into every Vercel project automatically by the setup script
+- Renew only if regenerated: supabase.com → project → Settings → API
 
 ### `GEMINI_API_KEY`
-- **What it is:** Google AI Studio API key for Gemini models
-- **Used by:** App-level AI features — called server-side from Next.js API routes
-- **Model:** `gemini-2.0-flash` — fast, capable, permanently free tier
-- **Free tier limits:** 15 requests/min · 1,500 requests/day · 1M tokens/min
-- **Renew at:** aistudio.google.com → Get API key → Create API key in project `icefrosst-apps`
-- **Expiry:** does not expire unless revoked
-- **Notes:** Available in the session but **must be added manually to each Vercel project** that uses AI features — the setup script only auto-injects the Supabase vars. Always write a graceful fallback. Call Gemini server-side only. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
+- Google AI Studio key, project `icefrosst-apps`
+- Model: `gemini-2.0-flash` — free tier: 15 req/min, 1,500 req/day
+- Renew: aistudio.google.com → Get API key
+- **Must be added manually to each Vercel project that uses AI** — setup script only injects Supabase vars
+- Call server-side only. Always write a graceful fallback. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
 
-### Network policy — required allowlist additions
+### Network allowlist
 
-For `VERCEL_TOKEN` and `SUPABASE_ACCESS_TOKEN` to reach their APIs from within Claude Code sessions, add to the outbound network allowlist (same settings panel as env vars):
-- `api.vercel.com`
-- `api.supabase.com`
+Add these to the outbound allowlist in Claude Code environment settings:
+- `api.vercel.com` — needed for Vercel project creation
+- `api.supabase.com` — needed for SQL migrations and auth config
 
 ---
 
 ## Full automation — new app checklist
 
-With all tokens set and both domains allowlisted, Claude does everything below without any manual steps:
+With all tokens set and both domains allowlisted, Claude does all of this without manual steps:
 
-1. ✅ **GitHub repo** — created via GitHub MCP
-2. ✅ **Code scaffold** — pushed to `main` via GitHub MCP (Next.js 15, Tailwind, Supabase SSR, PWA manifest + SW)
-3. ✅ **Branches** — `stable` and `previous` created from `main`
-4. ✅ **Vercel project** — `scripts/setup-vercel-project.mjs`: linked to GitHub, `stable` as production, Supabase env vars injected
+1. ✅ **GitHub repo** — `mcp__github__create_repository`
+2. ✅ **Code scaffold** — `mcp__github__push_files` to `main` (Next.js 15, Tailwind, Supabase SSR, PWA)
+3. ✅ **Branches** — `stable` and `previous` from `main`
+4. ✅ **Vercel project** — `node scripts/setup-vercel-project.mjs --repo <repo> --name icefrosst-<repo>`
 5. ✅ **SQL migration** — `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query`
 6. ✅ **Auth redirect URL** — `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
-7. ✅ **apps.json** — entry added to hub repo via GitHub MCP
+7. ✅ **apps.json** — entry added to hub via GitHub MCP
 
-**Still manual after creation:**
-- Add `GEMINI_API_KEY` (and any other app-specific secrets) in the Vercel project dashboard
-- Test the live URL on phone
+**Still manual:** add `GEMINI_API_KEY` in Vercel dashboard + test on phone.
 
 ---
 
@@ -300,101 +258,83 @@ With all tokens set and both domains allowlisted, Claude does everything below w
 
 ### `scripts/setup-vercel-project.mjs`
 
-Creates a Vercel project for a new app, links it to its GitHub repo, sets `stable` as production branch, injects the Supabase env vars from session env. Requires `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in env (all already set).
+Creates a Vercel project, links it to its GitHub repo, sets `stable` as production, injects Supabase env vars from session env. Usage:
 
 ```bash
-npm run setup-vercel -- --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
+node scripts/setup-vercel-project.mjs --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
 ```
-
-See `scripts/README.md` for full docs.
 
 ---
 
 ## Workflow rules
 
-- **Never push directly to `main` of the hub repo without my confirmation.** Open feature branches; ask for permission to ship when we test that it works. 
-- **App repos use three permanent branches:** `stable`, `previous`, `main`. Treat them as deploy targets, not feature branches. New work lands on `main` first; promote to `stable` only when I confirm; copy old `stable` to `previous` before overwriting.
-- **Commit early, commit clear.** Each commit message says *why*, not just *what*.
-- **PR descriptions** include the live preview URL once Vercel deploys it, so I can test on phone.
+- **Never push directly to `main` of the hub repo without confirmation.**
+- **App repos: three permanent branches** — `stable`, `previous`, `main`. New work on `main`; promote to `stable` only when confirmed; copy old `stable` to `previous` first.
+- **Commit messages say why, not just what.**
 
 ---
 
-## When I ask to ADD A NEW APP — discovery FIRST, code SECOND
+## When asked to ADD A NEW APP — discovery first
 
-Do **NOT** start scaffolding or writing code until you genuinely understand the app. Use the `AskUserQuestion` tool to ask **one question at a time**, picking each question to resolve the biggest remaining ambiguity given what I've already told you.
+Do **not** start building until the app is understood. Ask one question at a time with `AskUserQuestion`, picking whichever resolves the biggest remaining ambiguity:
 
-**There is no fixed number of questions. Ask as many or as few as you actually need.**
+- **The problem** — one sentence
+- **Minimum shape** — simplest useful version; what's v2?
+- **Core actions** — what does the user DO? (2–3 verbs)
+- **Data model** — tables, columns. Confirm before any schema work — it's additive forever
+- **Audience** — just Ignas, or shared?
+- **Offline?** — affects PWA/SW design
+- **External APIs** — must be free tier
+- **Identity** — slug, Tabler icon, palette color (lock last)
 
-Areas typically worth probing — **not a checklist**, only touch what's still unclear:
-
-- **The problem.** What does this solve, in one sentence?
-- **The minimum viable shape.** What's the simplest version that's still useful? What can wait until v2?
-- **Core actions.** What does the user actually DO in the app? (Usually 2–3 verbs.)
-- **Data.** What gets stored? Sketch the model — tables, columns, JSON shapes. **Confirm before any schema work, because schema is additive-only forever.**
-- **Audience.** Just me, or shared with friends? Affects RLS, sharing model, sometimes data shape.
-- **Connectivity.** Online-only or does offline matter? Affects PWA / service worker design.
-- **External APIs.** Anything needed? Confirm it's free and tolerant of free-tier rate limits.
-- **Identity bits.** Slug, Tabler icon name, color from the palette. Lock LAST, once the app's shape is clear.
-
-When you're done probing, **summarize back to me in 5–10 bullets and wait for a thumbs-up.** Only then start building.
-
-When `TEMPLATE.md` exists in this repo, follow it for the mechanical scaffolding (new GitHub repo + Vercel project + branches + Supabase schema + entry in `apps.json`). It does not exist yet — it will be created **after** the first app ships, once the pattern is real and not guessed.
+Summarise in 5–10 bullets and wait for thumbs-up. Then follow the **Full automation checklist** above.
 
 ---
 
-## When I ask to MODIFY AN EXISTING APP
+## When asked to MODIFY AN EXISTING APP
 
-That work belongs in **that app's own repo**, not this hub repo. Tell me to open a new session against the right repo. The only modifications that belong here:
-
-- Adding/editing an entry in `config/apps.json` (new app, new version URL, renamed app).
-- Hub-itself bugs and features.
-- Editing this CLAUDE.md or the eventual TEMPLATE.md.
-
----
-
-## When I ask anything else
-
-Even for small features, do a mini-discovery before coding:
-- What does "done" look like?
-- Is there a simpler way that gets 80% of the value?
-- Does this conflict with any iron rule?
-
-Ask one targeted question rather than guessing. 30 seconds of clarification saves an hour of rework.
+That work belongs in the app's own repo. The only changes that belong here:
+- Adding/editing `config/apps.json`
+- Hub bugs and features
+- Editing this `CLAUDE.md`
 
 ---
 
 ## What I want from you
 
-- **Be concise.** I don't want a wall of text for a small change.
-- **Ask, don't assume.** Especially on data model, naming, and anything user-visible.
-- **Flag iron-rule conflicts loudly.** If a request would violate rule 1–4, stop and raise it.
-- **Flag any paid-service implication immediately.** Free tier or bust.
-- **No speculative abstractions.** Build the thing in front of you. Refactor only when a second use case actually exists.
+- **Concise.** No wall of text for small changes.
+- **Ask, don't assume.** Especially on data model and anything user-visible.
+- **Flag iron-rule conflicts loudly.**
+- **Flag paid services immediately.** Free tier or bust.
+- **No speculative abstractions.** Build what's in front of you.
 - **Mobile-first, always.**
 
 ---
 
-## How to actually build — failure modes to actively resist
-
-These are things AI coding agents default to. Override them.
+## How to actually build — failure modes to resist
 
 ### Don't agree just because I said it
-If I say "this is a hack," "this is broken," or "you're wrong" — **verify before agreeing.** Read the actual code. If I'm right, agree and fix it. **If I'm wrong, push back plainly with the reason.** Sycophantic "you're right, sorry" wastes my time and lets bad patches ship. You are more useful as an honest second opinion than a yes-machine. The same applies to product direction within a session: if I push toward a design choice that contradicts something we agreed earlier, surface the contradiction.
+Verify before agreeing. If I'm wrong, push back with the reason. Sycophancy lets bad patches ship.
 
-### Fix root causes, never paper over symptoms
-When a bug appears the question is **why**, not "how do I make this symptom disappear." Specifically forbidden:
-- Deleting the feature to "fix" its bug.
-- Wrapping errors in `try`/`catch` (or equivalent) to silence them.
-- Adding conditionals that work around a wrong assumption elsewhere instead of fixing the assumption.
-- "Fixing" the same bug a third time — that means the diagnosis is wrong; stop patching and re-architect that area.
-
-When a real fix is meaningfully more work than a patch, **surface the trade-off explicitly** ("quick patch is 3 lines; root cause is X and needs Y — which?") rather than silently choosing the patch.
+### Fix root causes, never symptoms
+- Don't delete the feature to fix its bug
+- Don't silence errors with try/catch
+- Don't work around a wrong assumption instead of fixing it
+- Third time fixing the same bug = wrong diagnosis; re-architect
 
 ### Self-monitor for losing the plot
-Long sessions in large codebases degrade. Signs you're losing the plot: patching the same file three times, fixing the same bug repeatedly, output starts to feel hand-wavy, you're re-discovering things you already knew this session. When you notice it: **stop, commit what's stable, and propose either re-anchoring on the goal or splitting the work into a fresh session.** Don't wait for me to catch it.
+Signs: patching the same file three times, re-discovering things already known, hand-wavy output. When noticed: stop, commit what's stable, re-anchor or split to a fresh session.
 
 ---
 
 ## Current phase
 
-**Phase 1 — Bootstrap.** Setting up Supabase, building the hub, building the first real app (workout tracker) as the pattern-establisher. See the original spec discussed in session for the step-by-step. Once the first app is live and `TEMPLATE.md` exists, new apps should be 20-minute conversations.
+**Focus Gate shipped (first app).** Code is complete and pushed to GitHub — `main`, `stable`, and `previous` branches all exist in `icefrosst/focus-gate-personal-app`.
+
+**Pending — blocked by network policy:**
+- Vercel project creation (`api.vercel.com` not yet allowlisted)
+- SQL migration (`api.supabase.com` not yet allowlisted)
+
+To unblock: add `api.vercel.com` and `api.supabase.com` to the outbound allowlist in Claude Code environment settings. After that, both steps run automatically and the app will be live.
+
+Once Focus Gate is live and confirmed working, the full automation loop is proven and new apps can go from idea to live URL without any manual steps (except adding app-specific secrets in Vercel and testing on phone).
