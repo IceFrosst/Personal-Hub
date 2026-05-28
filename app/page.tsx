@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const IG_GRADIENT =
   'linear-gradient(135deg, #feda75 0%, #fa7e1e 22%, #d62976 50%, #962fbf 75%, #4f5bd5 100%)'
 
 export default function GatePage() {
-  const router = useRouter()
   const [suggestion, setSuggestion] = useState<{
     taskId: string
     taskTitle: string
@@ -104,7 +102,9 @@ export default function GatePage() {
 
         <div className="w-full flex flex-col items-center gap-4">
           <button
-            onClick={() => router.push('/tasks')}
+            onClick={() => {
+              window.location.href = 'https://icefrosst-lock-in.vercel.app'
+            }}
             className="lock-in-button w-full min-h-12 py-3 px-4 rounded-xl text-white text-base font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
           >
             Lock in
