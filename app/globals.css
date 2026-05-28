@@ -34,3 +34,32 @@ textarea {
   -webkit-appearance: none;
   appearance: none;
 }
+
+.splash-logo {
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 28px rgba(214, 41, 118, 0.35);
+  animation: splash-pop 900ms ease-out both;
+}
+
+@keyframes splash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  65% {
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

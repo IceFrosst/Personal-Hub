@@ -4,8 +4,8 @@
   "description": "Focus Gate",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#161618",
-  "theme_color": "#161618",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -21,7 +21,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icons/instagram-512.png",
+      "src": "/icons/instagram-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
