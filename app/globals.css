@@ -32,24 +32,28 @@ input[type='date']::-webkit-calendar-picker-indicator {
   pointer-events: none;
 }
 
+.lock-in-logo {
+  /* bare container — no background, no frame, no halo */
+}
+
 .lock-in-logo-bolt {
+  position: absolute;
+  inset: 0;
   background-image: linear-gradient(
     105deg,
     #ffe066 0%,
     #ffd700 20%,
-    #ffffff 38%,
-    #ffd700 52%,
-    #f5b800 70%,
-    #ffd700 84%,
+    #ffffff 40%,
+    #ffd700 55%,
+    #f5b800 72%,
+    #ffd700 86%,
     #ffe066 100%
   );
   background-size: 300% 300%;
   background-position: 0% 50%;
   animation: lock-in-shimmer-strong 4s ease-in-out infinite;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  -webkit-mask: url('/bolt-mask.svg') center / 80% no-repeat;
+  mask: url('/bolt-mask.svg') center / 80% no-repeat;
 }
 
 .lock-in-gold-button {
