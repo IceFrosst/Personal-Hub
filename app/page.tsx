@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Task } from '@/lib/types'
 
 export default function GatePage() {
   const router = useRouter()
