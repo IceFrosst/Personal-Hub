@@ -35,31 +35,31 @@ textarea {
   appearance: none;
 }
 
-.splash-logo {
-  width: 6.5rem;
-  height: 6.5rem;
-  border-radius: 9999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 28px rgba(214, 41, 118, 0.35);
-  animation: splash-pop 900ms ease-out both;
+.lock-in-button {
+  background-image: linear-gradient(
+    120deg,
+    #feda75 0%,
+    #fa7e1e 18%,
+    #d62976 38%,
+    #962fbf 58%,
+    #4f5bd5 78%,
+    #d62976 100%
+  );
+  background-size: 220% 220%;
+  background-position: 0% 50%;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 10px 30px -8px rgba(214, 41, 118, 0.55),
+    0 4px 14px -4px rgba(150, 47, 191, 0.45);
+  animation: lock-in-shimmer 8s ease-in-out infinite;
 }
 
-@keyframes splash-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.55);
-  }
-  40% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-  65% {
-    transform: scale(0.98);
-  }
+@keyframes lock-in-shimmer {
+  0%,
   100% {
-    opacity: 1;
-    transform: scale(1);
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
   }
 }

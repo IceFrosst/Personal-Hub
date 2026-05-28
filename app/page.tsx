@@ -14,14 +14,11 @@ export default function GatePage() {
     taskTitle: string
     reason: string
   } | null>(null)
-  const [showSplash, setShowSplash] = useState(true)
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
-
-    const t = setTimeout(() => setShowSplash(false), 900)
 
     async function loadSuggestion() {
       const supabase = createClient()
@@ -53,14 +50,11 @@ export default function GatePage() {
     }
 
     loadSuggestion()
-    return () => clearTimeout(t)
   }, [])
 
   function openInstagram() {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
     if (/Android/i.test(ua)) {
-      // Android intent: launches the installed Instagram app, falls back to
-      // the web profile only if the app isn't installed.
       window.location.href =
         'intent://instagram.com/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com;end'
       return
@@ -77,51 +71,16 @@ export default function GatePage() {
 
   return (
     <main
-      className="relative flex flex-col items-center justify-center px-4 bg-black overflow-hidden"
+      className="flex flex-col items-center justify-center px-4 bg-black"
       style={{
         minHeight: '100dvh',
         paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
         paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
       }}
     >
-      {/* Animated splash overlay */}
-      <div
-        aria-hidden
-        className={`pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black transition-opacity duration-500 ${
-          showSplash ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <div className="splash-logo" style={{ background: IG_GRADIENT }}>
-          <svg
-            viewBox="0 0 48 48"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-1/2 h-1/2"
-          >
-            <rect
-              x="8"
-              y="8"
-              width="32"
-              height="32"
-              rx="10"
-              stroke="white"
-              strokeWidth="3"
-              fill="none"
-            />
-            <circle cx="24" cy="24" r="8" stroke="white" strokeWidth="3" fill="none" />
-            <circle cx="34.5" cy="13.5" r="2" fill="white" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Gate content (fades in after splash) */}
-      <div
-        className={`w-full max-w-[340px] flex flex-col items-center transition-opacity duration-500 ${
-          showSplash ? 'opacity-0' : 'opacity-100'
-        }`}
-      >
+      <div className="w-full max-w-[340px] flex flex-col items-center">
         <h1
-          className="text-7xl font-black tracking-tight mb-10 select-none"
+          className="text-7xl font-black tracking-tight mb-12 select-none"
           style={{
             backgroundImage: IG_GRADIENT,
             WebkitBackgroundClip: 'text',
@@ -145,17 +104,16 @@ export default function GatePage() {
 
         <div className="w-full flex flex-col gap-3">
           <button
-            onClick={openInstagram}
-            className="w-full min-h-11 py-3 px-4 rounded-md text-white text-base font-semibold transition-transform duration-150 active:scale-[0.98]"
-            style={{ background: IG_GRADIENT }}
-          >
-            Having a break
-          </button>
-          <button
             onClick={() => router.push('/tasks')}
-            className="w-full min-h-11 py-3 px-4 rounded-md bg-surface border border-border text-text text-base transition-colors duration-150 active:opacity-80"
+            className="lock-in-button w-full min-h-14 py-4 px-4 rounded-2xl text-white text-lg font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
           >
             Lock in
+          </button>
+          <button
+            onClick={openInstagram}
+            className="w-full min-h-11 py-3 px-4 rounded-md bg-transparent border border-border text-text-muted text-sm transition-colors duration-150 active:opacity-80"
+          >
+            Having a break
           </button>
         </div>
       </div>
