@@ -29,6 +29,7 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [sheetTask, setSheetTask] = useState<Task | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -69,7 +70,7 @@ export default function HomePage() {
   const addTask = useCallback(
     async (title: string, priority: Priority, dueDate: string | null) => {
       if (!userId) return
-      const { data, error } = await supabase
+      const { data, error: insertError } = await supabase
         .schema('focus_gate')
         .from('tasks')
         .insert({
@@ -81,7 +82,12 @@ export default function HomePage() {
         })
         .select()
         .single()
-      if (!error && data) {
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+      if (data) {
+        setError(null)
         setTasks((prev) => [...prev, data as Task])
       }
     },
@@ -129,6 +135,15 @@ export default function HomePage() {
         </header>
 
         <AddTaskBar onAdd={addTask} disabled={!userId} />
+
+        {error && (
+          <p
+            role="alert"
+            className="text-priority-high text-xs px-2 -mt-2 leading-snug"
+          >
+            Couldn&apos;t save: {error}
+          </p>
+        )}
 
         <section className="mt-2 flex flex-col">
           {loading ? (
