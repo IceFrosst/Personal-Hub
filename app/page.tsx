@@ -111,7 +111,7 @@ export default function GatePage() {
           </button>
           <button
             onClick={openInstagram}
-            className="text-text-muted text-sm py-1 px-2 underline underline-offset-4 decoration-text-low active:opacity-60"
+            className="w-full min-h-12 py-3 px-4 rounded-xl text-text-muted text-base font-medium border border-border bg-surface active:bg-surface-elevated active:text-text transition-colors"
           >
             Having a break
           </button>
