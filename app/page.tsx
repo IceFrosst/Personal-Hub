@@ -100,18 +100,18 @@ export default function GatePage() {
           </div>
         )}
 
-        <div className="flex flex-col items-stretch gap-3 w-fit mx-auto">
+        <div className="flex flex-col items-stretch gap-2.5 w-[150px] mx-auto">
           <button
             onClick={() => {
               window.location.href = 'https://icefrosst-lock-in.vercel.app'
             }}
-            className="lock-in-gold-button min-h-12 py-3 px-8 rounded-xl text-black text-base font-bold tracking-wide active:scale-[0.97] transition-transform duration-150"
+            className="lock-in-gold-button min-h-11 py-2.5 px-4 rounded-xl text-black text-base font-bold tracking-wide text-center whitespace-nowrap active:scale-[0.97] transition-transform duration-150"
           >
             Lock in
           </button>
           <button
             onClick={openInstagram}
-            className="lock-in-button min-h-12 py-3 px-8 rounded-xl text-white text-base font-bold tracking-wide active:scale-[0.98] transition-transform duration-150"
+            className="lock-in-button min-h-11 py-2.5 px-4 rounded-xl text-white text-base font-bold tracking-wide text-center whitespace-nowrap active:scale-[0.98] transition-transform duration-150"
           >
             Having a break
           </button>
