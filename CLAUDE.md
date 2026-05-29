@@ -1,8 +1,15 @@
 # Personal app portfolio — hub repo
 
-This is **Ignas's personal app portfolio**. This repo is the **hub** — a launcher that lists every app I've built and lets me (and friends I share with) pick which version of each to open. Each "app" is a separate GitHub repo, with its own Vercel deployment, listed here as a tile.
+This is **Ignas's personal app portfolio**. This repo is the **hub** — a launcher that lists every app I've built and lets me (and friends I share with) pick which version of each to open. Each "app" is a folder under `apps/`, with its own Vercel deployment, listed here as a tile.
 
 > Read this whole file before doing anything. The rules below are not suggestions — they are the project's spine.
+
+> **Monorepo (since 2026-05-29):** the portfolio is now a single repo. Each app lives in
+> `apps/<name>/` (`apps/hub`, `apps/focus-gate`, `apps/lock-in`); shared docs live at the
+> root (`CLAUDE.md`, `SCHEMA_RULES.md`). Tooling is npm workspaces + Turborepo. A new app is
+> a new folder under `apps/` — no new GitHub repo, no new access grant. Some sections below
+> still describe the old "one repo per app" / per-app-branch workflow and are **pending
+> revision in the next audit pass.**
 
 ---
 
