@@ -13,8 +13,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "@supabase/ssr": "^0.6.0",
-    "@supabase/supabase-js": "^2.45.0",
-    "@tabler/icons-react": "^3.28.0"
+    "@supabase/supabase-js": "^2.49.0",
+    "@tabler/icons-react": "^3.34.0"
   },
   "devDependencies": {
     "@types/node": "^20",
