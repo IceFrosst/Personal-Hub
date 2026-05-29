@@ -87,6 +87,22 @@ In a `hub` schema: `hub.user_app_preferences` — `(user_id, app_slug, preferred
 
 ---
 
+## Per-app context files (`apps/<name>/CLAUDE.md`)
+
+Every app folder carries **two docs**, and every app must have both:
+
+- **`apps/<name>/README.md`** — human / GitHub facing: what the app is, the idea, how to run it.
+- **`apps/<name>/CLAUDE.md`** — Claude facing: the technical context for working *inside* that app. Claude Code **auto-loads a nested `CLAUDE.md` when you touch files in its folder**, so app-specific rules belong here (the README is *not* auto-loaded into context).
+
+Every `apps/<name>/CLAUDE.md` uses these sections, in order:
+**Stack · Conventions · Data model · Gotchas · Current state · Next**.
+
+**Keep `Current state` and `Next` live.** Update them as part of the same change — after every interaction that alters the app, not only at the end of a session. They must always describe the app as it is *right now* and what's queued next. No dates; just the two sections.
+
+So: when you start work in an app, **read its `CLAUDE.md`**; when you change it, **update that file's `Current state` / `Next`**. This root file stays portfolio-wide; app-specific detail lives in each app's `CLAUDE.md`.
+
+---
+
 ## Visual style — applies to the hub AND every app
 
 ### Mode
@@ -241,7 +257,7 @@ Add these to the outbound allowlist in Claude Code environment settings:
 
 With all tokens set and both domains allowlisted, a new app goes from idea to live with no new repo:
 
-1. ✅ **App folder** — scaffold under `apps/<name>` (Next.js 15, Tailwind, Supabase SSR, PWA); it joins the workspace automatically via the `apps/*` glob
+1. ✅ **App folder + docs** — scaffold under `apps/<name>` (Next.js 15, Tailwind, Supabase SSR, PWA); it joins the workspace automatically via the `apps/*` glob. **Create `apps/<name>/README.md` and `apps/<name>/CLAUDE.md`** (CLAUDE.md sections: Stack · Conventions · Data model · Gotchas · Current state · Next — see *Per-app context files*)
 2. ✅ **Register** — add the entry to `apps/hub/config/apps.json` and map its icon in `apps/hub/src/lib/icons.ts`
 3. ✅ **Vercel project** — create it pointing at `Personal-Hub`, Root Directory `apps/<name>`, Ignored Build Step `npx turbo-ignore` (`setup-vercel-project.mjs` bootstraps the project + Supabase env vars; set root directory / ignore step via API or dashboard)
 4. ✅ **SQL migration** — `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query` (SQL lives in `apps/<name>/supabase`)
@@ -291,7 +307,7 @@ Summarise in 5–10 bullets and wait for thumbs-up. Then follow the **Full autom
 
 ## When asked to MODIFY AN EXISTING APP
 
-App changes belong in that app's folder under `apps/`. Because it's one repo, cross-cutting changes can land in a single commit: the app's code, its schema in `apps/<app>/supabase`, the hub's `config/apps.json`, root tooling, and this `CLAUDE.md`.
+App changes belong in that app's folder under `apps/`. Because it's one repo, cross-cutting changes can land in a single commit: the app's code, its schema in `apps/<app>/supabase`, the hub's `config/apps.json`, root tooling, and this `CLAUDE.md`. **After the change, update that app's `apps/<app>/CLAUDE.md` — especially its `Current state` and `Next` sections** (see *Per-app context files*).
 
 ---
 
