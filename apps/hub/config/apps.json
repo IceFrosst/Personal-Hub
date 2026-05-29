@@ -7,9 +7,7 @@
       "icon": "brain",
       "color": "purple",
       "versions": {
-        "stable": "https://icefrosst-focus-gate-personal-app.vercel.app",
-        "previous": "https://icefrosst-focus-gate-personal-app-git-previous-ign3107s-4758s-projects.vercel.app",
-        "experimental": "https://icefrosst-focus-gate-personal-app-git-main-ign3107s-4758s-projects.vercel.app"
+        "stable": "https://icefrosst-focus-gate-personal-app.vercel.app"
       },
       "added_at": "2026-05-27"
     },
@@ -20,9 +18,7 @@
       "icon": "bolt",
       "color": "amber",
       "versions": {
-        "stable": "https://icefrosst-lock-in.vercel.app",
-        "previous": "https://icefrosst-lock-in-git-previous-ign3107s-4758s-projects.vercel.app",
-        "experimental": "https://icefrosst-lock-in-git-main-ign3107s-4758s-projects.vercel.app"
+        "stable": "https://icefrosst-lock-in.vercel.app"
       },
       "added_at": "2026-05-28"
     }

@@ -1,7 +1,5 @@
 import appsConfig from "../../config/apps.json";
 
-export type AppVersion = "stable" | "previous" | "experimental";
-
 export type AppColor =
   | "coral"
   | "teal"
@@ -18,7 +16,7 @@ export type AppDefinition = {
   description: string;
   icon: string;
   color: AppColor;
-  versions: Record<AppVersion, string>;
+  versions: { stable: string };
   added_at: string;
 };
 

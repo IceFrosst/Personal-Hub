@@ -1,4 +1,4 @@
-# Schema rules — hub repo
+# Schema rules
 
 Read `CLAUDE.md` first; this is the short version of iron rule #2.
 
@@ -23,7 +23,7 @@ You may NEVER:
 
 ## Why
 
-Users running older deployed versions of any app must always be able to read AND write data created by newer versions, indefinitely. The portfolio runs three live versions per app (`stable`, `previous`, `main`) plus whatever each user has pinned. If you drop or rename a column, the older versions break.
+Users running older installed copies of any app (PWAs linger on phones) must always be able to read AND write data created by newer versions, indefinitely. Apps also **share tables** — Focus Gate and Lock In both use `focus_gate.tasks` — so a column one app stops using may still be required by another. If you drop or rename a column, something breaks.
 
 This rule applies for the **entire lifetime of the project**. There's no migration window. Treat every schema change as forever.
 
@@ -35,6 +35,6 @@ This rule applies for the **entire lifetime of the project**. There's no migrati
 
 ## Migrations
 
-SQL lives in `supabase/sql/`. Numbered files (`0001_…`, `0002_…`). Each file is a one-time-apply script. The plan is to wire up [Supabase GitHub integration](https://supabase.com/docs/guides/local-development/database-migrations#github-actions) eventually so these auto-deploy, but for now: paste the file's contents into the SQL editor in the dashboard and run.
+SQL lives under each app — `apps/hub/supabase/sql/`, `apps/focus-gate/supabase/migrations/`, `apps/lock-in/supabase/migrations/`. Numbered files (`0001_…`, `0002_…`), each a one-time-apply script. For now: paste the file's contents into the Supabase SQL editor and run (or apply via the Management API). Consolidating these into one ordered `db/migrations/` is part of the pending structure pass.
 
 Before opening any migration: re-read this file.

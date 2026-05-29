@@ -4,12 +4,12 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 
 > Read this whole file before doing anything. The rules below are not suggestions — they are the project's spine.
 
-> **Monorepo (since 2026-05-29):** the portfolio is now a single repo. Each app lives in
+> **Monorepo (since 2026-05-29):** the portfolio is one repo. Each app lives in
 > `apps/<name>/` (`apps/hub`, `apps/focus-gate`, `apps/lock-in`); shared docs live at the
 > root (`CLAUDE.md`, `SCHEMA_RULES.md`). Tooling is npm workspaces + Turborepo. A new app is
-> a new folder under `apps/` — no new GitHub repo, no new access grant. Some sections below
-> still describe the old "one repo per app" / per-app-branch workflow and are **pending
-> revision in the next audit pass.**
+> a new folder under `apps/` — no new GitHub repo, no new access grant. Each app is still its
+> own Vercel project (Root Directory `apps/<name>`); production ships from `main` for all
+> apps in lockstep, with rollback via Vercel's deployment history.
 
 ---
 
@@ -24,11 +24,11 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 
 ## The four iron rules — never violate
 
-### 1. No hardcoded URLs anywhere except `config/apps.json`
-All cross-app and hub→app URLs live in that one file. This makes a future custom-domain migration a single-file diff. If you find yourself typing `vercel.app` in any code file other than `config/apps.json`, stop.
+### 1. No hardcoded URLs anywhere except `apps/hub/config/apps.json`
+All cross-app and hub→app URLs live in that one file. This makes a future custom-domain migration a single-file diff. If you find yourself typing `vercel.app` in any code file other than `apps/hub/config/apps.json`, stop.
 
 ### 2. Schema is additive — forever
-Add columns / tables / JSON fields. **Never rename, never delete, never narrow a type.** Users running older versions of an app must always be able to read/write data created by newer versions. Every app repo gets a `SCHEMA_RULES.md`; check it before any migration.
+Add columns / tables / JSON fields. **Never rename, never delete, never narrow a type.** Users running older versions of an app must always be able to read/write data created by newer versions. The root `SCHEMA_RULES.md` is canonical; each app folder may add its own. Check before any migration.
 
 ### 3. One Supabase project for all apps
 Namespace tables per app via Postgres schemas: `focus_gate.tasks`, `workout.sessions`, etc. One Google login covers the whole portfolio. Never create a new Supabase project for a new app.
@@ -45,7 +45,7 @@ Users can only `SELECT/INSERT/UPDATE/DELETE` rows where `user_id = auth.uid()`. 
 - **PWA:** Every app AND the hub are installable PWAs (manifest + service worker)
 - **Hosting:** Vercel free tier, `icefrosst-*` project names
 - **Backend:** Supabase (Postgres + Auth) free tier — one shared project, Google OAuth
-- **Code:** GitHub, one repo per app + this hub repo
+- **Code:** GitHub — a single monorepo (`apps/*` + shared root tooling), npm workspaces + Turborepo
 - **Icons:** Tabler icons — map icon-name strings to Tabler components in code
 - **Auth:** Google OAuth via Supabase, single account covers the whole portfolio
 
@@ -53,17 +53,11 @@ Users can only `SELECT/INSERT/UPDATE/DELETE` rows where `user_id = auth.uid()`. 
 
 ## Architecture
 
-Each app = its own Next.js repo + its own Vercel project + its own `*.vercel.app` URL. Apps are independent — one breaking doesn't affect others. The hub just reads `config/apps.json` and renders tiles.
+Each app = a folder under `apps/` + its own Vercel project (Root Directory `apps/<name>`) + its own `*.vercel.app` URL. Apps stay independent at runtime — one breaking doesn't affect others. The hub just reads `config/apps.json` and renders tiles.
 
-### Three live versions per app
+### Deployment model
 
-| Branch | Role | URL pattern |
-|--------|------|-------------|
-| `stable` | Default for users | `icefrosst-{slug}.vercel.app` |
-| `previous` | Rollback safety net | `icefrosst-{slug}-git-previous-icefrosst.vercel.app` |
-| `main` | Experimental / bleeding edge | `icefrosst-{slug}-git-main-icefrosst.vercel.app` |
-
-Confirm the exact Vercel-generated URLs after first deploy and use those in `config/apps.json`.
+All apps ship in lockstep from `main` (one monorepo). Each app's Vercel project sets Root Directory `apps/<name>` and an Ignored Build Step (`npx turbo-ignore`) so a push only rebuilds the apps that actually changed. There are **no** per-app `stable`/`previous` branches — roll back via Vercel's instant rollback (promote a previous deployment). `config/apps.json` records each app's production URL only.
 
 ### `config/apps.json` — schema and live example
 
@@ -77,9 +71,7 @@ Confirm the exact Vercel-generated URLs after first deploy and use those in `con
       "icon": "brain",
       "color": "purple",
       "versions": {
-        "stable": "https://icefrosst-focus-gate-personal-app.vercel.app",
-        "previous": "https://icefrosst-focus-gate-personal-app-git-previous-icefrosst.vercel.app",
-        "experimental": "https://icefrosst-focus-gate-personal-app-git-main-icefrosst.vercel.app"
+        "stable": "https://icefrosst-focus-gate-personal-app.vercel.app"
       },
       "added_at": "2026-05-27"
     }
@@ -87,11 +79,11 @@ Confirm the exact Vercel-generated URLs after first deploy and use those in `con
 }
 ```
 
-Field rules: `slug` is kebab-case and matches the repo name prefix. `icon` is a Tabler icon name (no `Icon` prefix). `color` is one of: `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
+Field rules: `slug` is kebab-case and matches the app's folder name under `apps/`. `icon` is a Tabler icon name (no `Icon` prefix) — **and must be mapped in `apps/hub/src/lib/icons.ts`** or the tile falls back to a generic icon. `color` is one of: `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
 
 ### Hub-specific Supabase tables
 
-In a `hub` schema: `hub.user_app_preferences` — `(user_id uuid, app_slug text, preferred_version text)` — remembers each user's preferred version per app.
+In a `hub` schema: `hub.user_app_preferences` — `(user_id, app_slug, preferred_version, updated_at)`. Reserved for a future per-version picker; **not currently used** — tiles open `stable`. (Kept in place per the additive-only rule.)
 
 ---
 
@@ -247,17 +239,16 @@ Add these to the outbound allowlist in Claude Code environment settings:
 
 ## Full automation — new app checklist
 
-With all tokens set and both domains allowlisted, Claude does all of this without manual steps:
+With all tokens set and both domains allowlisted, a new app goes from idea to live with no new repo:
 
-1. ✅ **GitHub repo** — `mcp__github__create_repository`
-2. ✅ **Code scaffold** — `mcp__github__push_files` to `main` (Next.js 15, Tailwind, Supabase SSR, PWA)
-3. ✅ **Branches** — `stable` and `previous` from `main`
-4. ✅ **Vercel project** — `node scripts/setup-vercel-project.mjs --repo <repo> --name icefrosst-<repo>`
-5. ✅ **SQL migration** — `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query`
-6. ✅ **Auth redirect URL** — `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
-7. ✅ **apps.json** — entry added to hub via GitHub MCP
+1. ✅ **App folder** — scaffold under `apps/<name>` (Next.js 15, Tailwind, Supabase SSR, PWA); it joins the workspace automatically via the `apps/*` glob
+2. ✅ **Register** — add the entry to `apps/hub/config/apps.json` and map its icon in `apps/hub/src/lib/icons.ts`
+3. ✅ **Vercel project** — create it pointing at `Personal-Hub`, Root Directory `apps/<name>`, Ignored Build Step `npx turbo-ignore` (`setup-vercel-project.mjs` bootstraps the project + Supabase env vars; set root directory / ignore step via API or dashboard)
+4. ✅ **SQL migration** — `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query` (SQL lives in `apps/<name>/supabase`)
+5. ✅ **Auth redirect URL** — `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
+6. ✅ **Commit & push to `main`** — Vercel deploys the new project
 
-**Still manual:** add `GEMINI_API_KEY` in Vercel dashboard + test on phone.
+**Still manual:** add `GEMINI_API_KEY` in Vercel dashboard (if the app uses AI) + test on phone.
 
 ---
 
@@ -265,18 +256,18 @@ With all tokens set and both domains allowlisted, Claude does all of this withou
 
 ### `scripts/setup-vercel-project.mjs`
 
-Creates a Vercel project, links it to its GitHub repo, sets `stable` as production, injects Supabase env vars from session env. Usage:
+Creates a Vercel project, links it to a GitHub repo, sets the production branch, injects Supabase env vars from session env. In the monorepo, link it to `Personal-Hub` and set the project's Root Directory to `apps/<name>` (via API/dashboard). Usage:
 
 ```bash
-node scripts/setup-vercel-project.mjs --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
+node scripts/setup-vercel-project.mjs --repo Personal-Hub --name icefrosst-<name> --prod-branch main
 ```
 
 ---
 
 ## Workflow rules
 
-- **Never push directly to `main` of the hub repo without confirmation.**
-- **App repos: three permanent branches** — `stable`, `previous`, `main`. New work on `main`; promote to `stable` only when confirmed; copy old `stable` to `previous` first.
+- **Never push directly to `main` without confirmation** — it deploys every app.
+- **Lockstep releases:** all apps ship from `main`; there are no per-app `stable`/`previous` branches. Roll back via Vercel's instant rollback.
 - **Commit messages say why, not just what.**
 
 ---
@@ -300,10 +291,7 @@ Summarise in 5–10 bullets and wait for thumbs-up. Then follow the **Full autom
 
 ## When asked to MODIFY AN EXISTING APP
 
-That work belongs in the app's own repo. The only changes that belong here:
-- Adding/editing `config/apps.json`
-- Hub bugs and features
-- Editing this `CLAUDE.md`
+App changes belong in that app's folder under `apps/`. Because it's one repo, cross-cutting changes can land in a single commit: the app's code, its schema in `apps/<app>/supabase`, the hub's `config/apps.json`, root tooling, and this `CLAUDE.md`.
 
 ---
 
@@ -336,12 +324,9 @@ Signs: patching the same file three times, re-discovering things already known, 
 
 ## Current phase
 
-**Focus Gate shipped (first app).** Code is complete and pushed to GitHub — `main`, `stable`, and `previous` branches all exist in `icefrosst/focus-gate-personal-app`.
+**Monorepo consolidation done (2026-05-29).** All three apps live in this repo under `apps/` (git history preserved); the former `focus-gate-personal-app` and `lock-in-personal-app` repos are archived.
 
-**Pending — blocked by network policy:**
-- Vercel project creation (`api.vercel.com` not yet allowlisted)
-- SQL migration (`api.supabase.com` not yet allowlisted)
+- **Hub, Focus Gate, and Lock In** all deploy on Vercel from the monorepo — each its own project, Root Directory `apps/<name>`, `turbo-ignore` build-skipping, production branch `main`.
+- `api.vercel.com` and `api.supabase.com` are allowlisted; SQL migrations apply via the Management API.
 
-To unblock: add `api.vercel.com` and `api.supabase.com` to the outbound allowlist in Claude Code environment settings. After that, both steps run automatically and the app will be live.
-
-Once Focus Gate is live and confirmed working, the full automation loop is proven and new apps can go from idea to live URL without any manual steps (except adding app-specific secrets in Vercel and testing on phone).
+**Next:** a structure pass — a shared `packages/` for the Supabase client + `Task` type, unifying the hub's `src/`-vs-`app/` layout and ESLint config with the other apps, and a single committed root lockfile — deferred pending a discussion of how the apps should work together.
