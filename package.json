@@ -1,0 +1,24 @@
+{
+  "name": "icefrosst-apps",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ignas's personal app portfolio — monorepo. Apps live under apps/*.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "packageManager": "npm@10.9.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
