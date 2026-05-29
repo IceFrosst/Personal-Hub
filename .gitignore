@@ -23,3 +23,8 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.tsbuildinfo
+
+# Root lockfile: byproduct of running `npm install` at the repo root. Each app
+# currently commits its own package-lock.json; adopting a single root lockfile is
+# part of the deferred structure pass. Ignore the root one until that's decided.
+/package-lock.json
