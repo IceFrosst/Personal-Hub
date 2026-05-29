@@ -21,8 +21,12 @@ export const PRIORITY_RANK: Record<Priority, number> = {
   low: 1,
 }
 
+// One suggested task. Carries just what the gate lists: title, priority, due date.
+// priority/dueDate are derived from the matched task row (not trusted from the model),
+// and are null when the task has none.
 export interface Suggestion {
   taskId: string
   taskTitle: string
-  reason: string
+  priority: Priority | null
+  dueDate: string | null
 }

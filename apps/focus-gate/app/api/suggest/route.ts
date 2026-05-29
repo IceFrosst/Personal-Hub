@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { PRIORITY_RANK, type Priority, type Suggestion, type Task } from '@/lib/types'
 
+// How many tasks the gate lists at once.
+const MAX_SUGGESTIONS = 2
+
 // Time-of-day buckets. Late night is deliberately gentle: the user may be in bed,
 // so we prefer small/quick tasks and never push a big, heavy one.
 type Bucket = 'morning' | 'afternoon' | 'evening' | 'late night'
@@ -52,32 +55,24 @@ function scoreTask(task: Task, bucket: Bucket): number {
   return score
 }
 
-function reasonFor(task: Task, bucket: Bucket): string {
-  const due = daysUntilDue(task.due_date)
-  if (bucket === 'late night') {
-    return task.is_quick
-      ? 'A small one to close the day — then rest.'
-      : 'It’s late — maybe just glance, then leave it for tomorrow.'
+// The gate lists just title + priority + date, so priority/dueDate come straight
+// from the task row (never trusted from the model).
+function toSuggestion(task: Task): Suggestion {
+  return {
+    taskId: task.id,
+    taskTitle: task.title,
+    priority: task.priority ?? null,
+    dueDate: task.due_date ?? null,
   }
-  if (due !== null && due <= 0) return 'Due today — worth a few minutes now.'
-  if (due === 1) return 'Due tomorrow — get ahead of it.'
-  if (task.priority === 'high') return 'High priority — knock it out.'
-  if (task.is_quick) return 'Quick win — takes just a moment.'
-  return 'This one has been waiting.'
 }
 
-function fallback(tasks: Task[], bucket: Bucket): Suggestion | null {
-  const active = tasks.filter((t) => !t.is_completed)
-  if (!active.length) return null
-
-  const target = [...active].sort((a, b) => {
+// Top tasks by score, best first. Tie-break oldest-first so nothing lingers forever.
+function rankTasks(active: Task[], bucket: Bucket): Task[] {
+  return [...active].sort((a, b) => {
     const diff = scoreTask(b, bucket) - scoreTask(a, bucket)
     if (diff !== 0) return diff
-    // Tie-break: oldest first, so nothing lingers forever.
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  })[0]
-
-  return { taskId: target.id, taskTitle: target.title, reason: reasonFor(target, bucket) }
+  })
 }
 
 export async function POST(request: Request) {
@@ -100,21 +95,42 @@ export async function POST(request: Request) {
       clientHour = Math.floor(body.clientHour)
     }
   } catch {
-    return NextResponse.json({ error: 'No tasks' }, { status: 200 })
+    return NextResponse.json({ suggestions: [] }, { status: 200 })
   }
 
   const active = tasks.filter((t) => !t.is_completed)
-  if (!active.length) return NextResponse.json({ error: 'No active tasks' }, { status: 200 })
+  if (!active.length) return NextResponse.json({ suggestions: [] }, { status: 200 })
 
   const hour = clientHour ?? new Date().getHours()
   const bucket = bucketFor(hour)
   const apiKey = process.env.GEMINI_API_KEY
 
+  const fallback = () => rankTasks(active, bucket).slice(0, MAX_SUGGESTIONS).map(toSuggestion)
+
+  // Record that we surfaced these so repeats can be de-prioritised later.
+  async function markSuggested(picks: Task[]) {
+    const now = new Date().toISOString()
+    await Promise.all(
+      picks.map((t) =>
+        supabase
+          .schema('focus_gate')
+          .from('tasks')
+          .update({
+            last_suggested_at: now,
+            suggestion_count: (t.suggestion_count ?? 0) + 1,
+          })
+          .eq('id', t.id)
+      )
+    )
+  }
+
+  async function respond(picks: Task[]) {
+    await markSuggested(picks)
+    return NextResponse.json({ suggestions: picks.map(toSuggestion) })
+  }
+
   if (!apiKey) {
-    const suggestion = fallback(tasks, bucket)
-    return suggestion
-      ? NextResponse.json(suggestion)
-      : NextResponse.json({ error: 'No tasks' }, { status: 200 })
+    return NextResponse.json({ suggestions: fallback() })
   }
 
   try {
@@ -127,19 +143,19 @@ export async function POST(request: Request) {
       )
       .join('\n')
 
-    const prompt = `The user is about to open Instagram instead of doing something useful. Suggest ONE task from their list to do instead. It is ${bucket} (${clock}).
+    const prompt = `The user is about to open Instagram instead of doing something useful. Pick up to ${MAX_SUGGESTIONS} tasks from their list for them to do instead, ordered best first.
 
 How to choose:
 - Weigh priority (high > medium > low) and due dates (sooner/overdue = more urgent).
-- Match the energy of the time of day. Morning/afternoon: a bigger or high-priority task is fine. Evening: lean lighter.
-- LATE AT NIGHT, be gentle — the user may be in bed. Prefer a quick or small task, and NEVER push a big or heavy one. If everything left is big and it's late, it's fine to gently suggest leaving it until tomorrow.
-- Keep the reason warm, encouraging, and short.
+- Match the energy of the time of day. It is ${bucket} (${clock}). Morning/afternoon: a bigger or high-priority task is fine. Evening: lean lighter.
+- LATE AT NIGHT, be gentle — the user may be in bed. Prefer quick or small tasks, and NEVER push a big or heavy one. If everything left is big and it's late, it's fine to suggest fewer (or just one) easy task.
+- Return fewer than ${MAX_SUGGESTIONS} if only one task fits the moment.
 
 Their pending tasks:
 ${taskList}
 
-Reply as JSON only (no markdown):
-{"taskId":"<id>","taskTitle":"<title>","reason":"<max 14 words, conversational>"}`
+Reply as JSON only (no markdown), task IDs only, best first:
+{"taskIds":["<id>", "<id>"]}`
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -157,27 +173,27 @@ Reply as JSON only (no markdown):
 
     const geminiData = await res.json()
     const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
-    const parsed = JSON.parse(text) as Suggestion
+    const parsed = JSON.parse(text) as { taskIds?: unknown }
 
-    if (parsed.taskId) {
-      const matched = active.find((t) => t.id === parsed.taskId)
-      if (matched) {
-        await supabase
-          .schema('focus_gate')
-          .from('tasks')
-          .update({
-            last_suggested_at: new Date().toISOString(),
-            suggestion_count: (matched.suggestion_count ?? 0) + 1,
-          })
-          .eq('id', parsed.taskId)
+    // Map model IDs back to real rows (deduped, capped) — ignore anything it invented.
+    const ids = Array.isArray(parsed.taskIds) ? parsed.taskIds : []
+    const seen = new Set<string>()
+    const picks: Task[] = []
+    for (const id of ids) {
+      if (typeof id !== 'string' || seen.has(id)) continue
+      const match = active.find((t) => t.id === id)
+      if (match) {
+        seen.add(id)
+        picks.push(match)
       }
+      if (picks.length >= MAX_SUGGESTIONS) break
     }
 
-    return NextResponse.json(parsed)
+    // Model returned nothing usable — fall back to the deterministic ranking.
+    if (!picks.length) return NextResponse.json({ suggestions: fallback() })
+
+    return respond(picks)
   } catch {
-    const suggestion = fallback(tasks, bucket)
-    return suggestion
-      ? NextResponse.json(suggestion)
-      : NextResponse.json({ error: 'No tasks' }, { status: 200 })
+    return NextResponse.json({ suggestions: fallback() })
   }
 }

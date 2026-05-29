@@ -28,15 +28,15 @@ Instagram muscle-memory slot. Two buttons — **Lock in** (jumps to the Lock In 
 
 ## Gotchas
 - **Hardcoded cross-app URL** — `app/page.tsx` hoists the Lock In URL to a `LOCK_IN_URL` constant (`https://icefrosst-lock-in.vercel.app`). This still violates **iron-rule #1** (cross-app URLs belong in `apps/hub/config/apps.json`); the constant just keeps it to one spot until shared config exists. Update it here if Lock In's URL changes. (The Instagram deep-links are external app links, not portfolio URLs — those are fine.)
-- The suggestion considers only **active** (`is_completed = false`) tasks and picks **one**, scored on priority + due date + time of day.
+- The suggestion considers only **active** (`is_completed = false`) tasks and lists **up to two** (`MAX_SUGGESTIONS` in the route), scored on priority + due date + time of day. The API returns `{ suggestions: Suggestion[] }`; each `Suggestion` carries `priority`/`dueDate` taken from the task row (not trusted from Gemini, which only returns task IDs).
 - **Time of day is the client's local hour**, sent as `clientHour` in the POST body — Vercel runs UTC, so don't rely on server time for the morning/afternoon/evening/late-night bucket.
 - The `focus_gate` schema must stay exposed to PostgREST (granted in Lock In's migration `0002`) or API reads 404.
 
 ## Current state
-Live from `main`: the gate screen, Instagram deep-link (Android intent + iOS scheme with web fallback), and the signed-in Gemini single-task suggestion with heuristic fallback.
+Live from `main`: the gate screen, Instagram deep-link (Android intent + iOS scheme with web fallback), and the signed-in Gemini suggestion with heuristic fallback.
 
-**Uncommitted on branch `claude/zealous-rubin-J8egx` (built, `next build` passes — not yet deployed):** the suggestion now scores across **all** active tasks by priority + due date + time of day, and is **gentle late at night** (prefers quick/small tasks, won't push a heavy one near bedtime); the same logic drives the heuristic fallback. Two presentations render **auto on load** — a bottom-sheet **popup** and the **inline card** — with a temporary preview toggle to compare them (`?s=popup`/`?s=card`, `?demo=1` for sample data). `lib/types.ts` gained optional `priority`/`due_date` (additive) and a shared `Suggestion` type.
+**Uncommitted on branch `claude/zealous-rubin-J8egx` (built, `next build` passes — not yet deployed):** the suggestion is now an **inline "Suggested tasks" card near the top of the gate**, listing **up to two** AI-picked active tasks as **title + priority + due date only** (no reason copy). Scoring weighs priority + due date + time of day and is **gentle late at night** (prefers quick/small tasks, won't push a heavy one near bedtime); the same logic drives the heuristic fallback, and Gemini returns task IDs only (priority/date are read from the row). The earlier popup presentation and preview toggle were dropped. `?demo=1` still renders sample data and must be removed before production.
 
 ## Next
-- **Pick a presentation** — compare popup vs. inline on device, keep one, then remove the preview toggle + `?demo=1` sample from `app/page.tsx`.
+- **Remove the `?demo=1` sample** from `app/page.tsx` before shipping to production.
 - **De-hardcode the Lock In URL** (`LOCK_IN_URL` in `app/page.tsx`) — iron-rule #1; source it from shared config once `packages/` exists.
