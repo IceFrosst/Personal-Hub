@@ -11,11 +11,12 @@ const IG_GRADIENT =
 // Hoisted to one constant until shared config exists (see apps/focus-gate/CLAUDE.md → Next).
 const LOCK_IN_URL = 'https://icefrosst-lock-in.vercel.app'
 
-// Priority label + accent. high → coral, medium → amber, low → muted (portfolio palette).
-const PRIORITY_STYLE: Record<Priority, { label: string; className: string }> = {
-  high: { label: 'High', className: 'text-coral' },
-  medium: { label: 'Medium', className: 'text-amber' },
-  low: { label: 'Low', className: 'text-text-low' },
+// Priority shown as a small dot — color carries the meaning (high/medium), low stays
+// neutral. One quiet accent per row, not a line of shouting colored words.
+const PRIORITY_DOT: Record<Priority, string> = {
+  high: 'bg-coral',
+  medium: 'bg-amber',
+  low: 'bg-text-low',
 }
 
 // Due date as a short, friendly label — relative when close, otherwise a day/month.
@@ -29,6 +30,7 @@ function formatDue(due: string | null): string | null {
   if (diff < 0) return 'Overdue'
   if (diff === 0) return 'Today'
   if (diff === 1) return 'Tomorrow'
+  if (diff <= 6) return d.toLocaleDateString('en-GB', { weekday: 'short' }) // e.g. Fri
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
@@ -119,27 +121,26 @@ export default function GatePage() {
         paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
       }}
     >
-      {/* Suggested tasks — near the top of the screen */}
+      {/* Suggested tasks — quiet and boxless; the gate stays the one focal point */}
       {suggestions.length > 0 && (
-        <div className="w-full max-w-[340px] mx-auto p-4 bg-surface rounded-2xl border border-border">
-          <p className="text-xs uppercase tracking-wide text-text-low mb-3">Suggested tasks</p>
-          <ul className="flex flex-col">
-            {suggestions.map((s, i) => {
-              const ps = s.priority ? PRIORITY_STYLE[s.priority] : null
+        <div className="w-full max-w-[340px] mx-auto">
+          <p className="text-sm text-text-low mb-3">Suggested tasks</p>
+          <ul className="flex flex-col gap-2.5">
+            {suggestions.map((s) => {
               const due = formatDue(s.dueDate)
               return (
-                <li
-                  key={s.taskId}
-                  className={i > 0 ? 'mt-3 pt-3 border-t border-border' : ''}
-                >
-                  <p className="text-text font-medium text-base leading-snug">{s.taskTitle}</p>
-                  {(ps || due) && (
-                    <div className="mt-1 flex items-center gap-2 text-sm">
-                      {ps && <span className={`font-medium ${ps.className}`}>{ps.label}</span>}
-                      {ps && due && <span className="text-text-low">·</span>}
-                      {due && <span className="text-text-muted">{due}</span>}
-                    </div>
-                  )}
+                <li key={s.taskId} className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    {s.priority && (
+                      <span
+                        role="img"
+                        aria-label={`${s.priority} priority`}
+                        className={`shrink-0 w-1.5 h-1.5 rounded-full ${PRIORITY_DOT[s.priority]}`}
+                      />
+                    )}
+                    <span className="text-text truncate">{s.taskTitle}</span>
+                  </span>
+                  {due && <span className="shrink-0 text-sm text-text-low">{due}</span>}
                 </li>
               )
             })}
