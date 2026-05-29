@@ -140,7 +140,16 @@ export default function HomePage() {
     async (task: Task) => {
       setTasks((prev) => prev.filter((t) => t.id !== task.id))
       setSheetTask(null)
-      await supabase.schema('focus_gate').from('tasks').delete().eq('id', task.id)
+      const { error: deleteError } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .delete()
+        .eq('id', task.id)
+      if (deleteError) {
+        // Roll back the optimistic removal so the UI matches the DB.
+        setTasks((prev) => [...prev, task])
+        setError(deleteError.message)
+      }
     },
     [supabase]
   )

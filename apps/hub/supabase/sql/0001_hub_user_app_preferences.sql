@@ -29,8 +29,18 @@ create policy "uap_update_own" on hub.user_app_preferences
 create policy "uap_delete_own" on hub.user_app_preferences
   for delete using ( auth.uid() = user_id );
 
--- Touch updated_at on every update. Reuses the function defined for public.profiles
--- in the previous migration.
+-- Shared helper: stamp updated_at on every update. Idempotent (create or replace),
+-- so this migration is self-contained and safe to re-run.
+create or replace function public.handle_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 create trigger user_app_preferences_updated_at
   before update on hub.user_app_preferences
   for each row execute function public.handle_updated_at();

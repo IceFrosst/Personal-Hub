@@ -12,6 +12,7 @@ export default function ArchivePage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [sheetTask, setSheetTask] = useState<Task | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -48,11 +49,15 @@ export default function ArchivePage() {
     async (task: Task) => {
       setTasks((prev) => prev.filter((t) => t.id !== task.id))
       setSheetTask(null)
-      await supabase
+      const { error: restoreError } = await supabase
         .schema('focus_gate')
         .from('tasks')
         .update({ is_completed: false })
         .eq('id', task.id)
+      if (restoreError) {
+        setTasks((prev) => [...prev, task])
+        setError(restoreError.message)
+      }
     },
     [supabase]
   )
@@ -61,7 +66,15 @@ export default function ArchivePage() {
     async (task: Task) => {
       setTasks((prev) => prev.filter((t) => t.id !== task.id))
       setSheetTask(null)
-      await supabase.schema('focus_gate').from('tasks').delete().eq('id', task.id)
+      const { error: deleteError } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .delete()
+        .eq('id', task.id)
+      if (deleteError) {
+        setTasks((prev) => [...prev, task])
+        setError(deleteError.message)
+      }
     },
     [supabase]
   )
@@ -86,6 +99,12 @@ export default function ArchivePage() {
           <IconArchive size={22} className="text-text-muted" />
           <h1 className="text-2xl font-semibold tracking-tight text-text">Archive</h1>
         </header>
+
+        {error && (
+          <p role="alert" className="text-priority-high text-xs px-2 leading-snug">
+            Couldn&apos;t update: {error}
+          </p>
+        )}
 
         <section className="mt-2 flex flex-col">
           {loading ? (

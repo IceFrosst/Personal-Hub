@@ -1,6 +1,7 @@
 import {
   IconApps,
   IconBarbell,
+  IconBolt,
   IconDroplet,
   IconNote,
   IconCalendar,
@@ -23,6 +24,7 @@ type IconProps = { size?: number | string; stroke?: number };
 const map: Record<string, ComponentType<IconProps>> = {
   apps: IconApps,
   barbell: IconBarbell,
+  bolt: IconBolt,
   droplet: IconDroplet,
   note: IconNote,
   calendar: IconCalendar,
