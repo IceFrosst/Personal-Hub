@@ -33,15 +33,13 @@ Instagram muscle-memory slot. Two buttons — **Lock in** (jumps to the Lock In 
 - The `focus_gate` schema must stay exposed to PostgREST (granted in Lock In's migration `0002`) or API reads 404.
 
 ## Current state
-Live from `main`: the gate screen, Instagram deep-link (Android intent + iOS scheme with web fallback), and the signed-in Gemini suggestion with heuristic fallback.
+Live from `main` (deployed): the full-screen **HOLD UP** gate — Instagram deep-link (Android intent + iOS scheme with web fallback), the **Lock in** / **Having a break** buttons, and the signed-in suggestion (Gemini pick + heuristic fallback), presented as:
 
-**Uncommitted on branch `claude/zealous-rubin-J8egx` (built, `next build` passes, verified via `?demo=1` — not yet deployed):**
-
-- **Suggested tasks → soft-glow panel.** The suggestion is now a single card grouped just above the hero: a gradient-hairline border + soft outer glow that echoes the CTAs (dimmed, so the buttons stay the loudest thing), inner `#161618`, a small IG-gradient brand dot beside the `Suggested tasks` header, and **up to two** AI-picked active tasks as **title + due chip** split by a hairline divider. **Priority drives title emphasis** (high = bold full-white, medium = full-white, low = muted); **due-date urgency drives the chip colour** (Overdue = `coral`, Today/Tomorrow = `amber`, otherwise `text-low`). Still real data only — `priority`/`dueDate` come from the task row, Gemini returns IDs. Same priority + due-date + time-of-day scoring as before (in the route, unchanged). The earlier boxed-card / popup / boxless-dot-list and the `?lay`/`?sty` explorers were dropped now that the look is chosen.
+- **Suggested tasks → soft-glow panel.** A single card grouped just above the hero: a gradient-hairline border + soft outer glow that echoes the CTAs (dimmed, so the buttons stay the loudest thing), inner `#161618`, a small IG-gradient brand dot beside the `Suggested tasks` header, and **up to two** AI-picked active tasks as **title + due chip** split by a hairline divider. **Priority drives title emphasis** (high = bold full-white, medium = full-white, low = muted); **due-date urgency drives the chip colour** (Overdue = `coral`, Today/Tomorrow = `amber`, otherwise `text-low`). Real data only — `priority`/`dueDate` come from the task row, Gemini returns IDs. Same priority + due-date + time-of-day scoring as before (in the route). With no active tasks the panel simply doesn't render (just wordmark + buttons).
 - **Friction before Instagram — the dodging "Having a break" button.** Pressing it makes the button bolt: it shrinks/fades out and springs back in at a random on-screen spot (a real jump — enforced min-distance from where it was). Respawn odds are **75% / 50% / 33%** for at most **three** dodges; a failed roll — or the fourth press once respawns are spent — lets you through to Instagram. "Lock in" never moves (an invisible same-size placeholder holds its slot). Tunable via `DODGE_ODDS` in `app/page.tsx`. `openInstagram()` / `goLockIn()` unchanged.
-- `?demo=1` still renders sample suggestions for previewing without auth/Gemini and must be removed before production.
+
+The earlier boxed-card / popup / boxless-dot-list presentations, the `?lay`/`?sty` explorers, and the `?demo=1` preview sample were all removed once the look was chosen — production-clean.
 
 ## Next
-- **Remove the `?demo=1` sample** from `app/page.tsx` before shipping to production.
-- **De-hardcode the Lock In URL** (`LOCK_IN_URL` in `app/page.tsx`) — iron-rule #1; source it from shared config once `packages/` exists.
+- **De-hardcode the Lock In URL** (`LOCK_IN_URL` in `app/page.tsx`) — iron-rule #1. The value already lives in `apps/hub/config/apps.json` (slug `lock-in`), but focus-gate can't cleanly read across to it until a shared `packages/` workspace exists; reaching into the hub app directly would couple their builds. Bundled into the deferred structure pass (root `CLAUDE.md` → Current phase → Next) — needs the cross-app design discussion first.
 - **Tune the dodge on a real phone** — adjust `DODGE_ODDS` / max respawns if the friction feels too easy or too annoying in the hand.

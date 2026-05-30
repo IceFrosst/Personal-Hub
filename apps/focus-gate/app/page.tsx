@@ -48,23 +48,6 @@ export default function GatePage() {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
 
-    const params = new URLSearchParams(window.location.search)
-
-    // Preview-only sample so the panel can be seen without tasks or Gemini (?demo=1).
-    // Remove before shipping to production (see apps/focus-gate/CLAUDE.md → Next).
-    if (params.get('demo') === '1') {
-      const iso = (offset: number) => {
-        const d = new Date()
-        d.setDate(d.getDate() + offset)
-        return d.toISOString().slice(0, 10)
-      }
-      setSuggestions([
-        { taskId: 'demo-1', taskTitle: 'Finish the maths problem set', priority: 'high', dueDate: iso(0) },
-        { taskId: 'demo-2', taskTitle: 'Reply to landlord email', priority: 'medium', dueDate: iso(2) },
-      ])
-      return
-    }
-
     async function loadSuggestions() {
       const supabase = createClient()
       const {
