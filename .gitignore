@@ -28,3 +28,7 @@ yarn-error.log*
 # currently commits its own package-lock.json; adopting a single root lockfile is
 # part of the deferred structure pass. Ignore the root one until that's decided.
 /package-lock.json
+
+# Local screenshot scratch script (Playwright + @sparticuz/chromium). Personal dev
+# tool — untracked, its deps aren't in package.json. Ignore so it isn't committed here.
+/.shot.cjs
