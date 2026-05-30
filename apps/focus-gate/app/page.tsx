@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Suggestion } from '@/lib/types'
 
@@ -32,6 +32,30 @@ function formatDue(due: string | null): string | null {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
+// Paint cached state before the first client frame; harmlessly aliases to useEffect on the server.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
+// Tiny on-device cache so repeat visits paint the panel in the same frame as the gate,
+// rather than waiting on session + DB + the AI pick every single time.
+const SUGGEST_CACHE_KEY = 'fg_suggested_v1'
+
+function readSuggestCache(): { signedIn: boolean; suggestions: Suggestion[] } | null {
+  try {
+    const raw = localStorage.getItem(SUGGEST_CACHE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    if (parsed && typeof parsed.signedIn === 'boolean' && Array.isArray(parsed.suggestions)) {
+      return parsed as { signedIn: boolean; suggestions: Suggestion[] }
+    }
+  } catch {}
+  return null
+}
+
+function writeSuggestCache(value: { signedIn: boolean; suggestions: Suggestion[] }) {
+  try {
+    localStorage.setItem(SUGGEST_CACHE_KEY, JSON.stringify(value))
+  } catch {}
+}
+
 export default function GatePage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   // null = still checking the session; false = signed out (show the sign-in prompt).
@@ -45,21 +69,37 @@ export default function GatePage() {
   const [spin, setSpin] = useState(0) // playful spin-in angle
   const breakBtnRef = useRef<HTMLButtonElement>(null)
 
+  // Paint the cached panel before the first frame so it arrives with the gate.
+  useIsoLayoutEffect(() => {
+    const cached = readSuggestCache()
+    if (cached) {
+      setSignedIn(cached.signedIn)
+      setSuggestions(cached.suggestions)
+    }
+  }, [])
+
+  // Then refresh in the background (session → tasks → AI pick) and update the cache.
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
 
-    async function loadSuggestions() {
+    let cancelled = false
+    async function refresh() {
       const supabase = createClient()
+      // getSession reads the stored session (no extra round-trip) — faster than getUser.
       const {
-        data: { user },
-      } = await supabase.auth.getUser()
+        data: { session },
+      } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) {
+        if (cancelled) return
         setSignedIn(false)
+        setSuggestions([])
+        writeSuggestCache({ signedIn: false, suggestions: [] })
         return
       }
-      setSignedIn(true)
+      if (!cancelled) setSignedIn(true)
 
       const { data: tasks } = await supabase
         .schema('focus_gate')
@@ -67,8 +107,13 @@ export default function GatePage() {
         .select('*')
         .eq('user_id', user.id)
         .eq('is_completed', false)
+      if (cancelled) return
 
-      if (!tasks?.length) return
+      if (!tasks?.length) {
+        setSuggestions([])
+        writeSuggestCache({ signedIn: true, suggestions: [] })
+        return
+      }
 
       try {
         const res = await fetch('/api/suggest', {
@@ -78,12 +123,17 @@ export default function GatePage() {
         })
         if (res.ok) {
           const data = await res.json()
-          if (Array.isArray(data.suggestions)) setSuggestions(data.suggestions)
+          if (!cancelled && Array.isArray(data.suggestions)) {
+            setSuggestions(data.suggestions)
+            writeSuggestCache({ signedIn: true, suggestions: data.suggestions })
+          }
         }
       } catch {}
     }
-
-    loadSuggestions()
+    refresh()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Keep the escaped button on-screen if the viewport changes.
