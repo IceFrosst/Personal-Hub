@@ -34,6 +34,8 @@ function formatDue(due: string | null): string | null {
 
 export default function GatePage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  // null = still checking the session; false = signed out (show the sign-in prompt).
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
 
   // Dodging "Having a break" button.
   const [dodges, setDodges] = useState(0) // successful respawns so far (0..3)
@@ -53,7 +55,11 @@ export default function GatePage() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setSignedIn(false)
+        return
+      }
+      setSignedIn(true)
 
       const { data: tasks } = await supabase
         .schema('focus_gate')
@@ -114,6 +120,16 @@ export default function GatePage() {
 
   function goLockIn() {
     window.location.href = LOCK_IN_URL
+  }
+
+  // Google OAuth — lands back on the gate via the existing /auth/callback handler.
+  // Its redirect URL is already in Supabase's allow-list.
+  async function signIn() {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
   }
 
   // Pick a fresh on-screen spot clearly away from where the button is right now.
@@ -216,6 +232,16 @@ export default function GatePage() {
     </div>
   )
 
+  // Signed-out: a quiet, tappable prompt sitting where the panel would go.
+  const signedOutPrompt = signedIn === false && (
+    <button
+      onClick={signIn}
+      className="min-h-11 px-5 py-2.5 rounded-full border border-white/10 text-sm font-medium text-text-muted active:scale-[0.98] transition-transform duration-150"
+    >
+      Sign in to see your tasks
+    </button>
+  )
+
   const hero = (
     <div className="w-full max-w-[340px] flex flex-col items-center">
       <h1
@@ -280,7 +306,7 @@ export default function GatePage() {
       }}
     >
       <div className="flex-1 flex flex-col items-center justify-center gap-10">
-        {suggestionPanel}
+        {hasSuggestions ? suggestionPanel : signedOutPrompt}
         {hero}
       </div>
 
