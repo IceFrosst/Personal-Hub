@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Suggestion } from '@/lib/types'
 
@@ -17,6 +17,9 @@ const LOCK_IN_URL = 'https://icefrosst-lock-in.vercel.app'
 // you always get there within a few taps, it just isn't a reflex any more.
 const DODGE_ODDS = [0.75, 0.5, 0.33]
 
+// Safety net: never strand the gate on its loader, even if the network or the AI hangs.
+const LOAD_TIMEOUT_MS = 7000
+
 // Due date as a short, friendly label — relative when close, otherwise a day/month.
 function formatDue(due: string | null): string | null {
   if (!due) return null
@@ -32,74 +35,51 @@ function formatDue(due: string | null): string | null {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-// Paint cached state before the first client frame; harmlessly aliases to useEffect on the server.
-const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
-
-// Tiny on-device cache so repeat visits paint the panel in the same frame as the gate,
-// rather than waiting on session + DB + the AI pick every single time.
-const SUGGEST_CACHE_KEY = 'fg_suggested_v1'
-
-function readSuggestCache(): { signedIn: boolean; suggestions: Suggestion[] } | null {
-  try {
-    const raw = localStorage.getItem(SUGGEST_CACHE_KEY)
-    const parsed = raw ? JSON.parse(raw) : null
-    if (parsed && typeof parsed.signedIn === 'boolean' && Array.isArray(parsed.suggestions)) {
-      return parsed as { signedIn: boolean; suggestions: Suggestion[] }
-    }
-  } catch {}
-  return null
-}
-
-function writeSuggestCache(value: { signedIn: boolean; suggestions: Suggestion[] }) {
-  try {
-    localStorage.setItem(SUGGEST_CACHE_KEY, JSON.stringify(value))
-  } catch {}
-}
-
 export default function GatePage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   // null = still checking the session; false = signed out (show the sign-in prompt).
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  // Hold the whole gate until suggestions are settled, so they appear together — and
+  // always fresh (no stale, possibly-already-done task painted from a cache).
+  const [ready, setReady] = useState(false)
 
   // Dodging "Having a break" button.
   const [dodges, setDodges] = useState(0) // successful respawns so far (0..3)
   const [escaped, setEscaped] = useState(false) // has left its slot and gone fixed-position
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-  const [hidden, setHidden] = useState(false) // mid-teleport: invisible while relocating
+  const [hidden, setHidden] = useState(false) // mid-teleport (invisible while relocating)
   const [spin, setSpin] = useState(0) // playful spin-in angle
   const breakBtnRef = useRef<HTMLButtonElement>(null)
 
-  // Paint the cached panel before the first frame so it arrives with the gate.
-  useIsoLayoutEffect(() => {
-    const cached = readSuggestCache()
-    if (cached) {
-      setSignedIn(cached.signedIn)
-      setSuggestions(cached.suggestions)
-    }
-  }, [])
-
-  // Then refresh in the background (session → tasks → AI pick) and update the cache.
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
 
-    let cancelled = false
-    async function refresh() {
+    let done = false
+    const reveal = () => {
+      if (done) return
+      done = true
+      setReady(true)
+    }
+    // Never leave the gate stuck on the loader if something stalls.
+    const safety = setTimeout(reveal, LOAD_TIMEOUT_MS)
+
+    async function load() {
       const supabase = createClient()
-      // getSession reads the stored session (no extra round-trip) — faster than getUser.
+      // getSession reads the stored session locally (no extra round-trip vs getUser).
       const {
         data: { session },
       } = await supabase.auth.getSession()
       const user = session?.user
+
+      // Signed out → nothing to fetch; reveal the gate (with the sign-in prompt) at once.
       if (!user) {
-        if (cancelled) return
         setSignedIn(false)
-        setSuggestions([])
-        writeSuggestCache({ signedIn: false, suggestions: [] })
+        reveal()
         return
       }
-      if (!cancelled) setSignedIn(true)
+      setSignedIn(true)
 
       const { data: tasks } = await supabase
         .schema('focus_gate')
@@ -107,33 +87,36 @@ export default function GatePage() {
         .select('*')
         .eq('user_id', user.id)
         .eq('is_completed', false)
-      if (cancelled) return
 
+      // No active tasks → no panel; reveal the gate.
       if (!tasks?.length) {
         setSuggestions([])
-        writeSuggestCache({ signedIn: true, suggestions: [] })
+        reveal()
         return
       }
 
+      // Wait for a fresh AI pick, THEN reveal — the gate and the panel land together,
+      // and the tasks are always current (we just queried incomplete ones).
       try {
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), LOAD_TIMEOUT_MS)
         const res = await fetch('/api/suggest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tasks, clientHour: new Date().getHours() }),
+          signal: ctrl.signal,
         })
+        clearTimeout(t)
         if (res.ok) {
           const data = await res.json()
-          if (!cancelled && Array.isArray(data.suggestions)) {
-            setSuggestions(data.suggestions)
-            writeSuggestCache({ signedIn: true, suggestions: data.suggestions })
-          }
+          if (Array.isArray(data.suggestions)) setSuggestions(data.suggestions)
         }
       } catch {}
+      reveal()
     }
-    refresh()
-    return () => {
-      cancelled = true
-    }
+    load()
+
+    return () => clearTimeout(safety)
   }, [])
 
   // Keep the escaped button on-screen if the viewport changes.
@@ -201,7 +184,7 @@ export default function GatePage() {
         left: padX + Math.random() * (maxLeft - padX),
         top: padTop + Math.random() * (maxTop - padTop),
       }
-      // Enforce a real jump (from the in-slot button too, via its live rect).
+      // Enforce a real jump (measured from the in-slot button too, via its live rect).
       if (Math.hypot(spot.left - curLeft, spot.top - curTop) > 160) break
     }
     return spot
@@ -355,28 +338,42 @@ export default function GatePage() {
         paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
       }}
     >
-      <div className="flex-1 flex flex-col items-center justify-center gap-10">
-        {hasSuggestions ? suggestionPanel : signedOutPrompt}
-        {hero}
-      </div>
+      {!ready ? (
+        <div className="flex-1 flex items-center justify-center">
+          <span
+            aria-label="Loading"
+            className="h-6 w-6 rounded-full border-2 border-white/15 border-t-white/70 animate-spin"
+          />
+        </div>
+      ) : (
+        <>
+          <div
+            className="flex-1 flex flex-col items-center justify-center gap-10"
+            style={{ animation: 'gate-in 0.3s ease-out both' }}
+          >
+            {hasSuggestions ? suggestionPanel : signedOutPrompt}
+            {hero}
+          </div>
 
-      {escaped && (
-        <button
-          ref={breakBtnRef}
-          onClick={handleBreak}
-          className={`${breakBtnClass} fixed z-50`}
-          style={{
-            top: pos.top,
-            left: pos.left,
-            width: 150,
-            opacity: hidden ? 0 : 1,
-            transform: hidden ? `scale(0.4) rotate(${spin}deg)` : 'scale(1) rotate(0deg)',
-            transition: 'opacity 0.17s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            willChange: 'transform, opacity',
-          }}
-        >
-          Having a break
-        </button>
+          {escaped && (
+            <button
+              ref={breakBtnRef}
+              onClick={handleBreak}
+              className={`${breakBtnClass} fixed z-50`}
+              style={{
+                top: pos.top,
+                left: pos.left,
+                width: 150,
+                opacity: hidden ? 0 : 1,
+                transform: hidden ? `scale(0.4) rotate(${spin}deg)` : 'scale(1) rotate(0deg)',
+                transition: 'opacity 0.17s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                willChange: 'transform, opacity',
+              }}
+            >
+              Having a break
+            </button>
+          )}
+        </>
       )}
     </main>
   )

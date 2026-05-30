@@ -81,3 +81,8 @@ textarea {
     background-position: 100% 50%;
   }
 }
+
+@keyframes gate-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
