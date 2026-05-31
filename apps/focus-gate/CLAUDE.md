@@ -42,6 +42,8 @@ Live from `main` (deployed): the full-screen **HOLD UP** gate — Instagram deep
 
 The earlier boxed-card / popup / boxless-dot-list presentations, the `?lay`/`?sty` explorers, and the `?demo=1` preview sample were all removed once the look was chosen — production-clean.
 
+**Disguise icon.** The PWA masquerades as Instagram (`manifest.json` name/short_name `Instagram`). The icons (`public/icons/instagram-{180,192,512,512-maskable}.png`) are regenerated from an SVG (rounded squircle, bottom-left radial IG gradient, camera glyph + top-right flash dot) to match the real app icon as seen on the home screen — the maskable variant is full-bleed with the glyph pulled into the safe zone. Regenerate via the SVG-in-Chromium approach (no ImageMagick in the env); keep all four sizes in sync.
+
 ## Next
 - **De-hardcode the Lock In URL** (`LOCK_IN_URL` in `app/page.tsx`) — iron-rule #1. The value already lives in `apps/hub/config/apps.json` (slug `lock-in`), but focus-gate can't cleanly read across to it until a shared `packages/` workspace exists; reaching into the hub app directly would couple their builds. Bundled into the deferred structure pass (root `CLAUDE.md` → Current phase → Next) — needs the cross-app design discussion first.
 - **Tune the dodge on a real phone** — adjust `DODGE_ODDS` / max respawns if the friction feels too easy or too annoying in the hand.
