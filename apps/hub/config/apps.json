@@ -5,6 +5,7 @@
       "name": "Focus Gate",
       "description": "Intentional Instagram replacement",
       "icon": "brain",
+      "iconImage": "/app-icons/focus-gate.png",
       "color": "purple",
       "versions": {
         "stable": "https://icefrosst-focus-gate-personal-app.vercel.app"
@@ -16,6 +17,7 @@
       "name": "Lock In",
       "description": "Tasks, prioritised. Voice in, lock in.",
       "icon": "bolt",
+      "iconImage": "/app-icons/lock-in.png",
       "color": "amber",
       "versions": {
         "stable": "https://icefrosst-lock-in.vercel.app"
