@@ -2,6 +2,9 @@
 //   node scripts/gen-icons.mjs
 // Outputs the four PWA sizes into public/icons and copies the 512 into the
 // hub's public/app-icons/cookie-jar.png for the launcher tile.
+//
+// The mark is a literal JAR on a dark background, with cookies inside —
+// "Cookie Jar" is the name; the icon is the jar.
 import sharp from 'sharp'
 import { mkdir, copyFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -12,41 +15,70 @@ const appRoot = join(__dirname, '..')
 const iconsDir = join(appRoot, 'public', 'icons')
 const hubAppIcons = join(appRoot, '..', 'hub', 'public', 'app-icons')
 
-// A cream cookie with chocolate chips, centred on the canvas.
+// A small cream cookie with chocolate chips.
 function cookie(cx, cy, r) {
-  const chips = [
-    [-0.34, -0.30, 0.12], [0.30, -0.40, 0.10], [0.42, 0.22, 0.11],
-    [-0.22, 0.40, 0.10], [0.06, 0.04, 0.09], [-0.50, 0.10, 0.08],
-    [0.20, -0.05, 0.07],
-  ]
+  const chips = [[-0.32, -0.28], [0.30, -0.18], [0.28, 0.30], [-0.22, 0.30], [0.02, 0.02]]
   const dots = chips
-    .map(([dx, dy, dr]) =>
-      `<circle cx="${cx + dx * r}" cy="${cy + dy * r}" r="${dr * r}" fill="#5a3210"/>`
+    .map(([dx, dy]) =>
+      `<circle cx="${cx + dx * r}" cy="${cy + dy * r}" r="${r * 0.13}" fill="#7a4a1e"/>`
     )
     .join('')
   return `
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="#f0d29a"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d9b878" stroke-width="${r * 0.05}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d9b878" stroke-width="${r * 0.06}"/>
     ${dots}
+  `
+}
+
+// The jar: a glass body (coral rim + lid), filled with a pile of cookies.
+function jar() {
+  const C = '#e5484d' // coral
+  const Cd = '#aa2429' // deep coral (screw band)
+  return `
+    <!-- soft warm glow behind the jar -->
+    <circle cx="256" cy="300" r="190" fill="url(#glow)"/>
+
+    <!-- lid -->
+    <rect x="170" y="120" width="172" height="40" rx="14" fill="${C}"/>
+    <rect x="160" y="152" width="192" height="22" rx="9" fill="${Cd}"/>
+
+    <!-- glass body -->
+    <rect x="156" y="176" width="200" height="232" rx="40"
+          fill="rgba(229,72,77,0.10)" stroke="${C}" stroke-width="11"/>
+
+    <!-- cookies inside (clipped to the jar interior) -->
+    <g clip-path="url(#jarClip)">
+      ${cookie(214, 348, 46)}
+      ${cookie(308, 356, 42)}
+      ${cookie(262, 296, 44)}
+    </g>
+
+    <!-- glass highlight -->
+    <rect x="180" y="200" width="20" height="150" rx="10" fill="rgba(255,255,255,0.10)"/>
   `
 }
 
 function svg({ rounded }) {
   const S = 512
   const bg = rounded
-    ? `<rect x="0" y="0" width="${S}" height="${S}" rx="112" fill="url(#g)"/>`
-    : `<rect x="0" y="0" width="${S}" height="${S}" fill="url(#g)"/>`
-  const r = rounded ? 150 : 128 // maskable cookie sits inside the safe zone
+    ? `<rect x="0" y="0" width="${S}" height="${S}" rx="112" fill="url(#bg)"/>`
+    : `<rect x="0" y="0" width="${S}" height="${S}" fill="url(#bg)"/>`
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
     <defs>
-      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#ec5d5e"/>
-        <stop offset="0.5" stop-color="#e5484d"/>
-        <stop offset="1" stop-color="#aa2429"/>
-      </linearGradient>
+      <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+        <stop offset="0" stop-color="#242427"/>
+        <stop offset="1" stop-color="#161618"/>
+      </radialGradient>
+      <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="rgba(229,72,77,0.34)"/>
+        <stop offset="1" stop-color="rgba(229,72,77,0)"/>
+      </radialGradient>
+      <clipPath id="jarClip">
+        <rect x="162" y="182" width="188" height="220" rx="36"/>
+      </clipPath>
     </defs>
     ${bg}
-    ${cookie(256, 256, r)}
+    ${jar()}
   </svg>`
 }
 
