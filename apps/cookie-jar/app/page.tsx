@@ -320,7 +320,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowAddCookie(true)}
-                className="mb-6 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-surface font-medium text-text-muted transition-colors active:bg-surface-elevated"
+                className="mb-6 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-surface font-medium text-text-muted transition active:scale-[0.98] active:bg-surface-elevated"
               >
                 <IconPlus size={18} stroke={2} />
                 Add a cookie

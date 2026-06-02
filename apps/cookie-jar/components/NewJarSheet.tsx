@@ -37,7 +37,7 @@ export default function NewJarSheet({
         type="button"
         onClick={create}
         disabled={!trimmed || saving}
-        className="mt-4 min-h-12 w-full rounded-xl bg-coral font-semibold text-white transition-colors active:bg-coral-bright disabled:opacity-40"
+        className="mt-4 min-h-12 w-full rounded-xl bg-coral font-semibold text-white transition active:scale-[0.98] active:bg-coral-bright disabled:opacity-40"
       >
         {saving ? 'Creating…' : 'Create jar'}
       </button>

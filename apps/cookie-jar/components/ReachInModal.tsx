@@ -64,7 +64,7 @@ export default function ReachInModal({
           type="button"
           onClick={onAgain}
           disabled={!canDrawAgain}
-          className="reach-glow flex min-h-12 items-center justify-center gap-2 rounded-xl bg-coral font-semibold text-white transition-colors active:bg-coral-bright disabled:opacity-40 disabled:shadow-none"
+          className="reach-glow flex min-h-12 items-center justify-center gap-2 rounded-xl bg-coral font-semibold text-white transition active:scale-[0.98] active:bg-coral-bright disabled:opacity-40 disabled:shadow-none"
         >
           <IconReload size={18} stroke={2} />
           Reach in again

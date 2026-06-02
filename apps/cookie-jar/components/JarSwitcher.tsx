@@ -23,7 +23,7 @@ export default function JarSwitcher({
             key={jar.id}
             type="button"
             onClick={() => onSelect(jar.id)}
-            className={`min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors ${
+            className={`min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-medium transition active:scale-95 ${
               active
                 ? 'bg-coral text-white'
                 : 'bg-surface text-text-muted active:bg-surface-elevated'
@@ -37,7 +37,7 @@ export default function JarSwitcher({
         type="button"
         onClick={onNewJar}
         aria-label="New jar"
-        className="flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-full bg-surface text-text-muted transition-colors active:bg-surface-elevated"
+        className="flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-full bg-surface text-text-muted transition active:scale-95 active:bg-surface-elevated"
       >
         <IconPlus size={18} stroke={2} />
       </button>
