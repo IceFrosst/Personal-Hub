@@ -3,15 +3,12 @@
 // scripts/gen-icons.mjs. "Cookie Jar" is the name; the logo is the jar.
 const COLORS = ['#e5484d', '#ffb224', '#12a594', '#8e4ec6', '#0090ff', '#d6409f', '#30a46c']
 
-// [cx, cy, r, colorIdx] — a naturally-settled pile (kept in sync with gen-icons.mjs)
-const PILE: [number, number, number, number][] = [
-  [192,386,11,6], [301,382,15,3], [268,384,13,4], [229,379,18,0], [326,373,12,3],
-  [202,365,12,1], [281,360,14,5], [250,359,11,6], [315,353,11,4], [223,344,17,5],
-  [191,335,16,6], [264,334,17,0], [299,331,16,1], [236,315,15,4], [327,323,13,5],
-  [208,313,12,1], [278,302,18,4], [310,306,11,2], [187,299,13,3], [222,290,14,0],
-  [324,284,15,1], [250,290,12,0], [198,273,15,3], [291,275,12,5], [265,272,12,4],
-  [237,263,17,0], [312,259,13,5], [282,246,18,1], [207,242,17,0], [252,235,14,1],
-  [321,230,17,4], [185,225,11,6], [229,225,11,3],
+// Uniform balls, jar ~a third full: [cx, cy, colorIdx] (kept in sync with gen-icons.mjs)
+const BALL_R = 13
+const PILE: [number, number, number][] = [
+  [213,382,3], [311,382,5], [247,382,6], [277,382,2], [185,382,1], [294,362,6],
+  [230,362,3], [327,361,6], [261,360,0], [198,360,4], [279,341,1], [310,341,2],
+  [244,340,6], [216,340,1],
 ]
 
 export default function CookieJarLogo({ size = 40 }: { size?: number }) {
@@ -58,8 +55,8 @@ export default function CookieJarLogo({ size = 40 }: { size?: number }) {
 
       {/* flat circles inside */}
       <g clipPath="url(#cjl-clip)">
-        {PILE.map(([cx, cy, r, c], i) => (
-          <circle key={i} cx={cx} cy={cy} r={r} fill={COLORS[c]} />
+        {PILE.map(([cx, cy, c], i) => (
+          <circle key={i} cx={cx} cy={cy} r={BALL_R} fill={COLORS[c]} />
         ))}
       </g>
 
