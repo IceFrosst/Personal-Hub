@@ -3,8 +3,8 @@
 // Outputs the four PWA sizes into public/icons and copies the 512 into the
 // hub's public/app-icons/cookie-jar.png for the launcher tile.
 //
-// The mark is a literal JAR on a dark background, with cookies inside —
-// "Cookie Jar" is the name; the icon is the jar.
+// The mark is a coral glass JAR on a dark background, filled with small flat
+// circles in the portfolio accent colours — "Cookie Jar" is the name.
 import sharp from 'sharp'
 import { mkdir, copyFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -15,70 +15,43 @@ const appRoot = join(__dirname, '..')
 const iconsDir = join(appRoot, 'public', 'icons')
 const hubAppIcons = join(appRoot, '..', 'hub', 'public', 'app-icons')
 
-// A small cream cookie with chocolate chips.
-function cookie(cx, cy, r) {
-  const chips = [[-0.32, -0.28], [0.30, -0.18], [0.28, 0.30], [-0.22, 0.30], [0.02, 0.02]]
-  const dots = chips
-    .map(([dx, dy]) =>
-      `<circle cx="${cx + dx * r}" cy="${cy + dy * r}" r="${r * 0.13}" fill="#7a4a1e"/>`
-    )
-    .join('')
-  return `
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#f0d29a"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d9b878" stroke-width="${r * 0.06}"/>
-    ${dots}
-  `
-}
+// portfolio accent palette
+export const COLORS = ['#e5484d', '#ffb224', '#12a594', '#8e4ec6', '#0090ff', '#d6409f', '#30a46c']
 
-// The jar: a glass body (coral rim + lid), filled with a pile of cookies.
-function jar() {
-  const C = '#e5484d' // coral
-  const Cd = '#aa2429' // deep coral (screw band)
-  return `
-    <!-- soft warm glow behind the jar -->
-    <circle cx="256" cy="300" r="190" fill="url(#glow)"/>
+// flat circles, piled bottom-up; [cx, cy, r]
+export const PILE = [
+  [190, 378, 18], [228, 380, 19], [266, 378, 18], [304, 378, 18], [336, 366, 14],
+  [178, 344, 17], [216, 344, 18], [254, 344, 18], [292, 344, 18], [328, 340, 16],
+  [196, 308, 18], [234, 308, 18], [272, 308, 18], [310, 308, 17],
+  [214, 274, 17], [252, 272, 18], [290, 274, 17], [324, 276, 14],
+  [232, 240, 16], [270, 240, 17], [306, 242, 15],
+]
 
-    <!-- lid -->
-    <rect x="170" y="120" width="172" height="40" rx="14" fill="${C}"/>
-    <rect x="160" y="152" width="192" height="22" rx="9" fill="${Cd}"/>
-
-    <!-- glass body -->
-    <rect x="156" y="176" width="200" height="232" rx="40"
-          fill="rgba(229,72,77,0.10)" stroke="${C}" stroke-width="11"/>
-
-    <!-- cookies inside (clipped to the jar interior) -->
-    <g clip-path="url(#jarClip)">
-      ${cookie(214, 348, 46)}
-      ${cookie(308, 356, 42)}
-      ${cookie(262, 296, 44)}
-    </g>
-
-    <!-- glass highlight -->
-    <rect x="180" y="200" width="20" height="150" rx="10" fill="rgba(255,255,255,0.10)"/>
-  `
-}
+const circles = () =>
+  PILE.map(([x, y, r], i) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${COLORS[i % COLORS.length]}"/>`).join('')
 
 function svg({ rounded }) {
   const S = 512
   const bg = rounded
-    ? `<rect x="0" y="0" width="${S}" height="${S}" rx="112" fill="url(#bg)"/>`
-    : `<rect x="0" y="0" width="${S}" height="${S}" fill="url(#bg)"/>`
+    ? `<rect width="${S}" height="${S}" rx="112" fill="url(#bg)"/>`
+    : `<rect width="${S}" height="${S}" fill="url(#bg)"/>`
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
     <defs>
       <radialGradient id="bg" cx="50%" cy="38%" r="75%">
-        <stop offset="0" stop-color="#242427"/>
-        <stop offset="1" stop-color="#161618"/>
+        <stop offset="0" stop-color="#242427"/><stop offset="1" stop-color="#161618"/>
       </radialGradient>
       <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-        <stop offset="0" stop-color="rgba(229,72,77,0.34)"/>
-        <stop offset="1" stop-color="rgba(229,72,77,0)"/>
+        <stop offset="0" stop-color="rgba(229,72,77,0.30)"/><stop offset="1" stop-color="rgba(229,72,77,0)"/>
       </radialGradient>
-      <clipPath id="jarClip">
-        <rect x="162" y="182" width="188" height="220" rx="36"/>
-      </clipPath>
+      <clipPath id="clip"><rect x="162" y="182" width="188" height="220" rx="36"/></clipPath>
     </defs>
     ${bg}
-    ${jar()}
+    <circle cx="256" cy="300" r="190" fill="url(#glow)"/>
+    <rect x="170" y="120" width="172" height="40" rx="14" fill="#e5484d"/>
+    <rect x="160" y="152" width="192" height="22" rx="9" fill="#aa2429"/>
+    <rect x="156" y="176" width="200" height="232" rx="40" fill="rgba(229,72,77,0.08)" stroke="#e5484d" stroke-width="11"/>
+    <g clip-path="url(#clip)">${circles()}</g>
+    <rect x="180" y="200" width="20" height="150" rx="10" fill="rgba(255,255,255,0.10)"/>
   </svg>`
 }
 
