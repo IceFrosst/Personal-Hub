@@ -36,18 +36,20 @@ small animation. Private; sharing is IRL ("here's the cookie I drew").
 - PWA icons are generated from an inline SVG via `scripts/gen-icons.mjs` (uses `sharp`) — it also copies the 512 into `apps/hub/public/app-icons/cookie-jar.png` for the launcher tile. Re-run if the icon changes.
 
 ## Current state
-Built, not yet deployed. Full flow works locally: Google sign-in landing → multiple named
-jars (create / switch via pill bar / rename / delete) → add cookies (title + optional story +
-date) → **Show all** list and **Reach in** random-cookie reveal (coral cookie, draw
-animation, "reach in again"). Tap a cookie for detail + remove. Sign-out in the header.
-Optimistic writes with rollback on error. Registered in the hub (`apps.json` + `cookie` icon
-mapped + tile icon copied). Coral accent on the mauve dark base.
+Built and wired for deploy; **awaiting merge of PR #9 to `main`** for production. Full flow:
+Google sign-in landing → multiple named jars (create / switch via pill bar / rename / delete)
+→ add cookies (title + optional story + date) → **Show all** list and **Reach in**
+random-cookie reveal (coral cookie, `cookie-draw` pop animation, "reach in again", avoids
+immediate repeats). Tap a cookie for detail + remove. Sign-out in the header. Optimistic
+writes with rollback. Tactile `active:scale` press feedback on every button. Coral accent on
+the mauve dark base. Registered in the hub (`apps.json` + `cookie` icon + tile image).
 
-**Still to do before it's live:** create the Vercel project (`icefrosst-cookie-jar`, Root
-Directory `apps/cookie-jar`, `turbo-ignore`), apply both SQL migrations to project
-`qcsyihymmaktkbqfxlkl`, add `cookie_jar` to the PostgREST exposed-schema list, and add the
-focus-gate-style auth redirect URL for this app's domain. Production ships from `main`.
+Infra **done**: migrations `0001`/`0002` applied to `qcsyihymmaktkbqfxlkl`; `cookie_jar` added
+to the PostgREST exposed-schema list (`public,graphql_public,hub,focus_gate,cookie_jar`); auth
+redirect URLs added for `icefrosst-cookie-jar.vercel.app` + a preview wildcard; Vercel project
+`icefrosst-cookie-jar` created (Root Directory `apps/cookie-jar`, `turbo-ignore`, prod branch
+`main`, Supabase env vars injected). Not yet verified on a real device.
 
 ## Next
-- Apply migrations + expose schema + create Vercel project + auth redirect URL, then test on phone.
-- Possible polish: jar reordering, cookie edit (not just add/remove), a "draw history" so reach-in feels less repetitive, haptics on reach-in.
+- **Test the Vercel preview / production on a phone** — sign-in, create a jar, add cookies, reach in. (Runtime wasn't browser-verified in the build sandbox.)
+- Possible polish: jar reordering, cookie **edit** (not just add/remove), a "draw history" so reach-in feels less repetitive, haptics on reach-in.
