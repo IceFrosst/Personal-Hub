@@ -18,19 +18,24 @@ const hubAppIcons = join(appRoot, '..', 'hub', 'public', 'app-icons')
 // portfolio accent palette
 export const COLORS = ['#e5484d', '#ffb224', '#12a594', '#8e4ec6', '#0090ff', '#d6409f', '#30a46c']
 
-// A naturally-settled pile of uniform circles: [cx, cy, colorIdx]. All balls
-// share BALL_R; the jar is ~a third full. Pre-computed by a seeded
-// valley-filling pack (seed 9) so the icon is reproducible and stays in sync
-// with the in-app CookieJarLogo.
-export const BALL_R = 13
+// Uniform balls filling the round jar bottom, viewed slightly from above: the
+// fill surface is an ELLIPSE (back higher, front lower) and the list is sorted
+// back-to-front so front balls occlude the ones behind — a 3D pile, ~a third
+// full. Each ball gets the `sphere` gradient (highlight + edge shadow). Data is
+// pre-computed (seed 7) so the icon is reproducible and matches CookieJarLogo.
+export const BALL_R = 15
 export const PILE = [
-  [213,382,3], [311,382,5], [247,382,6], [277,382,2], [185,382,1], [294,362,6],
-  [230,362,3], [327,361,6], [261,360,0], [198,360,4], [279,341,1], [310,341,2],
-  [244,340,6], [216,340,1],
+  [274.2,325.7,5], [217,332.8,2], [287.4,333,5], [238.3,335.1,4], [327.7,339.6,3],
+  [267.9,341.1,1], [296.9,344.2,1], [187.2,345.3,5], [220.3,346.8,6], [318.2,349.5,2],
+  [197.3,350.6,2], [265.2,353.5,4], [235.8,355.8,1], [265.1,363.5,2], [299.9,365.1,6],
+  [239.2,368.7,5], [212.7,371.4,0], [296.8,374.8,3], [262.7,375.1,6],
 ]
 
 const circles = () =>
-  PILE.map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="${BALL_R}" fill="${COLORS[c]}"/>`).join('')
+  PILE.map(([x, y, c]) =>
+    `<circle cx="${x}" cy="${y}" r="${BALL_R}" fill="${COLORS[c]}"/>` +
+    `<circle cx="${x}" cy="${y}" r="${BALL_R}" fill="url(#sphere)"/>`
+  ).join('')
 
 function svg({ rounded }) {
   const S = 512
@@ -44,6 +49,11 @@ function svg({ rounded }) {
       </radialGradient>
       <radialGradient id="glow" cx="50%" cy="50%" r="50%">
         <stop offset="0" stop-color="rgba(229,72,77,0.30)"/><stop offset="1" stop-color="rgba(229,72,77,0)"/>
+      </radialGradient>
+      <radialGradient id="sphere" cx="36%" cy="32%" r="68%">
+        <stop offset="0" stop-color="rgba(255,255,255,0.55)"/>
+        <stop offset="0.34" stop-color="rgba(255,255,255,0)"/>
+        <stop offset="1" stop-color="rgba(0,0,0,0.30)"/>
       </radialGradient>
       <clipPath id="clip"><rect x="162" y="182" width="188" height="220" rx="36"/></clipPath>
     </defs>

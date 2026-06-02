@@ -3,12 +3,15 @@
 // scripts/gen-icons.mjs. "Cookie Jar" is the name; the logo is the jar.
 const COLORS = ['#e5484d', '#ffb224', '#12a594', '#8e4ec6', '#0090ff', '#d6409f', '#30a46c']
 
-// Uniform balls, jar ~a third full: [cx, cy, colorIdx] (kept in sync with gen-icons.mjs)
-const BALL_R = 13
+// Uniform balls filling the round jar bottom (~a third full), viewed slightly
+// from above: surface is an ellipse, sorted back-to-front for occlusion, each
+// ball sphere-shaded. [cx, cy, colorIdx] — kept in sync with gen-icons.mjs.
+const BALL_R = 15
 const PILE: [number, number, number][] = [
-  [213,382,3], [311,382,5], [247,382,6], [277,382,2], [185,382,1], [294,362,6],
-  [230,362,3], [327,361,6], [261,360,0], [198,360,4], [279,341,1], [310,341,2],
-  [244,340,6], [216,340,1],
+  [274.2,325.7,5], [217,332.8,2], [287.4,333,5], [238.3,335.1,4], [327.7,339.6,3],
+  [267.9,341.1,1], [296.9,344.2,1], [187.2,345.3,5], [220.3,346.8,6], [318.2,349.5,2],
+  [197.3,350.6,2], [265.2,353.5,4], [235.8,355.8,1], [265.1,363.5,2], [299.9,365.1,6],
+  [239.2,368.7,5], [212.7,371.4,0], [296.8,374.8,3], [262.7,375.1,6],
 ]
 
 export default function CookieJarLogo({ size = 40 }: { size?: number }) {
@@ -28,6 +31,11 @@ export default function CookieJarLogo({ size = 40 }: { size?: number }) {
         <radialGradient id="cjl-glow" cx="50%" cy="50%" r="50%">
           <stop offset="0" stopColor="rgba(229,72,77,0.30)" />
           <stop offset="1" stopColor="rgba(229,72,77,0)" />
+        </radialGradient>
+        <radialGradient id="cjl-sphere" cx="36%" cy="32%" r="68%">
+          <stop offset="0" stopColor="rgba(255,255,255,0.55)" />
+          <stop offset="0.34" stopColor="rgba(255,255,255,0)" />
+          <stop offset="1" stopColor="rgba(0,0,0,0.30)" />
         </radialGradient>
         <clipPath id="cjl-clip">
           <rect x="162" y="182" width="188" height="220" rx="36" />
@@ -56,7 +64,10 @@ export default function CookieJarLogo({ size = 40 }: { size?: number }) {
       {/* flat circles inside */}
       <g clipPath="url(#cjl-clip)">
         {PILE.map(([cx, cy, c], i) => (
-          <circle key={i} cx={cx} cy={cy} r={BALL_R} fill={COLORS[c]} />
+          <g key={i}>
+            <circle cx={cx} cy={cy} r={BALL_R} fill={COLORS[c]} />
+            <circle cx={cx} cy={cy} r={BALL_R} fill="url(#cjl-sphere)" />
+          </g>
         ))}
       </g>
 
