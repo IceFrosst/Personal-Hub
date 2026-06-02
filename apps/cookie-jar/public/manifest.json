@@ -1,0 +1,30 @@
+{
+  "name": "Cookie Jar",
+  "short_name": "Cookie Jar",
+  "description": "Bank the hard things you've conquered. Reach in when you need fuel.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161618",
+  "theme_color": "#161618",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/cookie-jar-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/cookie-jar-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/cookie-jar-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

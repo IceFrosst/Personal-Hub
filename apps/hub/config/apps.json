@@ -23,6 +23,18 @@
         "stable": "https://icefrosst-lock-in.vercel.app"
       },
       "added_at": "2026-05-28"
+    },
+    {
+      "slug": "cookie-jar",
+      "name": "Cookie Jar",
+      "description": "Bank your wins. Reach in for fuel.",
+      "icon": "cookie",
+      "iconImage": "/app-icons/cookie-jar.png",
+      "color": "coral",
+      "versions": {
+        "stable": "https://icefrosst-cookie-jar.vercel.app"
+      },
+      "added_at": "2026-06-02"
     }
   ]
 }
