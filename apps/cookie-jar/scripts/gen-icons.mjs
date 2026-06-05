@@ -18,17 +18,16 @@ const hubAppIcons = join(appRoot, '..', 'hub', 'public', 'app-icons')
 // portfolio accent palette
 export const COLORS = ['#e5484d', '#ffb224', '#12a594', '#8e4ec6', '#0090ff', '#d6409f', '#30a46c']
 
-// Uniform balls filling the round jar bottom, viewed slightly from above: the
-// fill surface is an ELLIPSE (back higher, front lower) and the list is sorted
-// back-to-front so front balls occlude the ones behind — a 3D pile, ~a third
-// full. Each ball gets the `sphere` gradient (highlight + edge shadow). Data is
-// pre-computed (seed 7) so the icon is reproducible and matches CookieJarLogo.
-export const BALL_R = 15
+// Uniform balls settled by a 2D gravity simulation (drop + collide against the
+// jar walls/floor/each other), then colour-balanced so neighbours differ. The
+// pile fills the bottom wall-to-wall like a real jar ~a third full; each ball
+// is sphere-shaded (highlight + edge shadow) for depth. [cx, cy, colorIdx],
+// pre-computed so the icon is reproducible and matches CookieJarLogo.
+export const BALL_R = 16
 export const PILE = [
-  [274.2,325.7,5], [217,332.8,2], [287.4,333,5], [238.3,335.1,4], [327.7,339.6,3],
-  [267.9,341.1,1], [296.9,344.2,1], [187.2,345.3,5], [220.3,346.8,6], [318.2,349.5,2],
-  [197.3,350.6,2], [265.2,353.5,4], [235.8,355.8,1], [265.1,363.5,2], [299.9,365.1,6],
-  [239.2,368.7,5], [212.7,371.4,0], [296.8,374.8,3], [262.7,375.1,6],
+  [194,330.1,5], [287.6,330.5,2], [255.7,330.6,1], [334,357.3,6], [178,357.4,0],
+  [271.5,358,0], [303.4,358.2,1], [209.2,358.2,2], [240,358.4,3], [319.9,385.6,3],
+  [192.5,385.7,4], [288,386,4], [256.3,386,5], [224.6,386,6],
 ]
 
 const circles = () =>
