@@ -27,7 +27,7 @@ export function hexToRgba(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 
-// mix a hex toward black by f (0..1) — used for the darker lid band
+// mix a hex toward black by f (0..1) — used for cylinder side-shading
 export function darken(hex: string, f: number): string {
   const n = parseInt(hex.slice(1), 16)
   const r = Math.round(((n >> 16) & 255) * (1 - f))
@@ -36,8 +36,18 @@ export function darken(hex: string, f: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
 }
 
-// jar interior (matches the glass body in scripts/gen-icons.mjs)
-export const JAR = { xL: 162, xR: 350, yF: 402, yTop: 196, cr: 34, clip: { x: 162, y: 182, w: 188, h: 220, rx: 36 } }
+// mix a hex toward white by f (0..1) — the lit side / lid top
+export function lighten(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const r = Math.round(((n >> 16) & 255) + (255 - ((n >> 16) & 255)) * f)
+  const g = Math.round(((n >> 8) & 255) + (255 - ((n >> 8) & 255)) * f)
+  const b = Math.round((n & 255) + (255 - (n & 255)) * f)
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+}
+
+// jar interior bounds for the ball settle (a cylinder seen in perspective —
+// JarVisual draws the matching glass). cx 256, radius ~98.
+export const JAR = { xL: 158, xR: 354, yF: 400, yTop: 202, cr: 44 }
 const MAX_BALLS = 120 // perf bound; far beyond any realistic jar
 
 function mulberry32(a: number) {

@@ -41,8 +41,11 @@ Built and wired for deploy. Full flow:
 Google sign-in landing → **jar shelf** home: a coverflow carousel (`components/JarShelf.tsx`)
 you swipe through — the centered jar is big (`components/JarVisual.tsx`, one ball per cookie,
 balls shrink to fit, gravity-settled via `lib/jar.ts`), neighbours rotate away like bottles on
-a shelf. `JarVisual` is **transparent** (floats on the page — no background card/glow); the
-glass + lid are **tinted by the jar's `color`** (`JAR_COLORS` in `lib/jar.ts`). Edge spacers
+a shelf. `JarVisual` draws a **3D cylinder** (elliptical rim + lid cap, curved base, horizontal
+cylinder shading, ground shadow) so it still reads as a solid object when `rotateY`-ed — not a
+flat card. It's **transparent** (floats on the page — no background card/glow); the glass + lid
+are **tinted by the jar's `color`** (`JAR_COLORS` in `lib/jar.ts`; `darken`/`lighten`/`hexToRgba`
+do the shading). Edge spacers
 let the first/last jar reach dead-centre. The shelf reports the centered index; **the main
 screen shows that jar's name + count + action row right there**: **Reach in** (tinted to the
 jar colour), **+** (add cookie), **⚙** (jar settings), plus **Show all cookies** + dots.
