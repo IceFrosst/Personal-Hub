@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { IconTrash, IconCheck } from '@tabler/icons-react'
+import { IconTrash, IconCheck, IconListDetails } from '@tabler/icons-react'
 import type { Jar } from '@/lib/types'
 import { JAR_COLORS } from '@/lib/jar'
 import Sheet from './Sheet'
@@ -9,6 +9,7 @@ import Sheet from './Sheet'
 export default function JarMenuSheet({
   jar,
   cookieCount,
+  onShowAll,
   onRename,
   onColor,
   onDelete,
@@ -16,6 +17,7 @@ export default function JarMenuSheet({
 }: {
   jar: Jar
   cookieCount: number
+  onShowAll?: () => void
   onRename: (name: string) => Promise<void>
   onColor: (color: string) => Promise<void>
   onDelete: (jar: Jar) => Promise<void>
@@ -29,6 +31,17 @@ export default function JarMenuSheet({
   return (
     <Sheet onClose={onClose}>
       <p className="mb-3 px-1 text-xs uppercase tracking-wide text-text-low">Jar settings</p>
+
+      {onShowAll && (
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="mb-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface font-medium text-text transition active:scale-[0.98] active:bg-surface-elevated"
+        >
+          <IconListDetails size={18} stroke={1.75} />
+          Show all {cookieCount} {cookieCount === 1 ? 'cookie' : 'cookies'}
+        </button>
+      )}
 
       <input
         value={name}

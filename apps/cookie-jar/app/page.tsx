@@ -4,14 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   IconCookie,
   IconPlus,
-  IconHandStop,
   IconLogout,
   IconChevronLeft,
   IconSettings,
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Cookie, Jar } from '@/lib/types'
-import { jarHex } from '@/lib/jar'
 import CookieJarLogo from '@/components/CookieJarLogo'
 import SignInLanding from '@/components/SignInLanding'
 import JarShelf from '@/components/JarShelf'
@@ -195,6 +193,12 @@ export default function HomePage() {
     setReachCookie(pick); setDrawKey((k) => k + 1)
   }, [cookies, reachCookie])
 
+  // tap the centred jar: reach in (or, if it's empty, jump to adding a cookie)
+  const tapJar = useCallback((jar: Jar) => {
+    if ((counts[jar.id] ?? 0) === 0) setShowAddCookie(true)
+    else reachIn()
+  }, [counts, reachIn])
+
   if (signedIn === null) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center">
@@ -264,68 +268,52 @@ export default function HomePage() {
       {jars.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <button type="button" onClick={() => setShowNewJar(true)} aria-label="Create your first jar"
-            className="flex aspect-square w-[60%] max-w-[260px] items-center justify-center rounded-[22%] border-2 border-dashed border-border text-text-low transition-colors active:border-coral active:text-coral">
+            className="flex aspect-square w-[60%] max-w-[260px] items-center justify-center rounded-[26%] border-2 border-dashed border-border text-text-low transition-colors active:border-coral active:text-coral">
             <IconPlus size={72} stroke={1.5} />
           </button>
           <p className="mt-6 max-w-[280px] text-text-muted">No jars yet. Create one and start banking the hard things you&apos;ve conquered.</p>
         </div>
       ) : (
         <>
-          <JarShelf
-            key={jars.length}
-            jars={jars}
-            counts={counts}
-            initialId={focusId}
-            onActive={setActiveIndex}
-            onOpen={() => setViewingList(true)}
-            onNewJar={() => setShowNewJar(true)}
-          />
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <div className="w-full" style={{ height: 'clamp(290px, 46vh, 380px)' }}>
+              <JarShelf
+                key={jars.length}
+                jars={jars}
+                counts={counts}
+                initialId={focusId}
+                onActive={setActiveIndex}
+                onTap={tapJar}
+                onLongPress={() => setShowJarMenu(true)}
+                onNewJar={() => setShowNewJar(true)}
+              />
+            </div>
 
-          {/* bottom block — name + actions for the centered jar */}
-          <div className="mt-1">
-            {activeJar ? (
-              <>
-                <div className="text-center">
-                  <h2 className="truncate px-6 text-2xl font-semibold tracking-tight text-text">{activeJar.name}</h2>
-                  <p className="mt-0.5 text-sm text-text-muted">{count} {count === 1 ? 'cookie' : 'cookies'}</p>
-                </div>
-
-                <div className="mt-3 flex gap-2.5">
-                  <button type="button" onClick={reachIn} disabled={count === 0}
-                    className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl text-base font-semibold text-white transition-transform active:scale-[0.97] disabled:opacity-40"
-                    style={{ backgroundColor: jarHex(activeJar.color) }}>
-                    <IconHandStop size={20} stroke={2} /> Reach in
-                  </button>
-                  <button type="button" onClick={() => setShowAddCookie(true)} aria-label="Add a cookie"
-                    className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-2xl border border-border bg-surface text-text-muted transition active:scale-[0.97] active:bg-surface-elevated">
-                    <IconPlus size={22} stroke={2} />
-                  </button>
-                  <button type="button" onClick={() => setShowJarMenu(true)} aria-label="Jar settings"
-                    className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-2xl border border-border bg-surface text-text-muted transition active:scale-[0.97] active:bg-surface-elevated">
-                    <IconSettings size={20} stroke={1.75} />
-                  </button>
-                </div>
-                <button type="button" onClick={() => setViewingList(true)}
-                  className="mt-2.5 min-h-11 w-full text-sm text-text-low transition-colors active:text-text-muted">
-                  Show all cookies
-                </button>
-              </>
-            ) : (
-              <div className="text-center">
-                <h2 className="text-2xl font-semibold tracking-tight text-text">New jar</h2>
-                <p className="mt-0.5 text-sm text-text-muted">Start a new collection</p>
-                <div className="min-h-[52px]" />
-              </div>
-            )}
+            {/* the only thing below the jar: its name */}
+            <h2 className="mt-1 max-w-full truncate px-6 text-2xl font-semibold tracking-tight text-text">
+              {activeJar ? activeJar.name : 'New jar'}
+            </h2>
 
             {/* dots */}
-            <div className="mt-2 flex items-center justify-center gap-1.5">
+            <div className="mt-3 flex items-center justify-center gap-1.5">
               {jars.map((j, i) => (
                 <span key={j.id} className={`h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-4 bg-coral' : 'w-1.5 bg-border'}`} />
               ))}
               <span className={`h-1.5 rounded-full transition-all ${activeIndex === jars.length ? 'w-4 bg-coral' : 'w-1.5 bg-border'}`} />
             </div>
+
+            <p className="mt-3 text-xs text-text-low">{activeJar ? 'Tap to reach in · long-press for settings' : 'Tap to create a new jar'}</p>
           </div>
+
+          {/* the only button on the main screen: add a cookie */}
+          {activeJar && (
+            <div className="flex justify-center pt-3">
+              <button type="button" onClick={() => setShowAddCookie(true)} aria-label="Add a cookie"
+                className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-surface text-text transition active:scale-[0.94] active:bg-surface-elevated">
+                <IconPlus size={28} stroke={2} />
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -336,7 +324,15 @@ export default function HomePage() {
         <AddCookieSheet jarName={activeJar.name} onSave={addCookie} onClose={() => setShowAddCookie(false)} />
       )}
       {showJarMenu && activeJar && (
-        <JarMenuSheet jar={activeJar} cookieCount={count} onRename={renameJar} onColor={recolorJar} onDelete={deleteJar} onClose={() => setShowJarMenu(false)} />
+        <JarMenuSheet
+          jar={activeJar}
+          cookieCount={count}
+          onShowAll={() => { setShowJarMenu(false); setViewingList(true) }}
+          onRename={renameJar}
+          onColor={recolorJar}
+          onDelete={deleteJar}
+          onClose={() => setShowJarMenu(false)}
+        />
       )}
       {reachCookie && (
         <ReachInModal cookie={reachCookie} drawKey={drawKey} onAgain={reachIn} canDrawAgain={cookies.length > 1} onClose={() => setReachCookie(null)} />

@@ -3,20 +3,16 @@
 import { useId, useMemo } from 'react'
 import { COLORS, settle, seedFrom, jarHex, hexToRgba, darken, lighten } from '@/lib/jar'
 
-// A 3D glass jar (a cylinder seen in slight perspective) filled with one ball
-// per cookie. Drawn with real volume — elliptical rim/lid, curved base, and
-// horizontal cylinder shading — so it still reads as a solid object when the
-// shelf rotates it. Transparent background; `color` tints the glass + lid.
+// A 3D rounded-square jar (matches the app-icon shape) filled with one ball per
+// cookie. Depth comes from an extruded back face offset up-right, so the top +
+// right walls show as darker edges — it reads as a solid object, including when
+// the shelf rotates it. Transparent background; `color` tints glass + lid.
 //
-// Geometry (512 viewBox, cx 256): body radius 98, rim ellipse ry 26 at y202,
-// base ellipse ry 22 at y408. The settle bounds in lib/jar.ts match.
-const CX = 256, RX = 98
-const RIM_Y = 194, RIM_RY = 26
-const BASE_Y = 408, BASE_RY = 22
-const LX = CX - RX, RXX = CX + RX // 158 .. 354
-
-// closed cylinder silhouette: left side ↓, base front arc, right side ↑, rim back arc
-const BODY = `M${LX},${RIM_Y} L${LX},${BASE_Y} A${RX},${BASE_RY} 0 0 0 ${RXX},${BASE_Y} L${RXX},${RIM_Y} A${RX},${RIM_RY} 0 0 1 ${LX},${RIM_Y} Z`
+// Geometry (512 viewBox, cx 256). Front glass face + a back copy offset by D.
+const CX = 256
+const BX = 148, BW = 200, B_TOP = 212, B_BOT = 412, BRX = 46 // front glass face
+const DX = 17, DY = -17 // extrusion offset toward the back/upper-right
+const LX = 152, LW = 192, L_TOP = 158, L_H = 50, LRX = 18 // lid front face
 
 export default function JarVisual({
   count,
@@ -35,27 +31,21 @@ export default function JarVisual({
   const { balls, r } = useMemo(() => settle(count, seedFrom(seed)), [count, seed])
   const hex = jarHex(color)
 
-  // lid: a short cylinder cap, slightly wider than the body
-  const lidRx = RX + 8, lidTop = 152, lidBot = 190, lidRy = 22
-  const lidLX = CX - lidRx, lidRXX = CX + lidRx
-  const LID = `M${lidLX},${lidTop} L${lidLX},${lidBot} A${lidRx},${lidRy} 0 0 0 ${lidRXX},${lidBot} L${lidRXX},${lidTop} A${lidRx},${lidRy} 0 0 1 ${lidLX},${lidTop} Z`
-
   return (
-    <svg width={size} height={size} viewBox="0 0 512 512" className={className} style={{ display: 'block', overflow: 'visible' }}>
+    <svg width={size} height={size} viewBox="92 126 320 320" className={className} style={{ display: 'block', overflow: 'visible' }}>
       <defs>
-        {/* horizontal cylinder shading: edges saturated, lit on the left */}
         <linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor={hexToRgba(hex, 0.26)} />
-          <stop offset="0.22" stopColor={hexToRgba(hex, 0.06)} />
-          <stop offset="0.5" stopColor={hexToRgba(hex, 0.12)} />
-          <stop offset="0.82" stopColor={hexToRgba(hex, 0.05)} />
-          <stop offset="1" stopColor={hexToRgba(hex, 0.3)} />
+          <stop offset="0" stopColor={hexToRgba(hex, 0.22)} />
+          <stop offset="0.2" stopColor={hexToRgba(hex, 0.05)} />
+          <stop offset="0.5" stopColor={hexToRgba(hex, 0.1)} />
+          <stop offset="0.8" stopColor={hexToRgba(hex, 0.05)} />
+          <stop offset="1" stopColor={hexToRgba(hex, 0.2)} />
         </linearGradient>
         <linearGradient id={`${uid}-lid`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor={darken(hex, 0.34)} />
+          <stop offset="0" stopColor={darken(hex, 0.3)} />
           <stop offset="0.32" stopColor={hex} />
-          <stop offset="0.62" stopColor={darken(hex, 0.1)} />
-          <stop offset="1" stopColor={darken(hex, 0.4)} />
+          <stop offset="0.7" stopColor={darken(hex, 0.12)} />
+          <stop offset="1" stopColor={darken(hex, 0.38)} />
         </linearGradient>
         <radialGradient id={`${uid}-sphere`} cx="36%" cy="32%" r="68%">
           <stop offset="0" stopColor="rgba(255,255,255,0.55)" />
@@ -63,17 +53,20 @@ export default function JarVisual({
           <stop offset="1" stopColor="rgba(0,0,0,0.30)" />
         </radialGradient>
         <clipPath id={`${uid}-clip`}>
-          <path d={BODY} />
+          <rect x={BX} y={B_TOP} width={BW} height={B_BOT - B_TOP} rx={BRX} />
         </clipPath>
       </defs>
 
-      {/* base shadow ellipse (grounds the jar) */}
-      <ellipse cx={CX} cy={BASE_Y + 6} rx={RX * 0.92} ry={14} fill="rgba(0,0,0,0.35)" />
+      {/* ground shadow */}
+      <ellipse cx={CX + 4} cy={B_BOT + 8} rx={BW * 0.46} ry={13} fill="rgba(0,0,0,0.35)" />
 
-      {/* glass body — translucent cylinder */}
-      <path d={BODY} fill={`url(#${uid}-glass)`} />
+      {/* extruded back of the body → the top + right glass walls */}
+      <rect x={BX + DX} y={B_TOP + DY} width={BW} height={B_BOT - B_TOP} rx={BRX} fill={darken(hex, 0.52)} />
 
-      {/* one ball per cookie, clipped to the glass */}
+      {/* glass front face */}
+      <rect x={BX} y={B_TOP} width={BW} height={B_BOT - B_TOP} rx={BRX} fill={`url(#${uid}-glass)`} />
+
+      {/* one ball per cookie */}
       <g clipPath={`url(#${uid}-clip)`}>
         {balls.map((b, i) => (
           <g key={i}>
@@ -81,21 +74,17 @@ export default function JarVisual({
             <circle cx={b.x} cy={b.y} r={r} fill={`url(#${uid}-sphere)`} />
           </g>
         ))}
-        {/* inner curvature shading over the contents */}
-        <path d={BODY} fill={`url(#${uid}-glass)`} opacity="0.5" />
+        <rect x={BX} y={B_TOP} width={BW} height={B_BOT - B_TOP} rx={BRX} fill={`url(#${uid}-glass)`} opacity="0.45" />
       </g>
 
-      {/* glass outline + rim */}
-      <path d={BODY} fill="none" stroke={hex} strokeWidth="8" />
-      <ellipse cx={CX} cy={RIM_Y} rx={RX} ry={RIM_RY} fill="none" stroke={hex} strokeWidth="8" />
-      {/* left highlight streak */}
-      <path d={`M${LX + 16},${RIM_Y + 18} L${LX + 16},${BASE_Y - 26}`} stroke="rgba(255,255,255,0.16)" strokeWidth="9" strokeLinecap="round" />
+      {/* glass outline + left highlight */}
+      <rect x={BX} y={B_TOP} width={BW} height={B_BOT - B_TOP} rx={BRX} fill="none" stroke={hex} strokeWidth="8" />
+      <path d={`M${BX + 20},${B_TOP + 26} L${BX + 20},${B_BOT - 30}`} stroke="rgba(255,255,255,0.16)" strokeWidth="9" strokeLinecap="round" />
 
-      {/* 3D lid */}
-      <path d={LID} fill={`url(#${uid}-lid)`} />
-      <ellipse cx={CX} cy={lidTop} rx={lidRx} ry={lidRy} fill={lighten(hex, 0.18)} />
-      <ellipse cx={CX} cy={lidTop} rx={lidRx} ry={lidRy} fill="none" stroke={darken(hex, 0.15)} strokeWidth="2" />
-      <ellipse cx={CX - lidRx * 0.4} cy={lidTop - 3} rx={lidRx * 0.3} ry={lidRy * 0.4} fill="rgba(255,255,255,0.22)" />
+      {/* 3D lid: extruded back (top face) + front face */}
+      <rect x={LX + DX} y={L_TOP + DY} width={LW} height={L_H} rx={LRX} fill={lighten(hex, 0.12)} />
+      <rect x={LX} y={L_TOP} width={LW} height={L_H} rx={LRX} fill={`url(#${uid}-lid)`} />
+      <rect x={LX + 18} y={L_TOP + 8} width={LW * 0.5} height={11} rx={5.5} fill="rgba(255,255,255,0.28)" />
     </svg>
   )
 }
