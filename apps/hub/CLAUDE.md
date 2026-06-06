@@ -31,8 +31,9 @@ The launcher PWA. Google sign-in, then a grid of tiles — one per app — read 
 - `src/` + legacy ESLint here vs. `app/` + flat config in the other apps — mind the difference when copying patterns between apps.
 
 ## Current state
-Live and working: Google OAuth sign-in/landing, the app grid from `apps.json` (Focus Gate +
-Lock In), PWA install, and service-worker registration. Deployed from `main`. The grid is a
+Live and working: Google OAuth sign-in/landing, the app grid from `apps.json` (Focus Gate,
+Lock In, and Cookie Jar — the last pending merge of PR #9), PWA install, and service-worker
+registration. Deployed from `main`. The grid is a
 **phone-folder look** — each app's real icon as a rounded squircle + name label (`iconImage`
 in `apps.json` → `public/app-icons/<slug>.png`), no card chrome; Tabler glyph as fallback.
 
