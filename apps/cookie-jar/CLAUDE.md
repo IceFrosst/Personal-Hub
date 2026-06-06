@@ -36,13 +36,18 @@ small animation. Private; sharing is IRL ("here's the cookie I drew").
 - PWA icons are generated from an inline SVG via `scripts/gen-icons.mjs` (uses `sharp`) — it also copies the 512 into `apps/hub/public/app-icons/cookie-jar.png` for the launcher tile. Re-run if the icon changes.
 
 ## Current state
-Built and wired for deploy; **awaiting merge of PR #9 to `main`** for production. Full flow:
-Google sign-in landing → multiple named jars (create / switch via pill bar / rename / delete)
-→ add cookies (title + optional story + date) → **Show all** list and **Reach in**
-random-cookie reveal (coral cookie, `cookie-draw` pop animation, "reach in again", avoids
-immediate repeats). Tap a cookie for detail + remove. Sign-out in the header. Optimistic
-writes with rollback. Tactile `active:scale` press feedback on every button. Coral accent on
-the mauve dark base. Registered in the hub (`apps.json` + `cookie` icon + tile image).
+Built and wired for deploy. Full flow:
+Google sign-in landing → **jar shelf** home: a coverflow carousel (`components/JarShelf.tsx`)
+you swipe through — the centered jar is big (`components/JarVisual.tsx`, one ball per cookie,
+balls shrink to fit, gravity-settled via `lib/jar.ts`), neighbours rotate away like bottles on
+a shelf; jar name + cookie count + dots below. Fresh account shows just a dashed **+** to
+create the first jar. **Tap the centered jar to open it** → detail view (back chevron + name +
+menu): **Reach in** random-cookie reveal (coral cookie, `cookie-draw` pop, "reach in again",
+avoids immediate repeats), **Add a cookie**, and the **All cookies** list (tap for detail +
+remove). Create / rename / delete jars; creating opens the new jar to fill it. Per-jar cookie
+counts loaded up front (one `cookies(jar_id)` query, tallied client-side). Optimistic writes
+with rollback. Tactile `active:scale` feedback. Coral accent on the mauve dark base. Registered
+in the hub (`apps.json` + `cookie` icon + tile image). Icon/logo = the jar of coloured balls.
 
 Infra **done**: migrations `0001`/`0002` applied to `qcsyihymmaktkbqfxlkl`; `cookie_jar` added
 to the PostgREST exposed-schema list (`public,graphql_public,hub,focus_gate,cookie_jar`); auth
@@ -51,5 +56,6 @@ redirect URLs added for `icefrosst-cookie-jar.vercel.app` + a preview wildcard; 
 `main`, Supabase env vars injected). Not yet verified on a real device.
 
 ## Next
-- **Test the Vercel preview / production on a phone** — sign-in, create a jar, add cookies, reach in. (Runtime wasn't browser-verified in the build sandbox.)
-- Possible polish: jar reordering, cookie **edit** (not just add/remove), a "draw history" so reach-in feels less repetitive, haptics on reach-in.
+- **Test on a phone** — the shelf swipe/coverflow + open, create a jar, add cookies (watch balls fill), reach in. Coverflow transforms were verified via static Playwright renders, not live touch.
+- `JarShelf` is unused-component `JarSwitcher`'s replacement — `JarSwitcher.tsx` is now dead code (kept, not imported); remove if desired.
+- Possible polish: jar reordering, cookie **edit**, draw history, haptics on reach-in/swipe-snap, momentum tuning on the shelf.
