@@ -5,6 +5,7 @@ export interface Jar {
   id: string
   user_id: string
   name: string
+  color: string // accent name (see JAR_COLORS in lib/jar.ts); defaults to 'coral'
   created_at: string
 }
 

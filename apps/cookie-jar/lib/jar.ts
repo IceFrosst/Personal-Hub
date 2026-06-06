@@ -3,10 +3,51 @@
 // a small 2D gravity simulation so they pile naturally against the walls/floor.
 // All coordinates live in the icon's 512×512 viewBox.
 
+// cookie (ball) colours — the contents of every jar
 export const COLORS = ['#e5484d', '#ffb224', '#12a594', '#8e4ec6', '#0090ff', '#d6409f', '#30a46c']
 
-// jar interior (matches the glass body in scripts/gen-icons.mjs)
-export const JAR = { xL: 162, xR: 350, yF: 402, yTop: 196, cr: 34, clip: { x: 162, y: 182, w: 188, h: 220, rx: 36 } }
+// jar glass/lid colours — what "change the jar colour" picks from. Name → hex,
+// stored as the name in jars.color (additive, defaults to 'coral').
+export const JAR_COLORS: { name: string; hex: string }[] = [
+  { name: 'coral', hex: '#e5484d' },
+  { name: 'amber', hex: '#ffb224' },
+  { name: 'green', hex: '#30a46c' },
+  { name: 'teal', hex: '#12a594' },
+  { name: 'blue', hex: '#0090ff' },
+  { name: 'purple', hex: '#8e4ec6' },
+  { name: 'pink', hex: '#d6409f' },
+]
+
+export function jarHex(color: string | null | undefined): string {
+  return JAR_COLORS.find((c) => c.name === color)?.hex ?? JAR_COLORS[0].hex
+}
+
+export function hexToRgba(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+
+// mix a hex toward black by f (0..1) — used for cylinder side-shading
+export function darken(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const r = Math.round(((n >> 16) & 255) * (1 - f))
+  const g = Math.round(((n >> 8) & 255) * (1 - f))
+  const b = Math.round((n & 255) * (1 - f))
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+}
+
+// mix a hex toward white by f (0..1) — the lit side / lid top
+export function lighten(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const r = Math.round(((n >> 16) & 255) + (255 - ((n >> 16) & 255)) * f)
+  const g = Math.round(((n >> 8) & 255) + (255 - ((n >> 8) & 255)) * f)
+  const b = Math.round((n & 255) + (255 - (n & 255)) * f)
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+}
+
+// jar interior bounds for the ball settle (a cylinder seen in perspective —
+// JarVisual draws the matching glass). cx 256, radius ~98.
+export const JAR = { xL: 158, xR: 354, yF: 400, yTop: 202, cr: 44 }
 const MAX_BALLS = 120 // perf bound; far beyond any realistic jar
 
 function mulberry32(a: number) {
