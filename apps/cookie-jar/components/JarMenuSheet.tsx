@@ -1,20 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { IconTrash } from '@tabler/icons-react'
+import { IconTrash, IconCheck } from '@tabler/icons-react'
 import type { Jar } from '@/lib/types'
+import { JAR_COLORS } from '@/lib/jar'
 import Sheet from './Sheet'
 
 export default function JarMenuSheet({
   jar,
   cookieCount,
   onRename,
+  onColor,
   onDelete,
   onClose,
 }: {
   jar: Jar
   cookieCount: number
   onRename: (name: string) => Promise<void>
+  onColor: (color: string) => Promise<void>
   onDelete: (jar: Jar) => Promise<void>
   onClose: () => void
 }) {
@@ -45,11 +48,32 @@ export default function JarMenuSheet({
         </button>
       )}
 
+      {/* jar colour */}
+      <p className="mb-2 mt-5 px-1 text-xs uppercase tracking-wide text-text-low">Jar colour</p>
+      <div className="flex flex-wrap gap-3">
+        {JAR_COLORS.map((c) => {
+          const selected = c.name === jar.color
+          return (
+            <button
+              key={c.name}
+              type="button"
+              aria-label={c.name}
+              aria-pressed={selected}
+              onClick={() => onColor(c.name)}
+              className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-90 ${selected ? 'ring-2 ring-text ring-offset-2 ring-offset-surface-elevated' : ''}`}
+              style={{ backgroundColor: c.hex }}
+            >
+              {selected && <IconCheck size={20} stroke={3} className="text-white" />}
+            </button>
+          )
+        })}
+      </div>
+
       {confirming ? (
         <button
           type="button"
           onClick={() => onDelete(jar)}
-          className="mt-4 min-h-12 w-full rounded-xl bg-coral/15 font-medium text-coral transition-colors active:bg-coral/25"
+          className="mt-6 min-h-12 w-full rounded-xl bg-coral/15 font-medium text-coral transition-colors active:bg-coral/25"
         >
           Delete jar and its {cookieCount} {cookieCount === 1 ? 'cookie' : 'cookies'}? Tap again
         </button>
@@ -57,7 +81,7 @@ export default function JarMenuSheet({
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-text-muted transition-colors active:text-text"
+          className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-text-muted transition-colors active:text-text"
         >
           <IconTrash size={18} stroke={1.5} />
           Delete jar

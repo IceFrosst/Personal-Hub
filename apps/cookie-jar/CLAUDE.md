@@ -26,6 +26,7 @@ small animation. Private; sharing is IRL ("here's the cookie I drew").
 - New **`cookie_jar`** schema. `supabase/migrations/`:
   - `0001_cookie_jar_schema.sql` — `jars (id, user_id, name, created_at)` and `cookies (id, user_id, jar_id→jars, title, description, earned_on, created_at)`. RLS enabled, owner-only policies (`user_id = auth.uid()`). `on delete cascade` from jar → cookies and from `auth.users`.
   - `0002_grant_cookie_jar_api_access.sql` — grants + **reminder that `cookie_jar` must be in PostgREST's exposed-schema list** (`db_schema = 'public,graphql_public,hub,focus_gate,cookie_jar'`), or API reads 404.
+  - `0003_add_jar_color.sql` — adds `jars.color text not null default 'coral'` (the jar accent). Additive; applied to `qcsyihymmaktkbqfxlkl`.
 - Additive-only (`SCHEMA_RULES.md`); never drop/rename.
 
 ## Gotchas
@@ -40,14 +41,23 @@ Built and wired for deploy. Full flow:
 Google sign-in landing → **jar shelf** home: a coverflow carousel (`components/JarShelf.tsx`)
 you swipe through — the centered jar is big (`components/JarVisual.tsx`, one ball per cookie,
 balls shrink to fit, gravity-settled via `lib/jar.ts`), neighbours rotate away like bottles on
-a shelf; jar name + cookie count + dots below. Fresh account shows just a dashed **+** to
-create the first jar. **Tap the centered jar to open it** → detail view (back chevron + name +
-menu): **Reach in** random-cookie reveal (coral cookie, `cookie-draw` pop, "reach in again",
-avoids immediate repeats), **Add a cookie**, and the **All cookies** list (tap for detail +
-remove). Create / rename / delete jars; creating opens the new jar to fill it. Per-jar cookie
-counts loaded up front (one `cookies(jar_id)` query, tallied client-side). Optimistic writes
-with rollback. Tactile `active:scale` feedback. Coral accent on the mauve dark base. Registered
-in the hub (`apps.json` + `cookie` icon + tile image). Icon/logo = the jar of coloured balls.
+a shelf. `JarVisual` is **transparent** (floats on the page — no background card/glow); the
+glass + lid are **tinted by the jar's `color`** (`JAR_COLORS` in `lib/jar.ts`). Edge spacers
+let the first/last jar reach dead-centre. The shelf reports the centered index; **the main
+screen shows that jar's name + count + action row right there**: **Reach in** (tinted to the
+jar colour), **+** (add cookie), **⚙** (jar settings), plus **Show all cookies** + dots.
+Fresh account shows just a dashed **+** to create the first jar.
+
+**Reach in** = random-cookie reveal (`cookie-draw` pop, "reach in again", avoids immediate
+repeats). **Tap the jar / Show all** → the cookie **list** view (back + name + ⚙; tap a cookie
+for detail + remove). **Jar settings** (`JarMenuSheet`) = rename, **colour picker** (7 swatches),
+delete. **New jar** (`NewJarSheet`) also picks a colour; creating centres the new jar on the
+shelf (shelf keyed on `jars.length` so it remounts to `focusId`). Per-jar counts loaded up
+front (one `cookies(jar_id)` query, tallied client-side); the centred jar's cookies load on
+swipe. Optimistic writes with rollback. Coral base accent on the mauve dark theme; per-jar
+colour for the glass. Registered in the hub (`apps.json` + `cookie` icon + tile image).
+
+`JarSwitcher.tsx` is dead code (no longer imported) — kept, safe to delete.
 
 Infra **done**: migrations `0001`/`0002` applied to `qcsyihymmaktkbqfxlkl`; `cookie_jar` added
 to the PostgREST exposed-schema list (`public,graphql_public,hub,focus_gate,cookie_jar`); auth
@@ -56,6 +66,6 @@ redirect URLs added for `icefrosst-cookie-jar.vercel.app` + a preview wildcard; 
 `main`, Supabase env vars injected). Not yet verified on a real device.
 
 ## Next
-- **Test on a phone** — the shelf swipe/coverflow + open, create a jar, add cookies (watch balls fill), reach in. Coverflow transforms were verified via static Playwright renders, not live touch.
-- `JarShelf` is unused-component `JarSwitcher`'s replacement — `JarSwitcher.tsx` is now dead code (kept, not imported); remove if desired.
-- Possible polish: jar reordering, cookie **edit**, draw history, haptics on reach-in/swipe-snap, momentum tuning on the shelf.
+- **Test on a phone** — shelf swipe/centering, recolour a jar, reach in, add/show-all. Coverflow + colours verified via static Playwright renders, not live touch.
+- Possible polish: jar reordering, cookie **edit**, draw history, haptics on reach-in/swipe-snap, momentum tuning on the shelf; tint the reach-in modal/add sheet to the jar colour too.
+- `JarSwitcher.tsx` is dead code — delete when convenient.

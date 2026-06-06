@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   IconCookie,
   IconPlus,
-  IconDotsVertical,
   IconHandStop,
   IconLogout,
   IconChevronLeft,
+  IconSettings,
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Cookie, Jar } from '@/lib/types'
+import { jarHex } from '@/lib/jar'
 import CookieJarLogo from '@/components/CookieJarLogo'
 import SignInLanding from '@/components/SignInLanding'
 import JarShelf from '@/components/JarShelf'
@@ -30,7 +31,9 @@ export default function HomePage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [jars, setJars] = useState<Jar[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [openJarId, setOpenJarId] = useState<string | null>(null) // null = shelf
+  const [activeIndex, setActiveIndex] = useState(0) // centered slide on the shelf
+  const [focusId, setFocusId] = useState<string | null>(null) // jar to center after add/delete
+  const [viewingList, setViewingList] = useState(false) // the open-jar cookie list
   const [cookies, setCookies] = useState<Cookie[]>([])
   const [loadingCookies, setLoadingCookies] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +46,8 @@ export default function HomePage() {
   const [reachCookie, setReachCookie] = useState<Cookie | null>(null)
   const [drawKey, setDrawKey] = useState(0)
 
-  const openJar = useMemo(() => jars.find((j) => j.id === openJarId) ?? null, [jars, openJarId])
+  // the centered jar (null when sitting on the "new jar" slide)
+  const activeJar: Jar | null = activeIndex < jars.length ? jars[activeIndex] : null
 
   const signIn = useCallback(() => {
     supabase.auth.signInWithOAuth({
@@ -54,72 +58,64 @@ export default function HomePage() {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
-    setSignedIn(false)
-    setUserId(null)
-    setJars([])
-    setCounts({})
-    setOpenJarId(null)
-    setCookies([])
+    setSignedIn(false); setUserId(null); setJars([]); setCounts({}); setCookies([]); setViewingList(false)
   }, [supabase])
 
   // Auth + initial load (jars + per-jar cookie counts)
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {})
-    }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setSignedIn(false); return }
-      setSignedIn(true)
-      setUserId(user.id)
-
+      setSignedIn(true); setUserId(user.id)
       const [{ data: jarRows }, { data: cookieRows }] = await Promise.all([
         supabase.schema('cookie_jar').from('jars').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
         supabase.schema('cookie_jar').from('cookies').select('jar_id').eq('user_id', user.id),
       ])
-      setJars((jarRows ?? []) as Jar[])
+      const list = (jarRows ?? []) as Jar[]
+      setJars(list)
       const tally: Record<string, number> = {}
-      for (const row of (cookieRows ?? []) as { jar_id: string }[]) {
-        tally[row.jar_id] = (tally[row.jar_id] ?? 0) + 1
-      }
+      for (const row of (cookieRows ?? []) as { jar_id: string }[]) tally[row.jar_id] = (tally[row.jar_id] ?? 0) + 1
       setCounts(tally)
+      const last = localStorage.getItem(LAST_KEY)
+      const idx = last ? list.findIndex((j) => j.id === last) : 0
+      setFocusId(idx > 0 ? last : list[0]?.id ?? null)
+      setActiveIndex(idx > 0 ? idx : 0)
     }
     init()
   }, [supabase])
 
-  // Load cookies when a jar is opened
+  // Load the centered jar's cookies (for reach-in / add / list)
   useEffect(() => {
-    if (!openJarId) { setCookies([]); return }
-    localStorage.setItem(LAST_KEY, openJarId)
+    const id = activeJar?.id
+    if (!id) { setCookies([]); return }
+    localStorage.setItem(LAST_KEY, id)
     let cancelled = false
     setLoadingCookies(true)
     supabase
-      .schema('cookie_jar')
-      .from('cookies')
-      .select('*')
-      .eq('jar_id', openJarId)
+      .schema('cookie_jar').from('cookies').select('*').eq('jar_id', id)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (cancelled) return
         const list = (data ?? []) as Cookie[]
         setCookies(list)
-        setCounts((prev) => ({ ...prev, [openJarId]: list.length }))
+        setCounts((prev) => ({ ...prev, [id]: list.length }))
         setLoadingCookies(false)
       })
     return () => { cancelled = true }
-  }, [supabase, openJarId])
+  }, [supabase, activeJar?.id])
 
   const createJar = useCallback(
-    async (name: string) => {
+    async (name: string, color: string) => {
       if (!userId) return
       const { data, error: e } = await supabase
-        .schema('cookie_jar').from('jars').insert({ user_id: userId, name }).select().single()
+        .schema('cookie_jar').from('jars').insert({ user_id: userId, name, color }).select().single()
       if (e) { setError(e.message); return }
       if (data) {
         const jar = data as Jar
-        setJars((prev) => [...prev, jar])
         setCounts((prev) => ({ ...prev, [jar.id]: 0 }))
-        setOpenJarId(jar.id) // open the new jar so you can fill it
+        setJars((prev) => [...prev, jar])
+        setFocusId(jar.id) // shelf remounts and centers the new jar
       }
     },
     [supabase, userId]
@@ -127,40 +123,51 @@ export default function HomePage() {
 
   const renameJar = useCallback(
     async (name: string) => {
-      if (!openJar) return
-      setJars((prev) => prev.map((j) => (j.id === openJar.id ? { ...j, name } : j)))
-      const { error: e } = await supabase.schema('cookie_jar').from('jars').update({ name }).eq('id', openJar.id)
+      if (!activeJar) return
+      setJars((prev) => prev.map((j) => (j.id === activeJar.id ? { ...j, name } : j)))
+      const { error: e } = await supabase.schema('cookie_jar').from('jars').update({ name }).eq('id', activeJar.id)
       if (e) setError(e.message)
     },
-    [supabase, openJar]
+    [supabase, activeJar]
+  )
+
+  const recolorJar = useCallback(
+    async (color: string) => {
+      if (!activeJar) return
+      setJars((prev) => prev.map((j) => (j.id === activeJar.id ? { ...j, color } : j)))
+      const { error: e } = await supabase.schema('cookie_jar').from('jars').update({ color }).eq('id', activeJar.id)
+      if (e) setError(e.message)
+    },
+    [supabase, activeJar]
   )
 
   const deleteJar = useCallback(
     async (jar: Jar) => {
-      setShowJarMenu(false)
-      setOpenJarId(null)
+      setShowJarMenu(false); setViewingList(false)
+      setActiveIndex(0); setFocusId(jars[0]?.id ?? null)
       setJars((prev) => prev.filter((j) => j.id !== jar.id))
       setCounts((prev) => { const n = { ...prev }; delete n[jar.id]; return n })
       const { error: e } = await supabase.schema('cookie_jar').from('jars').delete().eq('id', jar.id)
       if (e) setError(e.message)
     },
-    [supabase]
+    [supabase, jars]
   )
 
   const addCookie = useCallback(
     async (input: { title: string; description: string | null; earnedOn: string | null }) => {
-      if (!userId || !openJarId) return
+      if (!userId || !activeJar) return
+      const jarId = activeJar.id
       const { data, error: e } = await supabase
         .schema('cookie_jar').from('cookies')
-        .insert({ user_id: userId, jar_id: openJarId, title: input.title, description: input.description, earned_on: input.earnedOn })
+        .insert({ user_id: userId, jar_id: jarId, title: input.title, description: input.description, earned_on: input.earnedOn })
         .select().single()
       if (e) { setError(e.message); return }
       if (data) {
         setCookies((prev) => [data as Cookie, ...prev])
-        setCounts((prev) => ({ ...prev, [openJarId]: (prev[openJarId] ?? 0) + 1 }))
+        setCounts((prev) => ({ ...prev, [jarId]: (prev[jarId] ?? 0) + 1 }))
       }
     },
-    [supabase, userId, openJarId]
+    [supabase, userId, activeJar]
   )
 
   const deleteCookie = useCallback(
@@ -185,8 +192,7 @@ export default function HomePage() {
     if (cookies.length > 1 && reachCookie) {
       while (pick.id === reachCookie.id) pick = cookies[Math.floor(Math.random() * cookies.length)]
     }
-    setReachCookie(pick)
-    setDrawKey((k) => k + 1)
+    setReachCookie(pick); setDrawKey((k) => k + 1)
   }, [cookies, reachCookie])
 
   if (signedIn === null) {
@@ -202,114 +208,135 @@ export default function HomePage() {
     paddingTop: 'calc(1.25rem + env(safe-area-inset-top))',
     paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
   }
+  const count = activeJar ? counts[activeJar.id] ?? 0 : 0
 
-  // ---- SHELF (home) ----
-  if (!openJar) {
+  // ---- OPEN JAR: the cookie list ----
+  if (viewingList && activeJar) {
     return (
-      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[460px] flex-col px-4" style={pagePad}>
-        <header className="mb-2 flex items-center gap-2.5">
-          <CookieJarLogo size={32} />
-          <h1 className="flex-1 text-xl font-semibold tracking-tight text-text">Cookie Jar</h1>
-          <button
-            type="button" onClick={signOut} aria-label="Sign out"
-            className="flex min-h-11 min-w-11 items-center justify-center text-text-low transition-colors active:text-text-muted"
-          >
-            <IconLogout size={20} stroke={1.5} />
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col px-4" style={pagePad}>
+        <header className="mb-4 flex items-center gap-1">
+          <button type="button" onClick={() => setViewingList(false)} aria-label="Back to shelf"
+            className="-ml-2 flex min-h-11 min-w-11 items-center justify-center text-text-muted transition-colors active:text-text">
+            <IconChevronLeft size={24} stroke={2} />
+          </button>
+          <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-tight text-text">{activeJar.name}</h1>
+          <button type="button" onClick={() => setShowJarMenu(true)} aria-label="Jar settings"
+            className="flex min-h-11 min-w-11 items-center justify-center text-text-low transition-colors active:text-text-muted">
+            <IconSettings size={20} stroke={1.5} />
           </button>
         </header>
 
-        {jars.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <button
-              type="button" onClick={() => setShowNewJar(true)} aria-label="Create your first jar"
-              className="flex aspect-square w-[60%] max-w-[260px] items-center justify-center rounded-[22%] border-2 border-dashed border-border text-text-low transition-colors active:border-coral active:text-coral"
-            >
-              <IconPlus size={72} stroke={1.5} />
-            </button>
-            <p className="mt-6 max-w-[280px] text-text-muted">
-              No jars yet. Create one and start banking the hard things you&apos;ve conquered.
-            </p>
-          </div>
-        ) : (
-          <JarShelf
-            jars={jars}
-            counts={counts}
-            initialId={typeof window !== 'undefined' ? localStorage.getItem(LAST_KEY) : null}
-            onOpen={(j) => setOpenJarId(j.id)}
-            onNewJar={() => setShowNewJar(true)}
-          />
-        )}
+        <p className="mb-4 text-sm text-text-low">{count} {count === 1 ? 'cookie' : 'cookies'}</p>
+
+        <section className="flex flex-col gap-2.5">
+          {loadingCookies ? (
+            <p className="py-10 text-center text-sm text-text-low">Loading…</p>
+          ) : cookies.length === 0 ? (
+            <p className="py-10 text-center text-sm text-text-low">This jar is empty. Add the first hard thing you conquered.</p>
+          ) : (
+            cookies.map((c) => (
+              <div key={c.id} className="cookie-fade-in"><CookieCard cookie={c} onTap={setDetailCookie} /></div>
+            ))
+          )}
+        </section>
 
         {error && <p role="alert" className="mt-4 px-1 text-xs leading-snug text-coral">Something went wrong: {error}</p>}
-        {showNewJar && <NewJarSheet onCreate={createJar} onClose={() => setShowNewJar(false)} />}
+        {showJarMenu && (
+          <JarMenuSheet jar={activeJar} cookieCount={count} onRename={renameJar} onColor={recolorJar} onDelete={deleteJar} onClose={() => setShowJarMenu(false)} />
+        )}
+        {detailCookie && <CookieDetailSheet cookie={detailCookie} onDelete={deleteCookie} onClose={() => setDetailCookie(null)} />}
       </main>
     )
   }
 
-  // ---- JAR DETAIL ----
+  // ---- SHELF (home) ----
   return (
-    <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col px-4" style={pagePad}>
-      <header className="mb-4 flex items-center gap-1">
-        <button
-          type="button" onClick={() => setOpenJarId(null)} aria-label="Back to shelf"
-          className="-ml-2 flex min-h-11 min-w-11 items-center justify-center text-text-muted transition-colors active:text-text"
-        >
-          <IconChevronLeft size={24} stroke={2} />
-        </button>
-        <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-tight text-text">{openJar.name}</h1>
-        <button
-          type="button" onClick={() => setShowJarMenu(true)} aria-label="Jar settings"
-          className="flex min-h-11 min-w-11 items-center justify-center text-text-low transition-colors active:text-text-muted"
-        >
-          <IconDotsVertical size={20} stroke={1.5} />
+    <main className="mx-auto flex min-h-[100dvh] w-full max-w-[460px] flex-col px-4" style={pagePad}>
+      <header className="mb-2 flex items-center gap-2.5">
+        <CookieJarLogo size={32} />
+        <h1 className="flex-1 text-xl font-semibold tracking-tight text-text">Cookie Jar</h1>
+        <button type="button" onClick={signOut} aria-label="Sign out"
+          className="flex min-h-11 min-w-11 items-center justify-center text-text-low transition-colors active:text-text-muted">
+          <IconLogout size={20} stroke={1.5} />
         </button>
       </header>
 
-      <p className="mb-4 text-sm text-text-low">
-        {cookies.length} {cookies.length === 1 ? 'cookie' : 'cookies'}
-      </p>
+      {jars.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
+          <button type="button" onClick={() => setShowNewJar(true)} aria-label="Create your first jar"
+            className="flex aspect-square w-[60%] max-w-[260px] items-center justify-center rounded-[22%] border-2 border-dashed border-border text-text-low transition-colors active:border-coral active:text-coral">
+            <IconPlus size={72} stroke={1.5} />
+          </button>
+          <p className="mt-6 max-w-[280px] text-text-muted">No jars yet. Create one and start banking the hard things you&apos;ve conquered.</p>
+        </div>
+      ) : (
+        <>
+          <JarShelf
+            key={jars.length}
+            jars={jars}
+            counts={counts}
+            initialId={focusId}
+            onActive={setActiveIndex}
+            onOpen={() => setViewingList(true)}
+            onNewJar={() => setShowNewJar(true)}
+          />
 
-      <button
-        type="button" onClick={reachIn} disabled={cookies.length === 0}
-        className="reach-glow mb-3 flex min-h-14 items-center justify-center gap-2.5 rounded-2xl bg-coral text-lg font-semibold text-white transition-transform active:scale-[0.98] active:bg-coral-bright disabled:opacity-40 disabled:shadow-none"
-      >
-        <IconHandStop size={22} stroke={2} />
-        Reach in
-      </button>
+          {/* bottom block — name + actions for the centered jar */}
+          <div className="mt-1">
+            {activeJar ? (
+              <>
+                <div className="text-center">
+                  <h2 className="truncate px-6 text-2xl font-semibold tracking-tight text-text">{activeJar.name}</h2>
+                  <p className="mt-0.5 text-sm text-text-muted">{count} {count === 1 ? 'cookie' : 'cookies'}</p>
+                </div>
 
-      <button
-        type="button" onClick={() => setShowAddCookie(true)}
-        className="mb-6 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-surface font-medium text-text-muted transition active:scale-[0.98] active:bg-surface-elevated"
-      >
-        <IconPlus size={18} stroke={2} />
-        Add a cookie
-      </button>
+                <div className="mt-3 flex gap-2.5">
+                  <button type="button" onClick={reachIn} disabled={count === 0}
+                    className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl text-base font-semibold text-white transition-transform active:scale-[0.97] disabled:opacity-40"
+                    style={{ backgroundColor: jarHex(activeJar.color) }}>
+                    <IconHandStop size={20} stroke={2} /> Reach in
+                  </button>
+                  <button type="button" onClick={() => setShowAddCookie(true)} aria-label="Add a cookie"
+                    className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-2xl border border-border bg-surface text-text-muted transition active:scale-[0.97] active:bg-surface-elevated">
+                    <IconPlus size={22} stroke={2} />
+                  </button>
+                  <button type="button" onClick={() => setShowJarMenu(true)} aria-label="Jar settings"
+                    className="flex min-h-[52px] min-w-[52px] items-center justify-center rounded-2xl border border-border bg-surface text-text-muted transition active:scale-[0.97] active:bg-surface-elevated">
+                    <IconSettings size={20} stroke={1.75} />
+                  </button>
+                </div>
+                <button type="button" onClick={() => setViewingList(true)}
+                  className="mt-2.5 min-h-11 w-full text-sm text-text-low transition-colors active:text-text-muted">
+                  Show all cookies
+                </button>
+              </>
+            ) : (
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold tracking-tight text-text">New jar</h2>
+                <p className="mt-0.5 text-sm text-text-muted">Start a new collection</p>
+                <div className="min-h-[52px]" />
+              </div>
+            )}
 
-      <p className="mb-2 px-1 text-xs uppercase tracking-wide text-text-low">All cookies</p>
-      <section className="flex flex-col gap-2.5">
-        {loadingCookies ? (
-          <p className="py-10 text-center text-sm text-text-low">Loading…</p>
-        ) : cookies.length === 0 ? (
-          <p className="py-10 text-center text-sm text-text-low">This jar is empty. Add the first hard thing you conquered.</p>
-        ) : (
-          cookies.map((c) => (
-            <div key={c.id} className="cookie-fade-in">
-              <CookieCard cookie={c} onTap={setDetailCookie} />
+            {/* dots */}
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              {jars.map((j, i) => (
+                <span key={j.id} className={`h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-4 bg-coral' : 'w-1.5 bg-border'}`} />
+              ))}
+              <span className={`h-1.5 rounded-full transition-all ${activeIndex === jars.length ? 'w-4 bg-coral' : 'w-1.5 bg-border'}`} />
             </div>
-          ))
-        )}
-      </section>
+          </div>
+        </>
+      )}
 
       {error && <p role="alert" className="mt-4 px-1 text-xs leading-snug text-coral">Something went wrong: {error}</p>}
 
-      {showAddCookie && (
-        <AddCookieSheet jarName={openJar.name} onSave={addCookie} onClose={() => setShowAddCookie(false)} />
+      {showNewJar && <NewJarSheet onCreate={createJar} onClose={() => setShowNewJar(false)} />}
+      {showAddCookie && activeJar && (
+        <AddCookieSheet jarName={activeJar.name} onSave={addCookie} onClose={() => setShowAddCookie(false)} />
       )}
-      {showJarMenu && (
-        <JarMenuSheet jar={openJar} cookieCount={cookies.length} onRename={renameJar} onDelete={deleteJar} onClose={() => setShowJarMenu(false)} />
-      )}
-      {detailCookie && (
-        <CookieDetailSheet cookie={detailCookie} onDelete={deleteCookie} onClose={() => setDetailCookie(null)} />
+      {showJarMenu && activeJar && (
+        <JarMenuSheet jar={activeJar} cookieCount={count} onRename={renameJar} onColor={recolorJar} onDelete={deleteJar} onClose={() => setShowJarMenu(false)} />
       )}
       {reachCookie && (
         <ReachInModal cookie={reachCookie} drawKey={drawKey} onAgain={reachIn} canDrawAgain={cookies.length > 1} onClose={() => setReachCookie(null)} />
