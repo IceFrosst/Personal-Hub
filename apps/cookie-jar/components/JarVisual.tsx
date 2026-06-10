@@ -52,21 +52,10 @@ export default function JarVisual({
             <circle cx={b.x} cy={b.y} r={r} fill={`url(#${uid}-sphere)`} />
           </g>
         ))}
-        {/* inner curvature shading over the contents */}
-        <path d={BODY} fill={`url(#${uid}-glass)`} opacity="0.5" />
       </g>
 
-      {/* glass outline + rim */}
-      <path d={BODY} fill="none" stroke={hex} strokeWidth="8" />
-      <ellipse cx={CX} cy={RIM_Y} rx={RX} ry={RIM_RY} fill="none" stroke={hex} strokeWidth="8" />
-      {/* left highlight streak */}
-      <path d={`M${LX + 16},${RIM_Y + 18} L${LX + 16},${BASE_Y - 26}`} stroke="rgba(255,255,255,0.16)" strokeWidth="9" strokeLinecap="round" />
-
-      {/* 3D lid */}
-      <path d={LID} fill={`url(#${uid}-lid)`} />
-      <ellipse cx={CX} cy={lidTop} rx={lidRx} ry={lidRy} fill={lighten(hex, 0.18)} />
-      <ellipse cx={CX} cy={lidTop} rx={lidRx} ry={lidRy} fill="none" stroke={darken(hex, 0.15)} strokeWidth="2" />
-      <ellipse cx={CX - lidRx * 0.4} cy={lidTop - 3} rx={lidRx * 0.3} ry={lidRy * 0.4} fill="rgba(255,255,255,0.22)" />
+      {/* glass highlight */}
+      <rect x="180" y="200" width="20" height="150" rx="10" fill="rgba(255,255,255,0.10)" />
     </svg>
   )
 }

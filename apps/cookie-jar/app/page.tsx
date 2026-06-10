@@ -10,7 +10,6 @@ import {
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Cookie, Jar } from '@/lib/types'
-import { jarHex } from '@/lib/jar'
 import CookieJarLogo from '@/components/CookieJarLogo'
 import SignInLanding from '@/components/SignInLanding'
 import JarShelf from '@/components/JarShelf'
