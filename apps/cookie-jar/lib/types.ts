@@ -16,5 +16,6 @@ export interface Cookie {
   title: string
   description: string | null
   earned_on: string | null // date (YYYY-MM-DD), optional
+  last_drawn_at: string | null // last reach-in draw; biases draws toward least-recently-drawn
   created_at: string
 }

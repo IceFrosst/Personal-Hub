@@ -9,26 +9,29 @@ export default function AddCookieSheet({
   onClose,
 }: {
   jarName: string
-  onSave: (input: { title: string; description: string | null; earnedOn: string | null }) => Promise<void>
+  onSave: (input: { title: string; description: string | null; earnedOn: string | null }) => Promise<boolean>
   onClose: () => void
 }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [earnedOn, setEarnedOn] = useState('')
   const [saving, setSaving] = useState(false)
+  const [failed, setFailed] = useState(false)
 
   const trimmed = title.trim()
 
+  // keep the sheet (and the typed story) when the insert fails
   async function save() {
     if (!trimmed || saving) return
-    setSaving(true)
-    await onSave({
+    setSaving(true); setFailed(false)
+    const ok = await onSave({
       title: trimmed,
       description: description.trim() || null,
       earnedOn: earnedOn || null,
     })
     setSaving(false)
-    onClose()
+    if (ok) onClose()
+    else setFailed(true)
   }
 
   return (
@@ -63,6 +66,10 @@ export default function AddCookieSheet({
           className="bg-transparent text-sm text-text focus:outline-none"
         />
       </label>
+
+      {failed && (
+        <p role="alert" className="mt-3 px-1 text-xs leading-snug text-coral">Couldn&apos;t save — your cookie is still here, try again.</p>
+      )}
 
       <button
         type="button"

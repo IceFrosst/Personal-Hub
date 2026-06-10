@@ -16,6 +16,13 @@ export default function Sheet({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // lock body scroll while the sheet is open
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"

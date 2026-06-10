@@ -76,10 +76,17 @@ export function ballRadius(n: number) {
 
 export type Ball = { x: number; y: number; c: number }
 
+// settled layouts are deterministic per (seed, count) — cache them so JarShelf
+// remounts don't pay for the simulation again
+const settleCache = new Map<string, { balls: Ball[]; r: number }>()
+
 // Gravity-settle `count` balls of the fitted radius. Deterministic per seed.
 export function settle(count: number, seed: number): { balls: Ball[]; r: number } {
   const n = Math.min(count, MAX_BALLS)
   if (n <= 0) return { balls: [], r: 0 }
+  const key = `${seed}:${count}`
+  const cached = settleCache.get(key)
+  if (cached) return cached
   const r = ballRadius(n)
   const { xL, xR, yF, cr } = JAR
   const cxL = xL + cr, cxR = xR - cr, cyF = yF - cr, eff = cr - r
@@ -109,5 +116,7 @@ export function settle(count: number, seed: number): { balls: Ball[]; r: number 
       for (const p of ps) constrain(p)
     }
   }
-  return { balls: ps.sort((a, b) => a.y - b.y), r }
+  const settled = { balls: ps.sort((a, b) => a.y - b.y), r }
+  settleCache.set(key, settled)
+  return settled
 }

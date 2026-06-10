@@ -95,38 +95,46 @@ export default function HomePage() {
     supabase
       .schema('cookie_jar').from('cookies').select('*').eq('jar_id', id)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error: e }) => {
         if (cancelled) return
+        setLoadingCookies(false)
+        // on a transient failure keep whatever we had — don't clear cookies or zero counts
+        if (e) { setError(e.message); return }
         const list = (data ?? []) as Cookie[]
         setCookies(list)
         setCounts((prev) => ({ ...prev, [id]: list.length }))
-        setLoadingCookies(false)
       })
     return () => { cancelled = true }
   }, [supabase, activeJar?.id])
 
   const createJar = useCallback(
     async (name: string, color: string) => {
-      if (!userId) return
+      if (!userId) return false
       const { data, error: e } = await supabase
         .schema('cookie_jar').from('jars').insert({ user_id: userId, name, color }).select().single()
-      if (e) { setError(e.message); return }
+      if (e) { setError(e.message); return false }
       if (data) {
         const jar = data as Jar
         setCounts((prev) => ({ ...prev, [jar.id]: 0 }))
         setJars((prev) => [...prev, jar])
         setFocusId(jar.id) // shelf remounts and centers the new jar
+        setActiveIndex(jars.length) // the new jar's slide — not the "+" slide it happens to replace
       }
+      return true
     },
-    [supabase, userId]
+    [supabase, userId, jars.length]
   )
 
   const renameJar = useCallback(
     async (name: string) => {
       if (!activeJar) return
+      const prevName = activeJar.name
       setJars((prev) => prev.map((j) => (j.id === activeJar.id ? { ...j, name } : j)))
       const { error: e } = await supabase.schema('cookie_jar').from('jars').update({ name }).eq('id', activeJar.id)
-      if (e) setError(e.message)
+      if (e) {
+        setJars((prev) => prev.map((j) => (j.id === activeJar.id ? { ...j, name: prevName } : j)))
+        setError(e.message)
+      }
     },
     [supabase, activeJar]
   )
@@ -134,9 +142,13 @@ export default function HomePage() {
   const recolorJar = useCallback(
     async (color: string) => {
       if (!activeJar) return
+      const prevColor = activeJar.color
       setJars((prev) => prev.map((j) => (j.id === activeJar.id ? { ...j, color } : j)))
       const { error: e } = await supabase.schema('cookie_jar').from('jars').update({ color }).eq('id', activeJar.id)
-      if (e) setError(e.message)
+      if (e) {
+        setJars((prev) => prev.map((j) => (j.id === activeJar.id ? { ...j, color: prevColor } : j)))
+        setError(e.message)
+      }
     },
     [supabase, activeJar]
   )
@@ -144,28 +156,37 @@ export default function HomePage() {
   const deleteJar = useCallback(
     async (jar: Jar) => {
       setShowJarMenu(false); setViewingList(false)
-      setActiveIndex(0); setFocusId(jars[0]?.id ?? null)
-      setJars((prev) => prev.filter((j) => j.id !== jar.id))
+      const prevJars = jars
+      const prevCount = counts[jar.id]
+      const remaining = jars.filter((j) => j.id !== jar.id) // compute first so focus never lands on the deleted jar
+      setActiveIndex(0); setFocusId(remaining[0]?.id ?? null)
+      setJars(remaining)
       setCounts((prev) => { const n = { ...prev }; delete n[jar.id]; return n })
       const { error: e } = await supabase.schema('cookie_jar').from('jars').delete().eq('id', jar.id)
-      if (e) setError(e.message)
+      if (e) {
+        setJars(prevJars)
+        setCounts((prev) => ({ ...prev, [jar.id]: prevCount ?? 0 }))
+        setFocusId(jar.id); setActiveIndex(prevJars.findIndex((j) => j.id === jar.id))
+        setError(e.message)
+      }
     },
-    [supabase, jars]
+    [supabase, jars, counts]
   )
 
   const addCookie = useCallback(
     async (input: { title: string; description: string | null; earnedOn: string | null }) => {
-      if (!userId || !activeJar) return
+      if (!userId || !activeJar) return false
       const jarId = activeJar.id
       const { data, error: e } = await supabase
         .schema('cookie_jar').from('cookies')
         .insert({ user_id: userId, jar_id: jarId, title: input.title, description: input.description, earned_on: input.earnedOn })
         .select().single()
-      if (e) { setError(e.message); return }
+      if (e) { setError(e.message); return false }
       if (data) {
         setCookies((prev) => [data as Cookie, ...prev])
         setCounts((prev) => ({ ...prev, [jarId]: (prev[jarId] ?? 0) + 1 }))
       }
+      return true
     },
     [supabase, userId, activeJar]
   )
@@ -185,15 +206,29 @@ export default function HomePage() {
     [supabase]
   )
 
-  // Draw a random cookie — avoid repeating the one already on screen.
-  const reachIn = useCallback(() => {
-    if (cookies.length === 0) return
-    let pick = cookies[Math.floor(Math.random() * cookies.length)]
-    if (cookies.length > 1 && reachCookie) {
-      while (pick.id === reachCookie.id) pick = cookies[Math.floor(Math.random() * cookies.length)]
-    }
+  // Draw a random cookie — avoid repeating the one already on screen, and bias
+  // toward the least-recently-drawn half (never-drawn first). Only the active
+  // jar's rows count: right after a swipe `cookies` may still hold the old jar.
+  const reachIn = useCallback(async () => {
+    if (!activeJar) return
+    const inJar = cookies.filter((c) => c.jar_id === activeJar.id)
+    if (inJar.length === 0) return
+    const pool = inJar.length > 1 && reachCookie ? inJar.filter((c) => c.id !== reachCookie.id) : inJar
+    const sorted = [...pool].sort((a, b) => {
+      if (a.last_drawn_at === b.last_drawn_at) return 0
+      if (a.last_drawn_at === null) return -1 // never drawn comes first
+      if (b.last_drawn_at === null) return 1
+      return a.last_drawn_at < b.last_drawn_at ? -1 : 1
+    })
+    const candidates = sorted.slice(0, Math.ceil(sorted.length / 2))
+    const pick = candidates[Math.floor(Math.random() * candidates.length)]
     setReachCookie(pick); setDrawKey((k) => k + 1)
-  }, [cookies, reachCookie])
+    // record the draw for future bias; mirrored locally, and a failed update is
+    // ignored on purpose — last_drawn_at is bias metadata, not user data.
+    const now = new Date().toISOString()
+    setCookies((prev) => prev.map((c) => (c.id === pick.id ? { ...c, last_drawn_at: now } : c)))
+    await supabase.schema('cookie_jar').from('cookies').update({ last_drawn_at: now }).eq('id', pick.id)
+  }, [supabase, cookies, reachCookie, activeJar])
 
   if (signedIn === null) {
     return (
@@ -291,7 +326,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-3 flex gap-2.5">
-                  <button type="button" onClick={reachIn} disabled={count === 0}
+                  <button type="button" onClick={reachIn} disabled={count === 0 || loadingCookies}
                     className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl text-base font-semibold text-white transition-transform active:scale-[0.97] disabled:opacity-40"
                     style={{ backgroundColor: jarHex(activeJar.color) }}>
                     <IconHandStop size={20} stroke={2} /> Reach in

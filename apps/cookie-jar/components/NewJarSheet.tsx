@@ -9,20 +9,23 @@ export default function NewJarSheet({
   onCreate,
   onClose,
 }: {
-  onCreate: (name: string, color: string) => Promise<void>
+  onCreate: (name: string, color: string) => Promise<boolean>
   onClose: () => void
 }) {
   const [name, setName] = useState('')
   const [color, setColor] = useState(JAR_COLORS[0].name)
   const [saving, setSaving] = useState(false)
+  const [failed, setFailed] = useState(false)
   const trimmed = name.trim()
 
+  // keep the sheet (and the typed name) when the insert fails
   async function create() {
     if (!trimmed || saving) return
-    setSaving(true)
-    await onCreate(trimmed, color)
+    setSaving(true); setFailed(false)
+    const ok = await onCreate(trimmed, color)
     setSaving(false)
-    onClose()
+    if (ok) onClose()
+    else setFailed(true)
   }
 
   return (
@@ -56,6 +59,10 @@ export default function NewJarSheet({
           )
         })}
       </div>
+
+      {failed && (
+        <p role="alert" className="mt-4 px-1 text-xs leading-snug text-coral">Couldn&apos;t create the jar — try again.</p>
+      )}
 
       <button
         type="button"
