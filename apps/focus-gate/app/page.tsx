@@ -39,6 +39,7 @@ export default function GatePage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   // null = still checking the session; false = signed out (show the sign-in prompt).
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const [signInFailed, setSignInFailed] = useState(false) // OAuth kick-off errored — offer retry
   // Hold the whole gate until suggestions are settled, so they appear together — and
   // always fresh (no stale, possibly-already-done task painted from a cache).
   const [ready, setReady] = useState(false)
@@ -50,6 +51,7 @@ export default function GatePage() {
   const [hidden, setHidden] = useState(false) // mid-teleport (invisible while relocating)
   const [spin, setSpin] = useState(0) // playful spin-in angle
   const breakBtnRef = useRef<HTMLButtonElement>(null)
+  const lockInBtnRef = useRef<HTMLButtonElement>(null) // measured so dodges never land on it
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -81,35 +83,29 @@ export default function GatePage() {
       }
       setSignedIn(true)
 
-      const { data: tasks } = await supabase
-        .schema('focus_gate')
-        .from('tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_completed', false)
-
-      // No active tasks → no panel; reveal the gate.
-      if (!tasks?.length) {
-        setSuggestions([])
-        reveal()
-        return
-      }
-
-      // Wait for a fresh AI pick, THEN reveal — the gate and the panel land together,
-      // and the tasks are always current (we just queried incomplete ones).
+      // Wait for a fresh AI pick, THEN reveal — the gate and the panel land together.
+      // The route queries the user's incomplete tasks itself (and returns
+      // { suggestions: [] } when there are none), so no client-side task query —
+      // one round-trip fewer behind the spinner. We send only the local hour and
+      // calendar date (server runs UTC; both time buckets and due-date urgency
+      // should follow the user's clock).
       try {
+        const now = new Date()
+        const clientDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         const ctrl = new AbortController()
         const t = setTimeout(() => ctrl.abort(), LOAD_TIMEOUT_MS)
         const res = await fetch('/api/suggest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tasks, clientHour: new Date().getHours() }),
+          body: JSON.stringify({ clientHour: now.getHours(), clientDate }),
           signal: ctrl.signal,
         })
         clearTimeout(t)
         if (res.ok) {
           const data = await res.json()
-          if (Array.isArray(data.suggestions)) setSuggestions(data.suggestions)
+          // If the 7s safety already revealed the gate, drop a late result — the
+          // panel popping in post-reveal would shove the hero mid-view.
+          if (!done && Array.isArray(data.suggestions)) setSuggestions(data.suggestions)
         }
       } catch {}
       reveal()
@@ -142,8 +138,19 @@ export default function GatePage() {
       return
     }
     if (/iPhone|iPad|iPod/i.test(ua)) {
+      // If the native app opened, the page gets hidden — note it, because Safari can
+      // fire the pending fallback timer on return and yank the user to web Instagram.
+      let leftPage = false
+      const onLeave = () => {
+        leftPage = true
+      }
+      document.addEventListener('visibilitychange', onLeave)
+      window.addEventListener('pagehide', onLeave)
       window.location.href = 'instagram://app'
       setTimeout(() => {
+        document.removeEventListener('visibilitychange', onLeave)
+        window.removeEventListener('pagehide', onLeave)
+        if (leftPage || document.hidden) return // native app took it — don't double-open
         window.location.href = 'https://www.instagram.com'
       }, 800)
       return
@@ -158,14 +165,18 @@ export default function GatePage() {
   // Google OAuth — lands back on the gate via the existing /auth/callback handler.
   // Its redirect URL is already in Supabase's allow-list.
   async function signIn() {
+    setSignInFailed(false)
     const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
+    // On success the browser navigates away; an error would otherwise fail silently.
+    if (error) setSignInFailed(true)
   }
 
-  // Pick a fresh on-screen spot clearly away from where the button is right now.
+  // Pick a fresh on-screen spot clearly away from where the button is right now —
+  // and never on top of "Lock in" (landing there would be the exact wrong misfire).
   function randomSpot(): { top: number; left: number } {
     const el = breakBtnRef.current
     const bw = el?.offsetWidth ?? 150
@@ -173,21 +184,34 @@ export default function GatePage() {
     const rect = el?.getBoundingClientRect()
     const curLeft = rect ? rect.left : pos.left
     const curTop = rect ? rect.top : pos.top
+    const avoid = lockInBtnRef.current?.getBoundingClientRect()
+    const margin = 12 // breathing room around "Lock in", so near-misses count too
     const padX = 14
     const padTop = 72 // keep clear of the status bar / safe area up top
     const padBottom = 24
     const maxLeft = Math.max(padX, window.innerWidth - bw - padX)
     const maxTop = Math.max(padTop, window.innerHeight - bh - padBottom)
-    let spot = { top: padTop, left: padX }
-    for (let i = 0; i < 16; i++) {
-      spot = {
+    for (let i = 0; i < 24; i++) {
+      const spot = {
         left: padX + Math.random() * (maxLeft - padX),
         top: padTop + Math.random() * (maxTop - padTop),
       }
       // Enforce a real jump (measured from the in-slot button too, via its live rect).
-      if (Math.hypot(spot.left - curLeft, spot.top - curTop) > 160) break
+      if (Math.hypot(spot.left - curLeft, spot.top - curTop) <= 160) continue
+      // Reject anything overlapping the "Lock in" rect (plus margin).
+      if (
+        avoid &&
+        spot.left < avoid.right + margin &&
+        spot.left + bw > avoid.left - margin &&
+        spot.top < avoid.bottom + margin &&
+        spot.top + bh > avoid.top - margin
+      ) {
+        continue
+      }
+      return spot
     }
-    return spot
+    // Out of retries — the top-left corner is always clear of the centred hero.
+    return { top: padTop, left: padX }
   }
 
   function teleport() {
@@ -266,12 +290,13 @@ export default function GatePage() {
   )
 
   // Signed-out: a quiet, tappable prompt sitting where the panel would go.
+  // On an OAuth failure the same pill flips to a retry — no toast, keep it quiet.
   const signedOutPrompt = signedIn === false && (
     <button
       onClick={signIn}
       className="min-h-11 px-5 py-2.5 rounded-full border border-white/10 text-sm font-medium text-text-muted active:scale-[0.98] transition-transform duration-150"
     >
-      Sign in to see your tasks
+      {signInFailed ? 'Sign-in failed — tap to retry' : 'Sign in to see your tasks'}
     </button>
   )
 
@@ -292,6 +317,7 @@ export default function GatePage() {
 
       <div className="flex flex-col items-stretch gap-2.5 w-[150px] mx-auto">
         <button
+          ref={lockInBtnRef}
           onClick={goLockIn}
           className="lock-in-gold-button min-h-11 py-2.5 px-4 rounded-xl text-black text-base font-bold tracking-wide text-center whitespace-nowrap active:scale-[0.97] transition-transform duration-150"
         >

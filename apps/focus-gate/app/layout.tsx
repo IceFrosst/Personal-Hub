@@ -20,7 +20,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#161618',
+  themeColor: '#000000', // the gate is black (IG disguise) — matches manifest.json
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

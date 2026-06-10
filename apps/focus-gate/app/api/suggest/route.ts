@@ -5,6 +5,12 @@ import { PRIORITY_RANK, type Priority, type Suggestion, type Task } from '@/lib/
 // How many tasks the gate lists at once.
 const MAX_SUGGESTIONS = 2
 
+// Min gap between Gemini calls per user — see the throttle in POST.
+const THROTTLE_MS = 20_000
+
+// Bound the model call — the gate's loader shouldn't wait on a slow Gemini.
+const GEMINI_TIMEOUT_MS = 5000
+
 // Time-of-day buckets. Late night is deliberately gentle: the user may be in bed,
 // so we prefer small/quick tasks and never push a big, heavy one.
 type Bucket = 'morning' | 'afternoon' | 'evening' | 'late night'
@@ -20,23 +26,33 @@ function priorityRank(p: Priority | null | undefined): number {
   return p ? PRIORITY_RANK[p] : PRIORITY_RANK.medium
 }
 
-// Days until due (negative = overdue). null when no due date.
-function daysUntilDue(due: string | null | undefined): number | null {
+// The user's local "today" at midnight, from the client's calendar date (server runs
+// UTC on Vercel, so its own midnight can be a day off). Falls back to server date.
+function todayFrom(clientDate: string | null): Date {
+  if (clientDate && /^\d{4}-\d{2}-\d{2}$/.test(clientDate)) {
+    const d = new Date(clientDate + 'T00:00:00')
+    if (!Number.isNaN(d.getTime())) return d
+  }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return today
+}
+
+// Days until due relative to the given "today" (negative = overdue). null when no due date.
+function daysUntilDue(due: string | null | undefined, today: Date): number | null {
   if (!due) return null
   const d = new Date(due + 'T00:00:00')
   if (Number.isNaN(d.getTime())) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
   return Math.round((d.getTime() - today.getTime()) / 86_400_000)
 }
 
 // Deterministic scorer used for the fallback and to keep the heuristic honest.
 // Weighs priority + due-date urgency, then bends for the time of day — gently at night.
-function scoreTask(task: Task, bucket: Bucket): number {
+function scoreTask(task: Task, bucket: Bucket, today: Date): number {
   let score = priorityRank(task.priority) // 1–3
   if (task.is_quick) score += 1.5
 
-  const due = daysUntilDue(task.due_date)
+  const due = daysUntilDue(task.due_date, today)
   if (due !== null) {
     if (due <= 0) score += 2.5 // due today or overdue
     else if (due === 1) score += 1.5
@@ -67,9 +83,9 @@ function toSuggestion(task: Task): Suggestion {
 }
 
 // Top tasks by score, best first. Tie-break oldest-first so nothing lingers forever.
-function rankTasks(active: Task[], bucket: Bucket): Task[] {
+function rankTasks(active: Task[], bucket: Bucket, today: Date): Task[] {
   return [...active].sort((a, b) => {
-    const diff = scoreTask(b, bucket) - scoreTask(a, bucket)
+    const diff = scoreTask(b, bucket, today) - scoreTask(a, bucket, today)
     if (diff !== 0) return diff
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   })
@@ -85,29 +101,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let tasks: Task[] = []
   let clientHour: number | null = null
+  let clientDate: string | null = null
   try {
     const body = await request.json()
-    tasks = Array.isArray(body.tasks) ? body.tasks : []
     // The user's local hour (server runs UTC on Vercel) — drives time-of-day gentleness.
     if (typeof body.clientHour === 'number' && body.clientHour >= 0 && body.clientHour <= 23) {
       clientHour = Math.floor(body.clientHour)
     }
+    // The user's local calendar date ('YYYY-MM-DD') — drives due-date urgency.
+    if (typeof body.clientDate === 'string') {
+      clientDate = body.clientDate
+    }
   } catch {
-    return NextResponse.json({ suggestions: [] }, { status: 200 })
+    // Malformed/missing body — fine, server time covers both below.
   }
 
-  const active = tasks.filter((t) => !t.is_completed)
+  // The tasks come from the database, never the request body — the client can't feed
+  // invented titles to Gemini, echo fake priority/due_date, or inflate suggestion_count.
+  const { data: tasks } = await supabase
+    .schema('focus_gate')
+    .from('tasks')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('is_completed', false)
+
+  const active: Task[] = tasks ?? []
   if (!active.length) return NextResponse.json({ suggestions: [] }, { status: 200 })
 
   const hour = clientHour ?? new Date().getHours()
   const bucket = bucketFor(hour)
+  const today = todayFrom(clientDate)
   const apiKey = process.env.GEMINI_API_KEY
 
-  const fallback = () => rankTasks(active, bucket).slice(0, MAX_SUGGESTIONS).map(toSuggestion)
+  const heuristicPicks = () => rankTasks(active, bucket, today).slice(0, MAX_SUGGESTIONS)
 
   // Record that we surfaced these so repeats can be de-prioritised later.
+  // suggestion_count is computed from the rows we just read, never from the request.
   async function markSuggested(picks: Task[]) {
     const now = new Date().toISOString()
     await Promise.all(
@@ -124,13 +154,27 @@ export async function POST(request: Request) {
     )
   }
 
-  async function respond(picks: Task[]) {
-    await markSuggested(picks)
+  // Single exit for every suggestion response — Gemini pick, heuristic fallback,
+  // no-API-key — so the bookkeeping is uniform. Throttled hits skip the marking.
+  async function respond(picks: Task[], mark = true) {
+    if (mark) await markSuggested(picks)
     return NextResponse.json({ suggestions: picks.map(toSuggestion) })
   }
 
+  // Cheap per-user throttle: Google sign-up is open and Gemini's free tier is
+  // 1,500 req/day, so rapid re-opens (or someone hammering the endpoint) get the
+  // deterministic heuristic instead of another model call. Skipping markSuggested
+  // here also stops repeat hits from pumping suggestion_count.
+  const lastSuggestedAt = Math.max(
+    0,
+    ...active.map((t) => (t.last_suggested_at ? new Date(t.last_suggested_at).getTime() : 0))
+  )
+  if (Date.now() - lastSuggestedAt < THROTTLE_MS) {
+    return respond(heuristicPicks(), false)
+  }
+
   if (!apiKey) {
-    return NextResponse.json({ suggestions: fallback() })
+    return respond(heuristicPicks())
   }
 
   try {
@@ -158,14 +202,16 @@ Reply as JSON only (no markdown), task IDs only, best first:
 {"taskIds":["<id>", "<id>"]}`
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Key travels in a header, not the URL, so it can't end up in request logs.
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { responseMimeType: 'application/json' },
         }),
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
       }
     )
 
@@ -190,10 +236,11 @@ Reply as JSON only (no markdown), task IDs only, best first:
     }
 
     // Model returned nothing usable — fall back to the deterministic ranking.
-    if (!picks.length) return NextResponse.json({ suggestions: fallback() })
+    if (!picks.length) return respond(heuristicPicks())
 
     return respond(picks)
   } catch {
-    return NextResponse.json({ suggestions: fallback() })
+    // Timeout, network or parse failure — the deterministic ranking still answers.
+    return respond(heuristicPicks())
   }
 }
