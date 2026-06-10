@@ -13,7 +13,8 @@ in one place and a new app is just a new folder (no new repo, no new access gran
 ├── apps/
 │   ├── hub/             # launcher PWA — lists the apps below (config/apps.json)
 │   ├── focus-gate/      # intentional Instagram replacement (the "gate")
-│   └── lock-in/         # tasks, prioritised — voice in, lock in
+│   ├── lock-in/         # tasks, prioritised — voice in, lock in
+│   └── cookie-jar/      # Goggins cookie jar — bank wins, reach in for fuel
 └── packages/            # (reserved) shared code, once extracted
 ```
 
@@ -22,14 +23,15 @@ Each `apps/<name>/` also carries its own **`README.md`** (what the app is) and *
 
 ## Apps
 
-| App        | Folder            | What it is                             |
-|------------|-------------------|----------------------------------------|
-| Hub        | `apps/hub`        | Launcher that lists the apps           |
-| Focus Gate | `apps/focus-gate` | Intentional Instagram replacement      |
-| Lock In    | `apps/lock-in`    | Tasks, prioritised. Voice in, lock in. |
+| App        | Folder            | What it is                              |
+|------------|-------------------|------------------------------------------|
+| Hub        | `apps/hub`        | Launcher that lists the apps            |
+| Focus Gate | `apps/focus-gate` | Intentional Instagram replacement       |
+| Lock In    | `apps/lock-in`    | Tasks, prioritised. Voice in, lock in.  |
+| Cookie Jar | `apps/cookie-jar` | Bank your wins. Reach in for fuel.      |
 
-All apps share one Supabase project (Postgres schemas `hub`, `focus_gate`) and run on
-the Vercel free tier. See `CLAUDE.md` for the full spec.
+All apps share one Supabase project (Postgres schemas `hub`, `focus_gate`, `cookie_jar`)
+and run on the Vercel free tier. See `CLAUDE.md` for the full spec.
 
 ## Develop
 

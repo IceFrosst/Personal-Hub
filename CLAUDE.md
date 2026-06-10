@@ -5,8 +5,8 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 > Read this whole file before doing anything. The rules below are not suggestions — they are the project's spine.
 
 > **Monorepo (since 2026-05-29):** the portfolio is one repo. Each app lives in
-> `apps/<name>/` (`apps/hub`, `apps/focus-gate`, `apps/lock-in`); shared docs live at the
-> root (`CLAUDE.md`, `SCHEMA_RULES.md`). Tooling is npm workspaces + Turborepo. A new app is
+> `apps/<name>/` (`apps/hub`, `apps/focus-gate`, `apps/lock-in`, `apps/cookie-jar`); shared
+> docs live at the root (`CLAUDE.md`, `SCHEMA_RULES.md`). Tooling is npm workspaces + Turborepo. A new app is
 > a new folder under `apps/` — no new GitHub repo, no new access grant. Each app is still its
 > own Vercel project (Root Directory `apps/<name>`); production ships from `main` for all
 > apps in lockstep, with rollback via Vercel's deployment history.
@@ -258,8 +258,8 @@ Add these to the outbound allowlist in Claude Code environment settings:
 With all tokens set and both domains allowlisted, a new app goes from idea to live with no new repo:
 
 1. ✅ **App folder + docs** — scaffold under `apps/<name>` (Next.js 15, Tailwind, Supabase SSR, PWA); it joins the workspace automatically via the `apps/*` glob. **Create `apps/<name>/README.md` and `apps/<name>/CLAUDE.md`** (CLAUDE.md sections: Stack · Conventions · Data model · Gotchas · Current state · Next — see *Per-app context files*)
-2. ✅ **Register** — add the entry to `apps/hub/config/apps.json` and map its icon in `apps/hub/src/lib/icons.ts`
-3. ✅ **Vercel project** — create it pointing at `Personal-Hub`, Root Directory `apps/<name>`, Ignored Build Step `npx turbo-ignore` (`setup-vercel-project.mjs` bootstraps the project + Supabase env vars; set root directory / ignore step via API or dashboard)
+2. ✅ **Register** — add the entry to `apps/hub/config/apps.json` and map its icon in `apps/hub/src/lib/icons.ts` (the hub's `prebuild` registry validation fails the hub build if the icon is unmapped, the color invalid, or the `iconImage` file missing)
+3. ✅ **Vercel project** — create it pointing at `Personal-Hub`, Root Directory `apps/<name>`, Ignored Build Step `npx turbo-ignore` (`apps/hub/scripts/setup-vercel-project.mjs` bootstraps the project + Supabase env vars and sets root directory + ignore step via `--root-dir`)
 4. ✅ **SQL migration** — `POST https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/database/query` (SQL lives in `apps/<name>/supabase`)
 5. ✅ **Auth redirect URL** — `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
 6. ✅ **Commit & push to `main`** — Vercel deploys the new project
@@ -268,14 +268,14 @@ With all tokens set and both domains allowlisted, a new app goes from idea to li
 
 ---
 
-## Bootstrap automation (`scripts/`)
+## Bootstrap automation (`apps/hub/scripts/`)
 
-### `scripts/setup-vercel-project.mjs`
+### `apps/hub/scripts/setup-vercel-project.mjs`
 
-Creates a Vercel project, links it to a GitHub repo, sets the production branch, injects Supabase env vars from session env. In the monorepo, link it to `Personal-Hub` and set the project's Root Directory to `apps/<name>` (via API/dashboard). Usage:
+Creates a Vercel project, links it to a GitHub repo, sets the production branch (default `main`), sets the Root Directory and the `npx turbo-ignore` Ignored Build Step, and injects Supabase env vars from session env. Usage:
 
 ```bash
-node scripts/setup-vercel-project.mjs --repo Personal-Hub --name icefrosst-<name> --prod-branch main
+node apps/hub/scripts/setup-vercel-project.mjs --repo Personal-Hub --name icefrosst-<name> --root-dir apps/<name>
 ```
 
 ---
@@ -340,9 +340,10 @@ Signs: patching the same file three times, re-discovering things already known, 
 
 ## Current phase
 
-**Monorepo consolidation done (2026-05-29).** All three apps live in this repo under `apps/` (git history preserved); the former `focus-gate-personal-app` and `lock-in-personal-app` repos are archived.
+**Monorepo consolidation done (2026-05-29); Cookie Jar added (2026-06-02); portfolio-wide audit + fixes (2026-06-10).** All apps live in this repo under `apps/` (git history preserved); the former `focus-gate-personal-app` and `lock-in-personal-app` repos are archived.
 
-- **Hub, Focus Gate, and Lock In** all deploy on Vercel from the monorepo — each its own project, Root Directory `apps/<name>`, `turbo-ignore` build-skipping, production branch `main`.
+- **Hub, Focus Gate, Lock In, and Cookie Jar** all deploy on Vercel from the monorepo — each its own project, Root Directory `apps/<name>`, `turbo-ignore` build-skipping, production branch `main`.
 - `api.vercel.com` and `api.supabase.com` are allowlisted; SQL migrations apply via the Management API.
+- The 2026-06-10 audit fixed the portfolio-wide auth-callback open redirect, hardened every service worker (cache cleanup, no `/auth/` or error-response caching), surfaced previously-silent fetch/insert errors, and added the hub's `prebuild` registry validation + app-icon sync. Every app now has a `typecheck` script (`npm run typecheck` covers all four).
 
 **Next:** a structure pass — a shared `packages/` for the Supabase client + `Task` type, unifying the hub's `src/`-vs-`app/` layout and ESLint config with the other apps, and a single committed root lockfile — deferred pending a discussion of how the apps should work together.
