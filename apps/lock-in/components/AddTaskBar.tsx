@@ -15,9 +15,9 @@ type Props = {
 }
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; dot: string }[] = [
-  { value: 'low', label: 'Low', dot: 'bg-prio-low' },
-  { value: 'medium', label: 'Med', dot: 'bg-prio-medium' },
-  { value: 'high', label: 'High', dot: 'bg-prio-high' },
+  { value: 'low', label: 'Low', dot: 'bg-priority-low' },
+  { value: 'medium', label: 'Med', dot: 'bg-priority-medium' },
+  { value: 'high', label: 'High', dot: 'bg-priority-high' },
 ]
 
 function formatChip(value: string | null): string {
@@ -43,7 +43,7 @@ type SpeechRecognitionInstance = {
   stop: () => void
   onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
   onend: (() => void) | null
-  onerror: (() => void) | null
+  onerror: ((e: { error: string }) => void) | null
 }
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
@@ -55,6 +55,7 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
   const [listening, setListening] = useState(false)
   const [adding, setAdding] = useState(false)
   const [speechAvailable, setSpeechAvailable] = useState(false)
+  const [micHint, setMicHint] = useState<string | null>(null)
 
   const dateRef = useRef<HTMLInputElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -99,12 +100,18 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
     rec.onresult = (e) => {
       const transcript = e.results[0]?.[0]?.transcript ?? ''
       if (transcript) {
+        setMicHint(null)
         setTitle((prev) => (prev ? prev + ' ' + transcript : transcript))
       }
     }
     rec.onend = () => setListening(false)
-    rec.onerror = () => setListening(false)
+    rec.onerror = (e) => {
+      setListening(false)
+      if (e.error === 'not-allowed') setMicHint('Mic blocked — check permissions')
+      else if (e.error === 'no-speech') setMicHint('Didn’t catch that')
+    }
     recognitionRef.current = rec
+    setMicHint(null)
     setListening(true)
     try {
       rec.start()
@@ -127,6 +134,7 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
     setAdding(true)
     try {
       await onAdd(text, priority, dueDate)
+      setMicHint(null)
       setTitle('')
       setDueDate(null)
       setPriority('medium')
@@ -194,6 +202,10 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
         </button>
       </div>
 
+      {micHint && (
+        <p className="text-text-low text-xs px-1 -mt-0.5 leading-snug">{micHint}</p>
+      )}
+
       <div className="flex items-center gap-2">
         <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
           {PRIORITY_OPTIONS.map((opt) => {
@@ -203,7 +215,7 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
                 key={opt.value}
                 type="button"
                 onClick={() => setPriority(opt.value)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1.5 min-h-11 px-2.5 rounded-md text-xs font-medium transition-colors ${
                   active ? 'bg-surface-elevated text-text' : 'text-text-muted'
                 }`}
               >
@@ -217,7 +229,7 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
         <button
           type="button"
           onClick={openDatePicker}
-          className={`relative flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border text-xs transition-colors ${
+          className={`relative flex items-center gap-1.5 min-h-11 px-2.5 rounded-lg border text-xs transition-colors ${
             dueDate
               ? 'bg-gold/10 border-gold/40 text-gold'
               : 'bg-surface border-border text-text-muted active:bg-surface-elevated'
@@ -239,7 +251,7 @@ export default function AddTaskBar({ onAdd, disabled }: Props) {
           <button
             type="button"
             onClick={() => setDueDate(null)}
-            className="text-xs text-text-low active:text-text-muted px-2 py-1"
+            className="flex items-center justify-center min-h-11 min-w-11 text-xs text-text-low active:text-text-muted px-2"
           >
             Clear
           </button>

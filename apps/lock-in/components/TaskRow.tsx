@@ -12,9 +12,9 @@ type Props = {
 }
 
 const PRIORITY_ACCENT: Record<Task['priority'], string> = {
-  low: 'bg-prio-low',
-  medium: 'bg-prio-medium',
-  high: 'bg-prio-high',
+  low: 'bg-priority-low',
+  medium: 'bg-priority-medium',
+  high: 'bg-priority-high',
 }
 
 function formatDueChip(due: string | null): { text: string; overdue: boolean } | null {
@@ -70,7 +70,7 @@ export default function TaskRow({ task, onToggle, onLongPress, completing }: Pro
 
   return (
     <div
-      className={`relative flex items-start gap-3 py-3 pl-5 pr-3 mb-2 rounded-xl overflow-hidden transition-colors ${
+      className={`lock-in-task-row relative flex items-start gap-3 py-3 pl-5 pr-3 mb-2 rounded-xl overflow-hidden select-none transition-colors ${
         pressing ? 'bg-surface-elevated' : 'bg-surface'
       } ${completing ? 'lock-in-task-complete' : ''}`}
       onPointerDown={startPress}

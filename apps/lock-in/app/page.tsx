@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import AddTaskBar from '@/components/AddTaskBar'
 import TaskRow from '@/components/TaskRow'
 import LockInLogo from '@/components/LockInLogo'
-import { PRIORITY_RANK, type Priority, type Task } from '@/lib/types'
+import { PRIORITY_RANK, normalizeTask, type Priority, type Task, type TaskRowFromDb } from '@/lib/types'
 
 function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
@@ -34,10 +34,6 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {})
-    }
-
     async function init() {
       const {
         data: { user },
@@ -55,14 +51,22 @@ export default function HomePage() {
 
       setUserId(user.id)
 
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .schema('focus_gate')
         .from('tasks')
         .select('*')
         .eq('user_id', user.id)
         .eq('is_completed', false)
 
-      setTasks((data ?? []) as Task[])
+      // A failed fetch is not an empty list — surface it and leave tasks alone.
+      if (fetchError || !data) {
+        setError(`Couldn't load tasks: ${fetchError?.message ?? 'no data returned'}`)
+        setLoading(false)
+        return
+      }
+
+      setError(null)
+      setTasks((data as TaskRowFromDb[]).map(normalizeTask))
       setLoading(false)
     }
 
@@ -85,12 +89,12 @@ export default function HomePage() {
         .select()
         .single()
       if (insertError) {
-        setError(insertError.message)
+        setError(`Couldn't save: ${insertError.message}`)
         return
       }
       if (data) {
         setError(null)
-        setTasks((prev) => [...prev, data as Task])
+        setTasks((prev) => [...prev, normalizeTask(data as TaskRowFromDb)])
       }
     },
     [supabase, userId]
@@ -122,7 +126,7 @@ export default function HomePage() {
           next.delete(task.id)
           return next
         })
-        setError(error.message)
+        setError(`Couldn't update: ${error.message}`)
         return
       }
 
@@ -148,7 +152,7 @@ export default function HomePage() {
       if (deleteError) {
         // Roll back the optimistic removal so the UI matches the DB.
         setTasks((prev) => [...prev, task])
-        setError(deleteError.message)
+        setError(`Couldn't delete: ${deleteError.message}`)
       }
     },
     [supabase]
@@ -177,7 +181,7 @@ export default function HomePage() {
             role="alert"
             className="text-priority-high text-xs px-2 -mt-2 leading-snug"
           >
-            Couldn&apos;t save: {error}
+            {error}
           </p>
         )}
 

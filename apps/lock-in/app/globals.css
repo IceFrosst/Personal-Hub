@@ -32,6 +32,12 @@ input[type='date']::-webkit-calendar-picker-indicator {
   pointer-events: none;
 }
 
+/* Long-press opens the action sheet — keep iOS from starting text
+   selection / the callout menu on task rows (select-none covers the rest). */
+.lock-in-task-row {
+  -webkit-touch-callout: none;
+}
+
 .lock-in-logo {
   /* bare container — no background, no frame, no halo */
 }

@@ -18,3 +18,12 @@ export const PRIORITY_RANK: Record<Priority, number> = {
   medium: 2,
   low: 1,
 }
+
+// The DB column is nullable (additive migration with a default); rows written by
+// other apps can carry null. Normalize once at the Supabase boundary so the rest
+// of the app can treat `priority` as non-null.
+export type TaskRowFromDb = Omit<Task, 'priority'> & { priority: Priority | null }
+
+export function normalizeTask(row: TaskRowFromDb): Task {
+  return { ...row, priority: row.priority ?? 'medium' }
+}
