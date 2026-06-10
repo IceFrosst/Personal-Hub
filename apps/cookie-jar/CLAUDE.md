@@ -41,13 +41,13 @@ Built and wired for deploy. Full flow:
 Google sign-in landing → **jar shelf** home: a coverflow carousel (`components/JarShelf.tsx`)
 you swipe through — the centered jar is big (`components/JarVisual.tsx`, one ball per cookie,
 balls shrink to fit, gravity-settled via `lib/jar.ts`), neighbours rotate away like bottles on
-a shelf. `JarVisual` draws a **3D rounded-square jar** (matches the app-icon shape): an extruded
-back face offset up-right gives the top + right glass walls real depth, plus a 3D lid (lighter
-top face + gloss), glass shading and a ground shadow — so it reads as a solid object when
-`rotateY`-ed, not a flat card. Tight `viewBox` ("92 126 320 320") so the jar fills its box.
-It's **transparent** (floats on the page); glass + lid are **tinted by the jar's `color`**
-(`JAR_COLORS` in `lib/jar.ts`; `darken`/`lighten`/`hexToRgba` do the shading). Edge spacers let
-the first/last jar reach dead-centre.
+a shelf. `JarVisual` draws **the jar from the app logo** (same geometry as
+`scripts/gen-icons.mjs` / `CookieJarLogo`: lid + darker band, rounded-square glass with the
+chunky outline and highlight streak) — flat icon style, per Ignas's pick after a 5-shape
+bake-off. Tight `viewBox` ("126 100 260 320") so the jar fills its box. It's **transparent**
+(floats on the page); glass + lid are **tinted by the jar's `color`** (`JAR_COLORS` in
+`lib/jar.ts`; `darken`/`hexToRgba` do the shading; `lighten` is currently unused). Edge spacers
+let the first/last jar reach dead-centre.
 
 The **home screen is deliberately minimal**: just the jar shelf, the centred jar's **name
 directly below it**, dots, a one-line gesture hint, and **the single `+` button** (add a cookie).

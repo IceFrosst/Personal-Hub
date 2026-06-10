@@ -45,9 +45,9 @@ export function lighten(hex: string, f: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
 }
 
-// jar interior bounds for the ball settle (the rounded-square glass front face
-// that JarVisual draws — see its BX/B_TOP constants). cx 256.
-export const JAR = { xL: 160, xR: 336, yF: 402, yTop: 222, cr: 44 }
+// jar interior bounds for the ball settle (matches the logo glass body that
+// JarVisual draws: rect 156,176 200×232 rx40, stroke 11). cx 256.
+export const JAR = { xL: 162, xR: 350, yF: 402, yTop: 196, cr: 34 }
 const MAX_BALLS = 120 // perf bound; far beyond any realistic jar
 
 function mulberry32(a: number) {
