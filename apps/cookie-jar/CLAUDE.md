@@ -41,24 +41,29 @@ Built and wired for deploy. Full flow:
 Google sign-in landing → **jar shelf** home: a coverflow carousel (`components/JarShelf.tsx`)
 you swipe through — the centered jar is big (`components/JarVisual.tsx`, one ball per cookie,
 balls shrink to fit, gravity-settled via `lib/jar.ts`), neighbours rotate away like bottles on
-a shelf. `JarVisual` draws a **3D cylinder** (elliptical rim + lid cap, curved base, horizontal
-cylinder shading, ground shadow) so it still reads as a solid object when `rotateY`-ed — not a
-flat card. It's **transparent** (floats on the page — no background card/glow); the glass + lid
-are **tinted by the jar's `color`** (`JAR_COLORS` in `lib/jar.ts`; `darken`/`lighten`/`hexToRgba`
-do the shading). Edge spacers
-let the first/last jar reach dead-centre. The shelf reports the centered index; **the main
-screen shows that jar's name + count + action row right there**: **Reach in** (tinted to the
-jar colour), **+** (add cookie), **⚙** (jar settings), plus **Show all cookies** + dots.
-Fresh account shows just a dashed **+** to create the first jar.
+a shelf. `JarVisual` draws **the jar from the app logo** (same geometry as
+`scripts/gen-icons.mjs` / `CookieJarLogo`: lid + darker band, rounded-square glass with the
+chunky outline and highlight streak) — flat icon style, per Ignas's pick after a 5-shape
+bake-off. Tight `viewBox` ("126 100 260 320") so the jar fills its box. It's **transparent**
+(floats on the page); glass + lid are **tinted by the jar's `color`** (`JAR_COLORS` in
+`lib/jar.ts`; `darken`/`hexToRgba` do the shading; `lighten` is currently unused). Edge spacers
+let the first/last jar reach dead-centre.
+
+The **home screen is deliberately minimal**: just the jar shelf, the centred jar's **name
+directly below it**, dots, a one-line gesture hint, and **the single `+` button** (add a cookie).
+No count / reach-in / settings buttons on the main screen. Gestures on the centred jar
+(`JarShelf` pointer handlers — ~450 ms long-press, 12 px move tolerance so a swipe never fires a
+tap): **short tap → reach in** (an empty jar instead opens add-cookie); **long-press → jar
+settings**. Tapping a side jar centres it. Fresh account shows just a dashed **+**.
 
 **Reach in** = random-cookie reveal (`cookie-draw` pop, "reach in again", avoids immediate
-repeats). **Tap the jar / Show all** → the cookie **list** view (back + name + ⚙; tap a cookie
-for detail + remove). **Jar settings** (`JarMenuSheet`) = rename, **colour picker** (7 swatches),
-delete. **New jar** (`NewJarSheet`) also picks a colour; creating centres the new jar on the
-shelf (shelf keyed on `jars.length` so it remounts to `focusId`). Per-jar counts loaded up
-front (one `cookies(jar_id)` query, tallied client-side); the centred jar's cookies load on
-swipe. Optimistic writes with rollback. Coral base accent on the mauve dark theme; per-jar
-colour for the glass. Registered in the hub (`apps.json` + `cookie` icon + tile image).
+repeats). **Jar settings** (`JarMenuSheet`, opened by long-press) holds **Show all cookies** (→
+the list view: back + name + ⚙; tap a cookie for detail + remove), **rename**, a **colour
+picker** (7 swatches), and **delete**. **New jar** (`NewJarSheet`) also picks a colour; creating
+centres the new jar (shelf keyed on `jars.length` so it remounts to `focusId`). Per-jar counts
+loaded up front (one `cookies(jar_id)` query, tallied client-side); the centred jar's cookies
+load on swipe. Optimistic writes with rollback. Coral base accent; per-jar colour for the glass.
+Registered in the hub (`apps.json` + `cookie` icon + tile image).
 
 `JarSwitcher.tsx` is dead code (no longer imported) — kept, safe to delete.
 
@@ -69,6 +74,6 @@ redirect URLs added for `icefrosst-cookie-jar.vercel.app` + a preview wildcard; 
 `main`, Supabase env vars injected). Not yet verified on a real device.
 
 ## Next
-- **Test on a phone** — shelf swipe/centering, recolour a jar, reach in, add/show-all. Coverflow + colours verified via static Playwright renders, not live touch.
-- Possible polish: jar reordering, cookie **edit**, draw history, haptics on reach-in/swipe-snap, momentum tuning on the shelf; tint the reach-in modal/add sheet to the jar colour too.
+- **Test on a phone** — the tap-vs-swipe-vs-long-press gesture split is the main thing to feel-check (verified via static renders only); also recolour a jar, reach in, add/show-all.
+- Possible polish: jar reordering, cookie **edit**, draw history, haptics on reach-in + long-press, momentum tuning; tint the reach-in modal/add sheet to the jar colour too.
 - `JarSwitcher.tsx` is dead code — delete when convenient.
