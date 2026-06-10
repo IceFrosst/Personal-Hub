@@ -1,25 +1,27 @@
 #!/usr/bin/env node
 /**
- * Creates a Vercel project for a new app in the icefrosst portfolio.
+ * Creates a Vercel project for a new app in the icefrosst portfolio (monorepo model).
  *
  * What it does:
- *   1. Calls the Vercel API to create a project linked to a GitHub repo
- *   2. Sets the production branch to `stable` (per the three-branch convention)
+ *   1. Calls the Vercel API to create a project linked to the monorepo
+ *   2. Sets the production branch (default `main` — all apps ship in lockstep),
+ *      the Root Directory (`apps/<name>`), and the `npx turbo-ignore` ignored
+ *      build step so a push only rebuilds the apps that changed
  *   3. Injects the shared Supabase env vars (read from session env, not hardcoded)
- *   4. Prints the expected URLs once Vercel finishes the first deploy
+ *   4. Prints the production URL once Vercel finishes the first deploy
  *
  * Prerequisites:
- *   - GitHub repo IceFrosst/<repo> must already exist
- *   - Vercel GitHub App must have access to it (use "All repositories")
+ *   - Vercel GitHub App must have access to the repo (use "All repositories")
  *   - The following env vars must be set (all available in Claude Code sessions):
  *     VERCEL_TOKEN, VERCEL_TEAM_ID,
  *     NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
  *
  * Usage:
- *   node scripts/setup-vercel-project.mjs --repo focus-gate-personal-app --name icefrosst-focus-gate-personal-app
+ *   node scripts/setup-vercel-project.mjs --repo Personal-Hub --name icefrosst-<name> --prod-branch main --root-dir apps/<name>
  *
  * Optional flags:
- *   --prod-branch <branch>   Production branch name (default: stable)
+ *   --prod-branch <branch>   Production branch name (default: main)
+ *   --root-dir <path>        Root Directory inside the repo, e.g. apps/<name>
  *   --github-owner <owner>   GitHub owner (default: IceFrosst)
  */
 
@@ -50,7 +52,8 @@ const { values: args } = parseArgs({
   options: {
     repo: { type: "string" },
     name: { type: "string" },
-    "prod-branch": { type: "string", default: "stable" },
+    "prod-branch": { type: "string", default: "main" },
+    "root-dir": { type: "string" },
     "github-owner": { type: "string", default: "IceFrosst" },
   },
 });
@@ -86,6 +89,8 @@ const project = await vercel("/v10/projects", {
   body: JSON.stringify({
     name: args.name,
     framework: "nextjs",
+    ...(args["root-dir"] ? { rootDirectory: args["root-dir"] } : {}),
+    commandForIgnoringBuildStep: "npx turbo-ignore",
     gitRepository: {
       type: "github",
       repo: repoFullName,
@@ -109,8 +114,7 @@ for (const envVar of STANDARD_ENV_VARS) {
   console.log(`  ✓ Env var: ${envVar.key}`);
 }
 
-console.log(`\nDone. Expected URLs once Vercel finishes the first build:`);
-console.log(`  stable (production): https://${args.name}.vercel.app`);
-console.log(`  main:                https://${args.name}-git-main-icefrosst.vercel.app`);
-console.log(`  previous:            https://${args.name}-git-previous-icefrosst.vercel.app`);
+console.log(`\nDone. Production URL once Vercel finishes the first build:`);
+console.log(`  https://${args.name}.vercel.app`);
+console.log(`(Vercel assigns preview URLs per branch automatically.)`);
 console.log(`\nAdd GEMINI_API_KEY manually in the Vercel project dashboard if the app uses AI.`);

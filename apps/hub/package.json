@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/sync-app-icons.mjs && node scripts/validate-registry.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -27,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "^15.5.18",
     "postcss": "^8",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }

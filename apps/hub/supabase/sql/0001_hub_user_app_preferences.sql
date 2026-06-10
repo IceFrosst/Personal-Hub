@@ -45,7 +45,8 @@ create trigger user_app_preferences_updated_at
   before update on hub.user_app_preferences
   for each row execute function public.handle_updated_at();
 
--- Expose the `hub` schema to the Data API so the supabase-js client can read it.
--- (Default Supabase config only exposes `public`.)
+-- Postgres-level grants for the API roles. Note: grants alone do NOT expose the
+-- schema to the Data API — PostgREST additionally requires `hub` in the project's
+-- exposed-schemas (db_schema) config, or every query 404s.
 grant usage on schema hub to anon, authenticated;
 grant all on hub.user_app_preferences to anon, authenticated;
