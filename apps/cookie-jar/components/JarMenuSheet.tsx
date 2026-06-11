@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { IconTrash, IconCheck, IconListDetails } from '@tabler/icons-react'
+import { IconTrash, IconListDetails, IconChevronRight } from '@tabler/icons-react'
 import type { Jar } from '@/lib/types'
-import { JAR_COLORS } from '@/lib/jar'
 import Sheet from './Sheet'
+import ColorSwatches from './ColorSwatches'
 
 export default function JarMenuSheet({
   jar,
@@ -26,80 +26,69 @@ export default function JarMenuSheet({
   const [name, setName] = useState(jar.name)
   const [confirming, setConfirming] = useState(false)
   const trimmed = name.trim()
-  const renamed = trimmed && trimmed !== jar.name
+  const renamed = Boolean(trimmed) && trimmed !== jar.name
 
   return (
     <Sheet onClose={onClose}>
-      <p className="mb-3 px-1 text-xs uppercase tracking-wide text-text-low">Jar settings</p>
+      <div className="mb-4 flex items-baseline justify-between px-1">
+        <p className="text-xs uppercase tracking-wide text-text-low">Jar settings</p>
+        <p className="text-xs text-text-low">{cookieCount} {cookieCount === 1 ? 'cookie' : 'cookies'}</p>
+      </div>
 
       {onShowAll && (
         <button
           type="button"
           onClick={onShowAll}
-          className="mb-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface font-medium text-text transition active:scale-[0.98] active:bg-surface-elevated"
+          className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-surface px-3.5 font-medium text-text transition active:scale-[0.99] active:bg-border"
         >
-          <IconListDetails size={18} stroke={1.75} />
-          Show all {cookieCount} {cookieCount === 1 ? 'cookie' : 'cookies'}
+          <IconListDetails size={18} stroke={1.75} className="text-text-muted" />
+          <span className="flex-1 text-left">Show all cookies</span>
+          <IconChevronRight size={18} stroke={1.75} className="text-text-low" />
         </button>
       )}
 
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-base text-text focus:border-border-focus focus:outline-none"
-      />
-      {renamed && (
-        <button
-          type="button"
-          onClick={async () => {
-            await onRename(trimmed)
-            onClose()
-          }}
-          className="mt-2 min-h-11 w-full rounded-xl bg-surface font-medium text-text transition-colors active:bg-border"
-        >
-          Save name
-        </button>
-      )}
-
-      {/* jar colour */}
-      <p className="mb-2 mt-5 px-1 text-xs uppercase tracking-wide text-text-low">Jar colour</p>
-      <div className="flex flex-wrap gap-3">
-        {JAR_COLORS.map((c) => {
-          const selected = c.name === jar.color
-          return (
-            <button
-              key={c.name}
-              type="button"
-              aria-label={c.name}
-              aria-pressed={selected}
-              onClick={() => onColor(c.name)}
-              className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-90 ${selected ? 'ring-2 ring-text ring-offset-2 ring-offset-surface-elevated' : ''}`}
-              style={{ backgroundColor: c.hex }}
-            >
-              {selected && <IconCheck size={20} stroke={3} className="text-white" />}
-            </button>
-          )
-        })}
+      <p className="mb-2 mt-5 px-1 text-xs uppercase tracking-wide text-text-low">Name</p>
+      <div className="flex gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && renamed && onRename(trimmed)}
+          className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3.5 py-3 text-base text-text focus:border-border-focus focus:outline-none"
+        />
+        {renamed && (
+          <button
+            type="button"
+            onClick={() => onRename(trimmed)}
+            className="shrink-0 rounded-xl bg-text px-4 font-medium text-bg transition-transform active:scale-[0.97]"
+          >
+            Save
+          </button>
+        )}
       </div>
 
-      {confirming ? (
-        <button
-          type="button"
-          onClick={() => onDelete(jar)}
-          className="mt-6 min-h-12 w-full rounded-xl bg-coral/15 font-medium text-coral transition-colors active:bg-coral/25"
-        >
-          Delete jar and its {cookieCount} {cookieCount === 1 ? 'cookie' : 'cookies'}? Tap again
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-text-muted transition-colors active:text-text"
-        >
-          <IconTrash size={18} stroke={1.5} />
-          Delete jar
-        </button>
-      )}
+      <p className="mb-2.5 mt-5 px-1 text-xs uppercase tracking-wide text-text-low">Jar colour</p>
+      <ColorSwatches value={jar.color} onChange={onColor} />
+
+      <div className="mt-6 border-t border-border pt-2">
+        {confirming ? (
+          <button
+            type="button"
+            onClick={() => onDelete(jar)}
+            className="min-h-12 w-full rounded-xl bg-coral/15 font-medium text-coral transition-colors active:bg-coral/25"
+          >
+            Delete jar and its {cookieCount} {cookieCount === 1 ? 'cookie' : 'cookies'}? Tap again
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-text-muted transition-colors active:text-coral"
+          >
+            <IconTrash size={18} stroke={1.5} />
+            Delete jar
+          </button>
+        )}
+      </div>
     </Sheet>
   )
 }
