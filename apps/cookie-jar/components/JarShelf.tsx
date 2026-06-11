@@ -108,7 +108,7 @@ export default function JarShelf({
     <div
       ref={scroller}
       onScroll={onScroll}
-      className="flex h-full snap-x snap-mandatory items-center overflow-x-auto overflow-y-hidden [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="isolate flex h-full snap-x snap-mandatory items-center overflow-x-auto overflow-y-hidden [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <div className="shrink-0 basis-[13%]" aria-hidden />
 
