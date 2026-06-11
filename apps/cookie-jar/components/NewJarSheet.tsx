@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { IconCheck } from '@tabler/icons-react'
 import { JAR_COLORS } from '@/lib/jar'
 import Sheet from './Sheet'
+import ColorSwatches from './ColorSwatches'
 
 export default function NewJarSheet({
   onCreate,
@@ -27,35 +27,20 @@ export default function NewJarSheet({
 
   return (
     <Sheet onClose={onClose}>
-      <p className="mb-3 px-1 text-xs uppercase tracking-wide text-text-low">New jar</p>
+      <p className="mb-4 px-1 text-xs uppercase tracking-wide text-text-low">New jar</p>
+
+      <p className="mb-2 px-1 text-xs uppercase tracking-wide text-text-low">Name</p>
       <input
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && create()}
-        placeholder="Name your jar — Fitness, Career, Comebacks…"
+        placeholder="Fitness, Career, Comebacks…"
         className="w-full rounded-xl border border-border bg-surface px-3.5 py-3 text-base text-text placeholder:text-text-low focus:border-border-focus focus:outline-none"
       />
 
-      <p className="mb-2 mt-5 px-1 text-xs uppercase tracking-wide text-text-low">Jar colour</p>
-      <div className="flex flex-wrap gap-3">
-        {JAR_COLORS.map((c) => {
-          const selected = c.name === color
-          return (
-            <button
-              key={c.name}
-              type="button"
-              aria-label={c.name}
-              aria-pressed={selected}
-              onClick={() => setColor(c.name)}
-              className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-90 ${selected ? 'ring-2 ring-text ring-offset-2 ring-offset-surface-elevated' : ''}`}
-              style={{ backgroundColor: c.hex }}
-            >
-              {selected && <IconCheck size={20} stroke={3} className="text-white" />}
-            </button>
-          )
-        })}
-      </div>
+      <p className="mb-2.5 mt-5 px-1 text-xs uppercase tracking-wide text-text-low">Jar colour</p>
+      <ColorSwatches value={color} onChange={setColor} />
 
       <button
         type="button"

@@ -19,7 +19,7 @@ small animation. Private; sharing is IRL ("here's the cookie I drew").
 - App code in `app/`; components in `components/`; helpers/types in `lib/`; `@/*` → app root.
 - Supabase clients in `lib/supabase/` (`client.ts` browser, `server.ts` SSR); `middleware.ts` only refreshes the session.
 - Types in `lib/types.ts` (`Jar`, `Cookie`). Date formatting in `lib/format.ts` (`formatEarned`, parses date-only component-wise to avoid TZ shift).
-- Bottom sheets share `components/Sheet.tsx` (dim backdrop, `rounded-t-3xl`, Escape-to-close, safe-area padded).
+- Bottom sheets share `components/Sheet.tsx` (dim **blurred** backdrop, grab handle, `rounded-t-3xl`, Escape-to-close, safe-area padded). The 7-colour picker is `components/ColorSwatches.tsx` (single `justify-between` row — never wraps an orphan swatch), shared by `NewJarSheet` + `JarMenuSheet`.
 - All DB access via `.schema('cookie_jar').from('jars' | 'cookies')`.
 
 ## Data model
