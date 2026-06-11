@@ -56,8 +56,13 @@ No count / reach-in / settings buttons on the main screen. Gestures on the centr
 tap): **short tap → reach in** (an empty jar instead opens add-cookie); **long-press → jar
 settings**. Tapping a side jar centres it. Fresh account shows just a dashed **+**.
 
-**Reach in** = random-cookie reveal (`cookie-draw` pop, "reach in again", avoids immediate
-repeats). **Jar settings** (`JarMenuSheet`, opened by long-press) holds **Show all cookies** (→
+**Grab a cookie** (the wording everywhere — not "reach in"; the component is still
+`ReachInModal.tsx`/`reachIn`) = random-cookie reveal: a drawn chocolate-chip **cookie graphic**
+(`CookieGraphic` in `ReachInModal.tsx`), title/story/date, no caption, `cookie-draw` pop, "Grab
+another". **Draws are unique per app session**: grabbed ids are tracked in-memory per jar
+(`drawn` state in `page.tsx`) and excluded from the pool — deliberately NOT persisted, so a
+fresh open of the app resets the pool. When the pool is empty the modal shows a "you've grabbed
+every cookie — open the app fresh" state. **Jar settings** (`JarMenuSheet`, opened by long-press) holds **Show all cookies** (→
 the list view: back + name + ⚙; tap a cookie for detail + remove), **rename**, a **colour
 picker** (7 swatches), and **delete**. **New jar** (`NewJarSheet`) also picks a colour; creating
 centres the new jar (shelf keyed on `jars.length` so it remounts to `focusId`). Per-jar counts

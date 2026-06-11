@@ -122,7 +122,7 @@ export default function JarShelf({
           <div
             role="button"
             tabIndex={0}
-            aria-label={`${jar.name}, ${counts[jar.id] ?? 0} cookies — tap to reach in, long-press for settings`}
+            aria-label={`${jar.name}, ${counts[jar.id] ?? 0} cookies — tap to grab a cookie, long-press for settings`}
             onPointerDown={(e) => down(e, i)}
             onPointerMove={move}
             onPointerUp={(e) => up(e, i)}

@@ -41,7 +41,11 @@ export default function HomePage() {
   const [showAddCookie, setShowAddCookie] = useState(false)
   const [showJarMenu, setShowJarMenu] = useState(false)
   const [detailCookie, setDetailCookie] = useState<Cookie | null>(null)
+  const [reachOpen, setReachOpen] = useState(false)
   const [reachCookie, setReachCookie] = useState<Cookie | null>(null)
+  // ids already grabbed per jar, this app session only (in-memory by design:
+  // a fresh open of the app resets the pool — that's the feature)
+  const [drawn, setDrawn] = useState<Record<string, string[]>>({})
   const [drawKey, setDrawKey] = useState(0)
 
   // the centered jar (null when sitting on the "new jar" slide)
@@ -183,15 +187,27 @@ export default function HomePage() {
     [supabase]
   )
 
-  // Draw a random cookie — avoid repeating the one already on screen.
+  // Grab a random cookie. A cookie can only be grabbed once per app session:
+  // each draw is excluded from the pool until the app is opened fresh.
   const reachIn = useCallback(() => {
-    if (cookies.length === 0) return
-    let pick = cookies[Math.floor(Math.random() * cookies.length)]
-    if (cookies.length > 1 && reachCookie) {
-      while (pick.id === reachCookie.id) pick = cookies[Math.floor(Math.random() * cookies.length)]
+    if (!activeJar || cookies.length === 0) return
+    const jarId = activeJar.id
+    const already = drawn[jarId] ?? []
+    const pool = cookies.filter((c) => !already.includes(c.id))
+    if (pool.length === 0) {
+      // everything's been grabbed this session — show the "come back fresh" state
+      setReachCookie(null); setReachOpen(true)
+      return
     }
-    setReachCookie(pick); setDrawKey((k) => k + 1)
-  }, [cookies, reachCookie])
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    setDrawn((prev) => ({ ...prev, [jarId]: [...already, pick.id] }))
+    setReachCookie(pick); setDrawKey((k) => k + 1); setReachOpen(true)
+  }, [activeJar, cookies, drawn])
+
+  // cookies still grabbable in the centred jar (after the one on screen)
+  const remainingDraws = activeJar
+    ? cookies.filter((c) => !(drawn[activeJar.id] ?? []).includes(c.id)).length
+    : 0
 
   // tap the centred jar: reach in (or, if it's empty, jump to adding a cookie)
   const tapJar = useCallback((jar: Jar) => {
@@ -302,7 +318,7 @@ export default function HomePage() {
               <span className={`h-1.5 rounded-full transition-all ${activeIndex === jars.length ? 'w-4 bg-coral' : 'w-1.5 bg-border'}`} />
             </div>
 
-            <p className="mt-3 text-xs text-text-low">{activeJar ? 'Tap to reach in · long-press for settings' : 'Tap to create a new jar'}</p>
+            <p className="mt-3 text-xs text-text-low">{activeJar ? 'Tap to grab a cookie · long-press for settings' : 'Tap to create a new jar'}</p>
           </div>
 
           {/* the only button on the main screen: add a cookie */}
@@ -334,8 +350,14 @@ export default function HomePage() {
           onClose={() => setShowJarMenu(false)}
         />
       )}
-      {reachCookie && (
-        <ReachInModal cookie={reachCookie} drawKey={drawKey} onAgain={reachIn} canDrawAgain={cookies.length > 1} onClose={() => setReachCookie(null)} />
+      {reachOpen && (
+        <ReachInModal
+          cookie={reachCookie}
+          drawKey={drawKey}
+          onAgain={reachIn}
+          canDrawAgain={remainingDraws > 0}
+          onClose={() => { setReachOpen(false); setReachCookie(null) }}
+        />
       )}
     </main>
   )
