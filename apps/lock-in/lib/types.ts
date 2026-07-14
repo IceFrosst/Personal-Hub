@@ -1,5 +1,16 @@
 export type Priority = 'low' | 'medium' | 'high'
 
+export type TaskCategory = 'work' | 'hustle' | 'social' | 'other'
+
+// Tag options for one-off tasks. Colors are inline hex (the Lock In theme is
+// black + gold and has no per-category palette tokens).
+export const TASK_CATEGORIES: { value: TaskCategory; label: string; color: string }[] = [
+  { value: 'work', label: 'Work', color: '#0090ff' },
+  { value: 'hustle', label: 'Hustle', color: '#8e4ec6' },
+  { value: 'social', label: 'Social', color: '#30a46c' },
+  { value: 'other', label: 'Other', color: '#9b9ba6' },
+]
+
 export interface Task {
   id: string
   user_id: string
@@ -11,6 +22,7 @@ export interface Task {
   suggestion_count: number
   priority: Priority
   due_date: string | null
+  category: TaskCategory | null
 }
 
 export const PRIORITY_RANK: Record<Priority, number> = {
