@@ -75,6 +75,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
 
   // Recurring mode
   const [recurring, setRecurring] = useState(false)
+  const [dayMode, setDayMode] = useState<'everyday' | 'custom'>('everyday')
   const [weekdays, setWeekdays] = useState<number[]>(EVERY_DAY)
   const [timeMode, setTimeMode] = useState<TimeMode>('flexible')
   const [fixedTime, setFixedTime] = useState('09:00')
@@ -151,7 +152,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
     )
   }
 
-  const recurringValid = recurring ? weekdays.length > 0 : true
+  const recurringValid = recurring ? dayMode === 'everyday' || weekdays.length > 0 : true
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault()
@@ -161,7 +162,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
     try {
       if (recurring) {
         await onAddRecurring(text, {
-          weekdays: [...weekdays].sort((a, b) => a - b),
+          weekdays: dayMode === 'everyday' ? EVERY_DAY : [...weekdays].sort((a, b) => a - b),
           timeMode,
           fixedTime: timeMode === 'fixed' ? fixedTime : null,
           durationMinutes: duration,
@@ -309,19 +310,78 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
             )}
           </>
         ) : (
-          <div className="flex items-center gap-1">
-            {WEEKDAY_LABELS.map(({ iso, label }) => {
-              const on = weekdays.includes(iso)
+          <>
+            <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
+              {(['flexible', 'fixed'] as TimeMode[]).map((mode) => {
+                const active = timeMode === mode
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setTimeMode(mode)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                      active ? 'bg-surface-elevated text-text' : 'text-text-muted'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                )
+              })}
+            </div>
+
+            {timeMode === 'fixed' && (
+              <button
+                type="button"
+                onClick={openTimePicker}
+                className="relative flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-gold/10 border-gold/40 text-gold text-xs transition-colors"
+              >
+                <IconClock size={14} />
+                {fixedTime}
+                <input
+                  ref={timeRef}
+                  type="time"
+                  value={fixedTime}
+                  onChange={(e) => setFixedTime(e.target.value || '09:00')}
+                  className="absolute inset-0 opacity-0 pointer-events-none"
+                  tabIndex={-1}
+                />
+              </button>
+            )}
+
+            <label className="flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-surface border-border text-text-muted text-xs">
+              <select
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className="bg-transparent outline-none text-text appearance-none pr-1"
+              >
+                {DURATION_OPTIONS.map((d) => (
+                  <option key={d} value={d} className="bg-surface text-text">
+                    {d} min
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+      </div>
+
+      {recurring && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
+            {(
+              [
+                ['everyday', 'Every day'],
+                ['custom', 'Custom'],
+              ] as const
+            ).map(([val, label]) => {
+              const active = dayMode === val
               return (
                 <button
-                  key={iso}
+                  key={val}
                   type="button"
-                  onClick={() => toggleWeekday(iso)}
-                  aria-pressed={on}
-                  className={`h-8 w-8 rounded-full text-xs font-medium transition-colors ${
-                    on
-                      ? 'bg-gold/15 text-gold border border-gold/50'
-                      : 'bg-surface text-text-muted border border-border active:bg-surface-elevated'
+                  onClick={() => setDayMode(val)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    active ? 'bg-surface-elevated text-text' : 'text-text-muted'
                   }`}
                 >
                   {label}
@@ -329,61 +389,29 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
               )
             })}
           </div>
-        )}
-      </div>
 
-      {recurring && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
-            {(['flexible', 'fixed'] as TimeMode[]).map((mode) => {
-              const active = timeMode === mode
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setTimeMode(mode)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
-                    active ? 'bg-surface-elevated text-text' : 'text-text-muted'
-                  }`}
-                >
-                  {mode}
-                </button>
-              )
-            })}
-          </div>
-
-          {timeMode === 'fixed' && (
-            <button
-              type="button"
-              onClick={openTimePicker}
-              className="relative flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-gold/10 border-gold/40 text-gold text-xs transition-colors"
-            >
-              <IconClock size={14} />
-              {fixedTime}
-              <input
-                ref={timeRef}
-                type="time"
-                value={fixedTime}
-                onChange={(e) => setFixedTime(e.target.value || '09:00')}
-                className="absolute inset-0 opacity-0 pointer-events-none"
-                tabIndex={-1}
-              />
-            </button>
+          {dayMode === 'custom' && (
+            <div className="flex items-center gap-1">
+              {WEEKDAY_LABELS.map(({ iso, label }) => {
+                const on = weekdays.includes(iso)
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    onClick={() => toggleWeekday(iso)}
+                    aria-pressed={on}
+                    className={`h-8 w-8 rounded-full text-xs font-medium transition-colors ${
+                      on
+                        ? 'bg-gold/15 text-gold border border-gold/50'
+                        : 'bg-surface text-text-muted border border-border active:bg-surface-elevated'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           )}
-
-          <label className="flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-surface border-border text-text-muted text-xs">
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className="bg-transparent outline-none text-text appearance-none pr-1"
-            >
-              {DURATION_OPTIONS.map((d) => (
-                <option key={d} value={d} className="bg-surface text-text">
-                  {d} min
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
       )}
     </form>
