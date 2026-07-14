@@ -36,6 +36,9 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; dot: string }[] = [
 ]
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120]
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+const pad = (n: number) => String(n).padStart(2, '0')
 
 function formatChip(value: string | null): string {
   if (!value) return 'Date'
@@ -82,7 +85,6 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
   const [duration, setDuration] = useState(30)
 
   const dateRef = useRef<HTMLInputElement | null>(null)
-  const timeRef = useRef<HTMLInputElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
 
@@ -188,15 +190,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
     }
   }
 
-  function openTimePicker() {
-    const el = timeRef.current
-    if (!el) return
-    if (typeof el.showPicker === 'function') el.showPicker()
-    else {
-      el.focus()
-      el.click()
-    }
-  }
+  const [fixedHour, fixedMinute] = fixedTime.split(':')
 
   return (
     <form onSubmit={submit} className="w-full flex flex-col gap-2">
@@ -330,22 +324,34 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
             </div>
 
             {timeMode === 'fixed' && (
-              <button
-                type="button"
-                onClick={openTimePicker}
-                className="relative flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-gold/10 border-gold/40 text-gold text-xs transition-colors"
-              >
+              <div className="flex items-center gap-1 min-h-9 pl-2.5 pr-1.5 rounded-lg border bg-gold/10 border-gold/40 text-gold text-xs">
                 <IconClock size={14} />
-                {fixedTime}
-                <input
-                  ref={timeRef}
-                  type="time"
-                  value={fixedTime}
-                  onChange={(e) => setFixedTime(e.target.value || '09:00')}
-                  className="absolute inset-0 opacity-0 pointer-events-none"
-                  tabIndex={-1}
-                />
-              </button>
+                <select
+                  value={fixedHour}
+                  onChange={(e) => setFixedTime(`${e.target.value}:${fixedMinute}`)}
+                  aria-label="Hour"
+                  className="bg-transparent outline-none appearance-none text-gold font-medium tabular-nums px-0.5 py-1.5 cursor-pointer"
+                >
+                  {HOURS.map((h) => (
+                    <option key={h} value={pad(h)} className="bg-surface text-text">
+                      {pad(h)}
+                    </option>
+                  ))}
+                </select>
+                <span className="opacity-70">:</span>
+                <select
+                  value={fixedMinute}
+                  onChange={(e) => setFixedTime(`${fixedHour}:${e.target.value}`)}
+                  aria-label="Minute"
+                  className="bg-transparent outline-none appearance-none text-gold font-medium tabular-nums px-0.5 py-1.5 cursor-pointer"
+                >
+                  {MINUTES.map((m) => (
+                    <option key={m} value={pad(m)} className="bg-surface text-text">
+                      {pad(m)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
             <label className="flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-surface border-border text-text-muted text-xs">
