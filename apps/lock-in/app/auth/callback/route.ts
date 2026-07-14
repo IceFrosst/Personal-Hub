@@ -19,10 +19,22 @@ export async function GET(request: Request) {
       if (connect) {
         // provider_refresh_token is only present on this initial exchange, and
         // only when the OAuth request used access_type=offline + prompt=consent.
-        // It doesn't always surface here — the client has a fallback that reads
-        // it from the browser session — so a miss isn't fatal.
         const refreshToken = data.session?.provider_refresh_token
         const user = data.session?.user
+
+        // TEMP diagnostic: record what the exchange actually returned.
+        if (user) {
+          await supabase
+            .schema('lock_in')
+            .from('oauth_debug')
+            .insert({
+              user_id: user.id,
+              has_provider_token: !!data.session?.provider_token,
+              has_provider_refresh: !!data.session?.provider_refresh_token,
+              note: 'callback',
+            })
+        }
+
         let cal = 'notoken'
         if (refreshToken && user) {
           const { error: storeError } = await supabase
