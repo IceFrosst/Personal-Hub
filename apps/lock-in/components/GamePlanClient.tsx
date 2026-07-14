@@ -66,6 +66,7 @@ export default function GamePlanClient() {
         data: { session },
       } = await supabase.auth.getSession()
       setProviderToken(session?.provider_token ?? null)
+      const refreshToken = session?.provider_refresh_token ?? null
 
       const [{ data: conn }, { data: settingsRow }] = await Promise.all([
         supabase
@@ -82,7 +83,40 @@ export default function GamePlanClient() {
           .maybeSingle(),
       ])
 
-      setConnection((conn as Connection) ?? null)
+      let connectionRow = (conn as Connection) ?? null
+
+      // Fallback capture: if the OAuth callback didn't persist the token but it
+      // surfaced in the browser session, store it now so the connection lands.
+      if (!connectionRow && refreshToken) {
+        try {
+          const res = await fetch('/api/game-plan/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken, email: session?.user?.email }),
+          })
+          if (res.ok) {
+            connectionRow = {
+              google_email: session?.user?.email ?? null,
+              connected_at: new Date().toISOString(),
+            }
+          }
+        } catch {
+          // stays disconnected; the status flag below explains
+        }
+      }
+
+      // Surface the connect outcome from the callback redirect (?cal=...).
+      const cal = new URLSearchParams(window.location.search).get('cal')
+      if (cal && !connectionRow) {
+        setError(
+          "Couldn't finish connecting your calendar. Tap Connect Google Calendar again and make sure you allow calendar access."
+        )
+      }
+      if (cal) {
+        window.history.replaceState({}, '', '/game-plan')
+      }
+
+      setConnection(connectionRow)
       const resolved = (settingsRow as PlanSettings) ?? {
         user_id: user.id,
         ...DEFAULT_SETTINGS,

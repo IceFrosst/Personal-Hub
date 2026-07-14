@@ -14,13 +14,18 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
+      let dest = `${origin}${next}`
+
       if (connect) {
         // provider_refresh_token is only present on this initial exchange, and
         // only when the OAuth request used access_type=offline + prompt=consent.
+        // It doesn't always surface here — the client has a fallback that reads
+        // it from the browser session — so a miss isn't fatal.
         const refreshToken = data.session?.provider_refresh_token
         const user = data.session?.user
+        let cal = 'notoken'
         if (refreshToken && user) {
-          await supabase
+          const { error: storeError } = await supabase
             .schema('lock_in')
             .from('calendar_connections')
             .upsert(
@@ -32,9 +37,16 @@ export async function GET(request: Request) {
               },
               { onConflict: 'user_id' }
             )
+          cal = storeError ? 'storeerr' : 'connected'
+          if (storeError) console.error('[game-plan] connection store failed:', storeError.message)
+        } else {
+          console.error('[game-plan] no provider_refresh_token on exchange')
         }
+        const sep = dest.includes('?') ? '&' : '?'
+        dest = `${dest}${sep}cal=${cal}`
       }
-      return NextResponse.redirect(`${origin}${next}`)
+
+      return NextResponse.redirect(dest)
     }
   }
 
