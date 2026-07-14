@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { IconArchive } from '@tabler/icons-react'
+import { IconArchive, IconCalendarBolt } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import AddTaskBar from '@/components/AddTaskBar'
 import TaskRow from '@/components/TaskRow'
@@ -168,6 +168,13 @@ export default function HomePage() {
         <header className="flex items-center gap-2.5 pt-2">
           <LockInLogo size={46} />
           <h1 className="text-2xl font-semibold tracking-tight text-text">Lock In</h1>
+          <Link
+            href="/game-plan"
+            aria-label="Game Plan"
+            className="ml-auto min-h-11 min-w-11 flex items-center justify-center text-text-muted active:text-gold transition-colors"
+          >
+            <IconCalendarBolt size={24} stroke={1.5} />
+          </Link>
         </header>
 
         <AddTaskBar onAdd={addTask} disabled={!userId} />
