@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { IconCheck } from '@tabler/icons-react'
-import type { Task } from '@/lib/types'
+import { TASK_CATEGORIES, type Task } from '@/lib/types'
 
 type Props = {
   task: Task
@@ -66,6 +66,7 @@ export default function TaskRow({ task, onToggle, onLongPress, completing }: Pro
   }
 
   const due = formatDueChip(task.due_date)
+  const cat = task.category ? TASK_CATEGORIES.find((c) => c.value === task.category) : null
   const checked = task.is_completed || !!completing
 
   return (
@@ -115,14 +116,24 @@ export default function TaskRow({ task, onToggle, onLongPress, completing }: Pro
         >
           {task.title}
         </p>
-        {due && (
-          <p
-            className={`mt-0.5 text-xs ${
-              due.overdue ? 'text-priority-high' : 'text-text-muted'
-            }`}
-          >
-            {due.text}
-          </p>
+        {(cat || due) && (
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            {cat && (
+              <span
+                className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
+                style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
+              >
+                {cat.label}
+              </span>
+            )}
+            {due && (
+              <span
+                className={`text-xs ${due.overdue ? 'text-priority-high' : 'text-text-muted'}`}
+              >
+                {due.text}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

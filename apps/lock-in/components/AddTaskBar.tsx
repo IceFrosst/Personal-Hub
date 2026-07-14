@@ -3,16 +3,20 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   IconCalendar,
+  IconClock,
   IconMicrophone,
   IconMicrophoneFilled,
   IconPlus,
   IconRepeat,
+  IconTag,
 } from '@tabler/icons-react'
 import TimeWheel from '@/components/TimeWheel'
 import {
   EVERY_DAY,
+  TASK_CATEGORIES,
   WEEKDAY_LABELS,
   type Priority,
+  type TaskCategory,
   type TimeMode,
 } from '@/lib/types'
 
@@ -24,7 +28,12 @@ export type RecurringDraft = {
 }
 
 type Props = {
-  onAdd: (title: string, priority: Priority, dueDate: string | null) => Promise<void> | void
+  onAdd: (
+    title: string,
+    priority: Priority,
+    dueDate: string | null,
+    category: TaskCategory | null
+  ) => Promise<void> | void
   onAddRecurring: (title: string, draft: RecurringDraft) => Promise<void> | void
   disabled?: boolean
 }
@@ -35,7 +44,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; dot: string }[] = [
   { value: 'high', label: 'High', dot: 'bg-prio-high' },
 ]
 
-const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120]
+const onlyDigits = (s: string, max = 2) => s.replace(/\D/g, '').slice(0, max)
 
 function formatChip(value: string | null): string {
   if (!value) return 'Date'
@@ -69,6 +78,8 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
   const [dueDate, setDueDate] = useState<string | null>(null)
+  const [category, setCategory] = useState<TaskCategory | null>(null)
+  const [showTagModal, setShowTagModal] = useState(false)
   const [listening, setListening] = useState(false)
   const [adding, setAdding] = useState(false)
   const [speechAvailable, setSpeechAvailable] = useState(false)
@@ -79,7 +90,9 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
   const [weekdays, setWeekdays] = useState<number[]>(EVERY_DAY)
   const [timeMode, setTimeMode] = useState<TimeMode>('flexible')
   const [fixedTime, setFixedTime] = useState('09:00')
-  const [duration, setDuration] = useState(30)
+  const [showTimeModal, setShowTimeModal] = useState(false)
+  const [durHours, setDurHours] = useState('0')
+  const [durMins, setDurMins] = useState('30')
 
   const dateRef = useRef<HTMLInputElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -151,7 +164,11 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
     )
   }
 
-  const recurringValid = recurring ? dayMode === 'everyday' || weekdays.length > 0 : true
+  const cat = category ? TASK_CATEGORIES.find((c) => c.value === category) : null
+  const totalDuration = (parseInt(durHours, 10) || 0) * 60 + (parseInt(durMins, 10) || 0)
+  const recurringValid = recurring
+    ? (dayMode === 'everyday' || weekdays.length > 0) && totalDuration > 0
+    : true
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault()
@@ -164,12 +181,13 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
           weekdays: dayMode === 'everyday' ? EVERY_DAY : [...weekdays].sort((a, b) => a - b),
           timeMode,
           fixedTime: timeMode === 'fixed' ? fixedTime : null,
-          durationMinutes: duration,
+          durationMinutes: totalDuration,
         })
       } else {
-        await onAdd(text, priority, dueDate)
+        await onAdd(text, priority, dueDate, category)
         setDueDate(null)
         setPriority('medium')
+        setCategory(null)
       }
       setTitle('')
     } finally {
@@ -188,6 +206,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
   }
 
   return (
+    <>
     <form onSubmit={submit} className="w-full flex flex-col gap-2">
       <div className="flex items-start gap-2">
         <textarea
@@ -297,6 +316,22 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                 Clear
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setShowTagModal(true)}
+              className={`flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border text-xs transition-colors ${
+                cat ? '' : 'bg-surface border-border text-text-muted active:bg-surface-elevated'
+              }`}
+              style={
+                cat
+                  ? { color: cat.color, borderColor: `${cat.color}66`, backgroundColor: `${cat.color}1a` }
+                  : undefined
+              }
+            >
+              <IconTag size={14} />
+              {cat ? cat.label : 'Tag'}
+            </button>
           </>
         ) : (
           <>
@@ -318,28 +353,40 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
               })}
             </div>
 
-            <label className="flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-surface border-border text-text-muted text-xs">
-              <select
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="bg-transparent outline-none text-text appearance-none pr-1"
+            {timeMode === 'fixed' && (
+              <button
+                type="button"
+                onClick={() => setShowTimeModal(true)}
+                className="flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-surface border-border text-text text-xs active:bg-surface-elevated transition-colors"
               >
-                {DURATION_OPTIONS.map((d) => (
-                  <option key={d} value={d} className="bg-surface text-text">
-                    {d} min
-                  </option>
-                ))}
-              </select>
-            </label>
+                <IconClock size={14} className="text-text-muted" />
+                <span className="tabular-nums font-medium">{fixedTime}</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-1 min-h-9 px-2 rounded-lg border bg-surface border-border text-text-muted text-xs">
+              <input
+                inputMode="numeric"
+                value={durHours}
+                onChange={(e) => setDurHours(onlyDigits(e.target.value))}
+                onBlur={() => setDurHours(String(Math.min(23, parseInt(durHours, 10) || 0)))}
+                aria-label="Duration hours"
+                className="w-6 bg-transparent text-text text-center tabular-nums outline-none"
+              />
+              <span>h</span>
+              <input
+                inputMode="numeric"
+                value={durMins}
+                onChange={(e) => setDurMins(onlyDigits(e.target.value))}
+                onBlur={() => setDurMins(String(Math.min(59, parseInt(durMins, 10) || 0)))}
+                aria-label="Duration minutes"
+                className="w-6 bg-transparent text-text text-center tabular-nums outline-none"
+              />
+              <span>m</span>
+            </div>
           </>
         )}
       </div>
-
-      {recurring && timeMode === 'fixed' && (
-        <div className="flex justify-start">
-          <TimeWheel value={fixedTime} onChange={setFixedTime} />
-        </div>
-      )}
 
       {recurring && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -395,5 +442,79 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
         </div>
       )}
     </form>
+
+    {showTimeModal && (
+      <div
+        className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
+        onClick={() => setShowTimeModal(false)}
+      >
+        <div
+          className="w-full max-w-[280px] bg-surface-elevated rounded-2xl border border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-xs uppercase tracking-wide text-text-low text-center mb-3">
+            Set time
+          </p>
+          <div className="flex justify-center">
+            <TimeWheel value={fixedTime} onChange={setFixedTime} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowTimeModal(false)}
+            className="lock-in-gold-button mt-4 w-full min-h-11 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    )}
+
+    {showTagModal && (
+      <div
+        className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
+        onClick={() => setShowTagModal(false)}
+      >
+        <div
+          className="w-full max-w-[280px] bg-surface-elevated rounded-2xl border border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.5)] p-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-xs uppercase tracking-wide text-text-low text-center mb-3">Tag</p>
+          <div className="grid grid-cols-2 gap-2">
+            {TASK_CATEGORIES.map((c) => {
+              const active = category === c.value
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => {
+                    setCategory(c.value)
+                    setShowTagModal(false)
+                  }}
+                  className="min-h-11 rounded-xl border text-sm font-medium transition-colors"
+                  style={{
+                    color: c.color,
+                    borderColor: active ? c.color : `${c.color}66`,
+                    backgroundColor: active ? `${c.color}26` : `${c.color}12`,
+                  }}
+                >
+                  {c.label}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCategory(null)
+              setShowTagModal(false)
+            }}
+            className="mt-3 w-full min-h-11 rounded-xl text-text-muted active:text-text transition-colors text-sm"
+          >
+            No tag
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

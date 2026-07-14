@@ -2,11 +2,16 @@
 
 import { useRef, useState } from 'react'
 import { IconCalendar } from '@tabler/icons-react'
-import type { Priority, Task } from '@/lib/types'
+import { TASK_CATEGORIES, type Priority, type Task, type TaskCategory } from '@/lib/types'
 
 type Props = {
   task: Task
-  onSave: (updates: { title: string; priority: Priority; due_date: string | null }) => Promise<void> | void
+  onSave: (updates: {
+    title: string
+    priority: Priority
+    due_date: string | null
+    category: TaskCategory | null
+  }) => Promise<void> | void
   onClose: () => void
 }
 
@@ -33,6 +38,7 @@ export default function EditTaskSheet({ task, onSave, onClose }: Props) {
   const [title, setTitle] = useState(task.title)
   const [priority, setPriority] = useState<Priority>(task.priority)
   const [dueDate, setDueDate] = useState<string | null>(task.due_date)
+  const [category, setCategory] = useState<TaskCategory | null>(task.category)
   const [saving, setSaving] = useState(false)
   const dateRef = useRef<HTMLInputElement | null>(null)
 
@@ -51,7 +57,7 @@ export default function EditTaskSheet({ task, onSave, onClose }: Props) {
     if (!text || saving) return
     setSaving(true)
     try {
-      await onSave({ title: text, priority, due_date: dueDate })
+      await onSave({ title: text, priority, due_date: dueDate, category })
     } finally {
       setSaving(false)
     }
@@ -128,6 +134,27 @@ export default function EditTaskSheet({ task, onSave, onClose }: Props) {
               Clear
             </button>
           )}
+        </div>
+
+        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+          {TASK_CATEGORIES.map((c) => {
+            const active = category === c.value
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setCategory(active ? null : c.value)}
+                className="min-h-9 px-2.5 rounded-lg border text-xs font-medium transition-colors"
+                style={{
+                  color: c.color,
+                  borderColor: active ? c.color : `${c.color}59`,
+                  backgroundColor: active ? `${c.color}26` : 'transparent',
+                }}
+              >
+                {c.label}
+              </button>
+            )
+          })}
         </div>
 
         <button

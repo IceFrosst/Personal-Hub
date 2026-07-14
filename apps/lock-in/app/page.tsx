@@ -15,6 +15,7 @@ import {
   type RecurringCompletion,
   type RecurringTask,
   type Task,
+  type TaskCategory,
 } from '@/lib/types'
 import { currentStreak, isDueOnWeekday, isoWeekday, localDateKey } from '@/lib/recurring'
 
@@ -116,12 +117,24 @@ export default function HomePage() {
   }, [supabase])
 
   const addTask = useCallback(
-    async (title: string, priority: Priority, dueDate: string | null) => {
+    async (
+      title: string,
+      priority: Priority,
+      dueDate: string | null,
+      category: TaskCategory | null
+    ) => {
       if (!userId) return
       const { data, error: insertError } = await supabase
         .schema('focus_gate')
         .from('tasks')
-        .insert({ user_id: userId, title, priority, due_date: dueDate, is_quick: false })
+        .insert({
+          user_id: userId,
+          title,
+          priority,
+          due_date: dueDate,
+          category,
+          is_quick: false,
+        })
         .select()
         .single()
       if (insertError) {
@@ -222,7 +235,12 @@ export default function HomePage() {
   const updateTask = useCallback(
     async (
       task: Task,
-      updates: { title: string; priority: Priority; due_date: string | null }
+      updates: {
+        title: string
+        priority: Priority
+        due_date: string | null
+        category: TaskCategory | null
+      }
     ) => {
       const prevState = task
       // Optimistic update.

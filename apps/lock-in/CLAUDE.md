@@ -21,7 +21,7 @@ button lands here. Pure-black theme with a gold accent.
 - Recurring-task types (`RecurringTask`, `RecurringCompletion`, `TimeMode`, weekday helpers) in `lib/types.ts`; recurrence date logic (ISO weekday, streaks, due-today) in `lib/recurring.ts`.
 
 ## Data model
-- **Shares** `focus_gate.tasks` with Focus Gate (Focus Gate owns/creates it). Lock In **added** `priority text` (`'low'|'medium'|'high'`, default `'medium'`) and `due_date date` — `supabase/migrations/0001_tasks_priority_due_date.sql`.
+- **Shares** `focus_gate.tasks` with Focus Gate (Focus Gate owns/creates it). Lock In **added** `priority text` (`'low'|'medium'|'high'`, default `'medium'`) and `due_date date` (`0001`), and `category text` (`'work'|'hustle'|'social'|'other'`, nullable — the one-off task tag; `0005_task_category.sql`).
 - `supabase/migrations/0002_grant_focus_gate_api_access.sql` exposes the `focus_gate` schema to PostgREST (grants + exposed-schema list) so both apps can read the table over the API.
 - **`lock_in` schema (Lock In's own)** — `supabase/migrations/0003_game_plan.sql`, exposed to PostgREST (`db_schema` now includes `lock_in`). Three tables, all RLS by `user_id`:
   - `calendar_connections (user_id pk, google_refresh_token, google_email, connected_at, updated_at)` — the Google offline refresh token for Game Plan. The cron reads it with the **service_role** key; the browser only ever selects the non-token columns.
@@ -57,11 +57,17 @@ Vercel project. Calendar connect is **live and working** (schema exposure + toke
 the **on-demand button works now** (via the live-session token, ~1h window).
 
 **Recurring tasks** — the add-task bar has a loop toggle (`AddTaskBar`); on, it swaps priority+date
-for a weekday chip row, a Flexible/Fixed time toggle (Fixed shows a time input), and a duration
-select. Each due day the routine shows in the list (`RecurringRow`, gold accent) with a streak;
-checking it writes a `recurring_completions` row for today and it returns next due day. Long-press
-→ delete routine. **Fixed** = pinned clock time, but Game Plan will slide it to the nearest free
-slot if that time is busy; **Flexible** = Game Plan auto-places it.
+for row 1 (Flexible/Fixed time-mode · typed **h/m duration** inputs · when Fixed, a time chip that
+opens a centered **`TimeWheel`** popup — vertical scroll wheel for hour/minute) and row 2
+(Every day / Custom → weekday chips when Custom). Routines render **below** one-off tasks with a
+**white** accent (`RecurringRow`) and a streak; checking one writes a `recurring_completions` row
+for today and it returns next due day. Long-press → delete routine. **Fixed** = pinned clock time
+(Game Plan will slide to the nearest free slot if busy); **Flexible** = Game Plan auto-places it.
+
+**Tags** — one-off tasks have a Tag button (`AddTaskBar`, non-recurring) opening a category popup
+(Work/Hustle/Social/Other, inline hex colors from `TASK_CATEGORIES`); shown as a colored chip on
+`TaskRow` and editable in `EditTaskSheet` (long-press → Edit). Selected toggle buttons across the
+add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/duration stay neutral.
 
 ## Next
 - **Wire recurring tasks into Game Plan** (not done yet): feed due-today routines into the planner —
