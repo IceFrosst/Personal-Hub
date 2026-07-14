@@ -344,7 +344,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                     type="button"
                     onClick={() => setTimeMode(mode)}
                     className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
-                      active ? 'bg-surface-elevated text-text' : 'text-text-muted'
+                      active ? 'bg-gold/15 text-gold' : 'text-text-muted'
                     }`}
                   >
                     {mode}
