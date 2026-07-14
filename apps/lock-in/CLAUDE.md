@@ -52,6 +52,13 @@ durations and time-blocks a realistic day around existing events, and the blocks
 real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggle in settings.
 A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
 
+The planner (`lib/game-plan/planner.ts`) now also schedules **recurring routines due today**
+(`run.ts` loads them, skipping ones completed today): fixed-time routines are pinned to their
+`fixed_time` and slid to the nearest free slot if busy; flexible routines + one-off tasks go to
+Gemini with the day-shape strategy (quick win first · protect deep-work blocks · end on a high).
+Blocks link back via `plan_blocks.recurring_id` (`0006`). One-off task durations are Gemini-estimated
+from the title; routine durations are exact (user-set).
+
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
 Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);
 the **on-demand button works now** (via the live-session token, ~1h window).
@@ -70,10 +77,10 @@ for today and it returns next due day. Long-press → delete routine. **Fixed** 
 add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/duration stay neutral.
 
 ## Next
-- **Wire recurring tasks into Game Plan** (not done yet): feed due-today routines into the planner —
-  fixed-time ones placed at `fixed_time` with nearest-free-slot fallback, flexible ones auto-placed —
-  alongside the scheduling strategy Ignas chose: **quick win first, a daily exercise block, 2 deep
-  work sessions, end the day on a high** (peak-end).
+- **Duration learning:** one-off task durations are Gemini-guessed from the title. Later, learn from
+  actuals (planned vs. real) and/or let a one-off task carry a user-set duration.
+- **Timeline polish:** show a repeat glyph on recurring-sourced blocks (`plan_blocks.recurring_id`);
+  mark a block done from the timeline and reflect it back onto the task/routine.
 - **To turn on the unattended morning cron + durable on-demand planning, add to the
   `icefrosst-lock-in` Vercel project env** (all Production): `SUPABASE_SERVICE_ROLE_KEY`,
   `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (the last two are the Google client
