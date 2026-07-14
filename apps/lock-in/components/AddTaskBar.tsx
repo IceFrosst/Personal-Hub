@@ -380,7 +380,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                   key={val}
                   type="button"
                   onClick={() => setDayMode(val)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
                     active ? 'bg-surface-elevated text-text' : 'text-text-muted'
                   }`}
                 >
@@ -391,7 +391,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
           </div>
 
           {dayMode === 'custom' && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               {WEEKDAY_LABELS.map(({ iso, label }) => {
                 const on = weekdays.includes(iso)
                 return (
@@ -400,7 +400,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                     type="button"
                     onClick={() => toggleWeekday(iso)}
                     aria-pressed={on}
-                    className={`h-8 w-8 rounded-full text-xs font-medium transition-colors ${
+                    className={`h-7 w-7 rounded-full text-[11px] font-medium transition-colors ${
                       on
                         ? 'bg-gold/15 text-gold border border-gold/50'
                         : 'bg-surface text-text-muted border border-border active:bg-surface-elevated'
