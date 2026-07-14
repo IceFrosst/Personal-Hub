@@ -29,7 +29,6 @@ export default function GamePlanClient() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [debug, setDebug] = useState<string | null>(null)
 
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
   const today = useMemo(() => todayInTz(tz), [tz])
@@ -69,12 +68,6 @@ export default function GamePlanClient() {
       setProviderToken(session?.provider_token ?? null)
       const refreshToken = session?.provider_refresh_token ?? null
 
-      // TEMP visible diagnostic — captures what the callback + session returned.
-      const calParam = new URLSearchParams(window.location.search).get('cal')
-      let dbg = `cal=${calParam ?? 'none'} · user=${user ? 'yes' : 'no'} · pToken=${
-        session?.provider_token ? 'yes' : 'no'
-      } · pRefresh=${session?.provider_refresh_token ? 'yes' : 'no'}`
-
       const [{ data: conn }, { data: settingsRow }] = await Promise.all([
         supabase
           .schema('lock_in')
@@ -101,21 +94,16 @@ export default function GamePlanClient() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken, email: session?.user?.email }),
           })
-          const j = await res.json().catch(() => ({}))
           if (res.ok) {
             connectionRow = {
               google_email: session?.user?.email ?? null,
               connected_at: new Date().toISOString(),
             }
-          } else {
-            dbg += ` · store=${j.error ?? res.status}:${String(j.detail ?? '').slice(0, 140)}`
           }
-        } catch (e) {
-          dbg += ` · storeThrew=${e instanceof Error ? e.message : 'x'}`
+        } catch {
+          // stays disconnected; the status flag below explains
         }
       }
-
-      setDebug(dbg)
 
       // Surface the connect outcome from the callback redirect (?cal=...).
       const cal = new URLSearchParams(window.location.search).get('cal')
@@ -248,12 +236,6 @@ export default function GamePlanClient() {
           <IconCalendarBolt size={26} className="text-gold" stroke={1.5} />
           <h1 className="text-2xl font-semibold tracking-tight text-text">Game Plan</h1>
         </header>
-
-        {debug && (
-          <p className="text-[11px] font-mono text-gold bg-surface border border-border rounded-lg px-2 py-1.5 break-all">
-            {debug}
-          </p>
-        )}
 
         {loading ? (
           <p className="text-text-low text-sm py-12 text-center">Loading…</p>

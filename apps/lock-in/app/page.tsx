@@ -4,10 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { IconArchive, IconCalendarBolt } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
-import AddTaskBar from '@/components/AddTaskBar'
+import AddTaskBar, { type RecurringDraft } from '@/components/AddTaskBar'
 import TaskRow from '@/components/TaskRow'
+import RecurringRow from '@/components/RecurringRow'
 import LockInLogo from '@/components/LockInLogo'
-import { PRIORITY_RANK, type Priority, type Task } from '@/lib/types'
+import {
+  PRIORITY_RANK,
+  type Priority,
+  type RecurringCompletion,
+  type RecurringTask,
+  type Task,
+} from '@/lib/types'
+import { currentStreak, isDueOnWeekday, isoWeekday, localDateKey } from '@/lib/recurring'
 
 function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
@@ -24,12 +32,28 @@ function sortTasks(tasks: Task[]): Task[] {
   })
 }
 
+// Fixed-time routines first (by time), then flexible ones.
+function sortRecurring(items: RecurringTask[]): RecurringTask[] {
+  return [...items].sort((a, b) => {
+    const af = a.time_mode === 'fixed'
+    const bf = b.time_mode === 'fixed'
+    if (af && bf) return (a.fixed_time ?? '').localeCompare(b.fixed_time ?? '')
+    if (af) return -1
+    if (bf) return 1
+    return a.created_at.localeCompare(b.created_at)
+  })
+}
+
 export default function HomePage() {
   const supabase = useMemo(() => createClient(), [])
   const [userId, setUserId] = useState<string | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [recurring, setRecurring] = useState<RecurringTask[]>([])
+  // recurring_id → set of completed 'YYYY-MM-DD'
+  const [completions, setCompletions] = useState<Map<string, Set<string>>>(new Map())
   const [loading, setLoading] = useState(true)
   const [sheetTask, setSheetTask] = useState<Task | null>(null)
+  const [sheetRecurring, setSheetRecurring] = useState<RecurringTask | null>(null)
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
@@ -55,14 +79,34 @@ export default function HomePage() {
 
       setUserId(user.id)
 
-      const { data } = await supabase
-        .schema('focus_gate')
-        .from('tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_completed', false)
+      // 120-day lookback is plenty for streaks in personal use.
+      const since = new Date()
+      since.setDate(since.getDate() - 120)
 
-      setTasks((data ?? []) as Task[])
+      const [{ data: taskRows }, { data: recRows }, { data: compRows }] = await Promise.all([
+        supabase
+          .schema('focus_gate')
+          .from('tasks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_completed', false),
+        supabase
+          .schema('lock_in')
+          .from('recurring_tasks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true),
+        supabase
+          .schema('lock_in')
+          .from('recurring_completions')
+          .select('recurring_id, completed_date')
+          .eq('user_id', user.id)
+          .gte('completed_date', localDateKey(since)),
+      ])
+
+      setTasks((taskRows ?? []) as Task[])
+      setRecurring((recRows ?? []) as RecurringTask[])
+      setCompletions(buildCompletionMap((compRows ?? []) as Partial<RecurringCompletion>[]))
       setLoading(false)
     }
 
@@ -75,13 +119,7 @@ export default function HomePage() {
       const { data, error: insertError } = await supabase
         .schema('focus_gate')
         .from('tasks')
-        .insert({
-          user_id: userId,
-          title,
-          priority,
-          due_date: dueDate,
-          is_quick: false,
-        })
+        .insert({ user_id: userId, title, priority, due_date: dueDate, is_quick: false })
         .select()
         .single()
       if (insertError) {
@@ -96,6 +134,34 @@ export default function HomePage() {
     [supabase, userId]
   )
 
+  const addRecurring = useCallback(
+    async (title: string, draft: RecurringDraft) => {
+      if (!userId) return
+      const { data, error: insertError } = await supabase
+        .schema('lock_in')
+        .from('recurring_tasks')
+        .insert({
+          user_id: userId,
+          title,
+          weekdays: draft.weekdays,
+          time_mode: draft.timeMode,
+          fixed_time: draft.fixedTime,
+          duration_minutes: draft.durationMinutes,
+        })
+        .select()
+        .single()
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+      if (data) {
+        setError(null)
+        setRecurring((prev) => [...prev, data as RecurringTask])
+      }
+    },
+    [supabase, userId]
+  )
+
   const toggleComplete = useCallback(
     async (task: Task) => {
       setCompletingIds((prev) => {
@@ -105,8 +171,6 @@ export default function HomePage() {
         return next
       })
 
-      // Run DB write and animation timer in parallel — wait for both.
-      // If the write fails we roll back so a refresh doesn't resurface the task.
       const [{ error }] = await Promise.all([
         supabase
           .schema('focus_gate')
@@ -146,7 +210,6 @@ export default function HomePage() {
         .delete()
         .eq('id', task.id)
       if (deleteError) {
-        // Roll back the optimistic removal so the UI matches the DB.
         setTasks((prev) => [...prev, task])
         setError(deleteError.message)
       }
@@ -154,7 +217,78 @@ export default function HomePage() {
     [supabase]
   )
 
+  const toggleRecurring = useCallback(
+    async (task: RecurringTask) => {
+      if (!userId) return
+      const today = localDateKey()
+      const done = completions.get(task.id)?.has(today) ?? false
+
+      // Optimistic toggle.
+      setCompletions((prev) => {
+        const next = new Map(prev)
+        const set = new Set(next.get(task.id) ?? [])
+        if (done) set.delete(today)
+        else set.add(today)
+        next.set(task.id, set)
+        return next
+      })
+
+      const { error: writeError } = done
+        ? await supabase
+            .schema('lock_in')
+            .from('recurring_completions')
+            .delete()
+            .eq('recurring_id', task.id)
+            .eq('completed_date', today)
+        : await supabase
+            .schema('lock_in')
+            .from('recurring_completions')
+            .upsert(
+              { user_id: userId, recurring_id: task.id, completed_date: today },
+              { onConflict: 'recurring_id,completed_date' }
+            )
+
+      if (writeError) {
+        // Roll back.
+        setCompletions((prev) => {
+          const next = new Map(prev)
+          const set = new Set(next.get(task.id) ?? [])
+          if (done) set.add(today)
+          else set.delete(today)
+          next.set(task.id, set)
+          return next
+        })
+        setError(writeError.message)
+      }
+    },
+    [supabase, userId, completions]
+  )
+
+  const deleteRecurring = useCallback(
+    async (task: RecurringTask) => {
+      setRecurring((prev) => prev.filter((t) => t.id !== task.id))
+      setSheetRecurring(null)
+      const { error: deleteError } = await supabase
+        .schema('lock_in')
+        .from('recurring_tasks')
+        .delete()
+        .eq('id', task.id)
+      if (deleteError) {
+        setRecurring((prev) => [...prev, task])
+        setError(deleteError.message)
+      }
+    },
+    [supabase]
+  )
+
   const sorted = useMemo(() => sortTasks(tasks), [tasks])
+  const todayWeekday = isoWeekday()
+  const dueRecurring = useMemo(
+    () => sortRecurring(recurring.filter((r) => isDueOnWeekday(r, todayWeekday))),
+    [recurring, todayWeekday]
+  )
+  const today = localDateKey()
+  const isEmpty = sorted.length === 0 && dueRecurring.length === 0
 
   return (
     <main
@@ -177,13 +311,10 @@ export default function HomePage() {
           </Link>
         </header>
 
-        <AddTaskBar onAdd={addTask} disabled={!userId} />
+        <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
 
         {error && (
-          <p
-            role="alert"
-            className="text-priority-high text-xs px-2 -mt-2 leading-snug"
-          >
+          <p role="alert" className="text-priority-high text-xs px-2 -mt-2 leading-snug">
             Couldn&apos;t save: {error}
           </p>
         )}
@@ -191,20 +322,32 @@ export default function HomePage() {
         <section className="mt-2 flex flex-col">
           {loading ? (
             <p className="text-text-low text-sm py-12 text-center">Loading…</p>
-          ) : sorted.length === 0 ? (
+          ) : isEmpty ? (
             <p className="text-text-low text-sm py-12 text-center">
               Nothing on the list. Add something above to lock in.
             </p>
           ) : (
-            sorted.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                onToggle={toggleComplete}
-                onLongPress={setSheetTask}
-                completing={completingIds.has(t.id)}
-              />
-            ))
+            <>
+              {dueRecurring.map((r) => (
+                <RecurringRow
+                  key={r.id}
+                  task={r}
+                  completed={completions.get(r.id)?.has(today) ?? false}
+                  streak={currentStreak(r, completions.get(r.id) ?? new Set())}
+                  onToggle={toggleRecurring}
+                  onLongPress={setSheetRecurring}
+                />
+              ))}
+              {sorted.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  onToggle={toggleComplete}
+                  onLongPress={setSheetTask}
+                  completing={completingIds.has(t.id)}
+                />
+              ))}
+            </>
           )}
         </section>
 
@@ -245,6 +388,47 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {sheetRecurring && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end justify-center z-50"
+          onClick={() => setSheetRecurring(null)}
+        >
+          <div
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4 pb-8"
+            style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-text text-base truncate mb-1 px-1">{sheetRecurring.title}</p>
+            <p className="text-text-low text-xs mb-3 px-1">Recurring routine</p>
+            <button
+              type="button"
+              onClick={() => deleteRecurring(sheetRecurring)}
+              className="w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
+            >
+              Delete routine
+            </button>
+            <button
+              type="button"
+              onClick={() => setSheetRecurring(null)}
+              className="mt-2 w-full min-h-12 rounded-xl text-text-muted active:text-text transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
+}
+
+function buildCompletionMap(rows: Partial<RecurringCompletion>[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>()
+  for (const row of rows) {
+    if (!row.recurring_id || !row.completed_date) continue
+    const set = map.get(row.recurring_id) ?? new Set<string>()
+    set.add(row.completed_date)
+    map.set(row.recurring_id, set)
+  }
+  return map
 }

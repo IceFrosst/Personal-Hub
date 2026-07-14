@@ -15,9 +15,10 @@ button lands here. Pure-black theme with a gold accent.
 - Prod: `icefrosst-lock-in.vercel.app` (Vercel project `icefrosst-lock-in`, Root Directory `apps/lock-in`)
 
 ## Conventions
-- App code in `app/` (no `src/`); components in `components/` (`AddTaskBar`, `TaskRow`, `LockInLogo`); `@/*` → app root.
+- App code in `app/` (no `src/`); components in `components/` (`AddTaskBar`, `TaskRow`, `RecurringRow`, `LockInLogo`); `@/*` → app root.
 - Supabase clients in `lib/supabase/`; `middleware.ts` only refreshes the session.
 - Priority type + ordering live in `lib/types.ts` (`Priority`, `PRIORITY_RANK`); sort high → low.
+- Recurring-task types (`RecurringTask`, `RecurringCompletion`, `TimeMode`, weekday helpers) in `lib/types.ts`; recurrence date logic (ISO weekday, streaks, due-today) in `lib/recurring.ts`.
 
 ## Data model
 - **Shares** `focus_gate.tasks` with Focus Gate (Focus Gate owns/creates it). Lock In **added** `priority text` (`'low'|'medium'|'high'`, default `'medium'`) and `due_date date` — `supabase/migrations/0001_tasks_priority_due_date.sql`.
@@ -26,7 +27,10 @@ button lands here. Pure-black theme with a gold accent.
   - `calendar_connections (user_id pk, google_refresh_token, google_email, connected_at, updated_at)` — the Google offline refresh token for Game Plan. The cron reads it with the **service_role** key; the browser only ever selects the non-token columns.
   - `plan_settings (user_id pk, work_start, work_end, timezone, auto_plan, updated_at)` — planning prefs; created lazily.
   - `plan_blocks (id, user_id, task_id, title, plan_date, start_local, end_local, timezone, estimated_minutes, gcal_event_id, status)` — the scheduled day. Times are **local wall-clock strings + timezone** (no offset math; Google gets `dateTime`+`timeZone` directly). `title` denormalised so the timeline renders without joining tasks.
-- Additive-only (`SCHEMA_RULES.md`); RLS by `user_id`.
+- **Recurring tasks** — `supabase/migrations/0004_recurring_tasks.sql`, `lock_in` schema, RLS by `user_id`:
+  - `recurring_tasks (id, user_id, title, weekdays smallint[] /* ISO 1=Mon…7=Sun */, time_mode 'fixed'|'flexible', fixed_time, duration_minutes, is_active, created_at)` — a **template**, not a per-day row. No priority (routines aren't triaged).
+  - `recurring_completions (id, recurring_id, user_id, completed_date, completed_at)`, unique `(recurring_id, completed_date)` — one row per day a routine is checked off. Streaks derive from these; the template is never deleted by a check-off.
+- Additive-only (`SCHEMA_RULES.md`); RLS by `user_id`. (`0004` also drops the temporary `oauth_debug` diagnostic table.)
 
 ## Gotchas
 - Same shared table as Focus Gate — a column you stop using may still be required there. **Never drop/rename.**
@@ -49,15 +53,26 @@ real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggl
 A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
 
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
-Vercel project. The **on-demand button works now** (via the live-session token, ~1h window).
+Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);
+the **on-demand button works now** (via the live-session token, ~1h window).
+
+**Recurring tasks** — the add-task bar has a loop toggle (`AddTaskBar`); on, it swaps priority+date
+for a weekday chip row, a Flexible/Fixed time toggle (Fixed shows a time input), and a duration
+select. Each due day the routine shows in the list (`RecurringRow`, gold accent) with a streak;
+checking it writes a `recurring_completions` row for today and it returns next due day. Long-press
+→ delete routine. **Fixed** = pinned clock time, but Game Plan will slide it to the nearest free
+slot if that time is busy; **Flexible** = Game Plan auto-places it.
 
 ## Next
+- **Wire recurring tasks into Game Plan** (not done yet): feed due-today routines into the planner —
+  fixed-time ones placed at `fixed_time` with nearest-free-slot fallback, flexible ones auto-placed —
+  alongside the scheduling strategy Ignas chose: **quick win first, a daily exercise block, 2 deep
+  work sessions, end the day on a high** (peak-end).
 - **To turn on the unattended morning cron + durable on-demand planning, add to the
   `icefrosst-lock-in` Vercel project env** (all Production): `SUPABASE_SERVICE_ROLE_KEY`,
   `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (the last two are the Google client
   already configured in Supabase Auth → Google provider).
-- **Google Cloud console (one-time, ~5 min):** enable the Google Calendar API for the project;
-  add the `.../auth/calendar.events` scope to the OAuth consent screen; publish the app
-  (Testing → In production) so calendar access doesn't expire every 7 days.
-- Nice-to-haves: mark a block done from the timeline; drag/edit a block; per-task manual duration
-  override; reflect completed blocks back onto the task.
+- **Google Cloud console:** done — Calendar API enabled, `calendar.events` scope added, app
+  published (In production).
+- Nice-to-haves: mark a plan block done from the timeline; per-routine "every day"/"weekdays"
+  quick presets; reflect completed blocks back onto the task.
