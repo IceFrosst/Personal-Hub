@@ -352,6 +352,15 @@ export default function HomePage() {
             </p>
           ) : (
             <>
+              {sorted.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  onToggle={toggleComplete}
+                  onLongPress={setSheetTask}
+                  completing={completingIds.has(t.id)}
+                />
+              ))}
               {dueRecurring.map((r) => (
                 <RecurringRow
                   key={r.id}
@@ -360,15 +369,6 @@ export default function HomePage() {
                   streak={currentStreak(r, completions.get(r.id) ?? new Set())}
                   onToggle={toggleRecurring}
                   onLongPress={setSheetRecurring}
-                />
-              ))}
-              {sorted.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  onToggle={toggleComplete}
-                  onLongPress={setSheetTask}
-                  completing={completingIds.has(t.id)}
                 />
               ))}
             </>
