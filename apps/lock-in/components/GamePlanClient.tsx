@@ -29,6 +29,7 @@ export default function GamePlanClient() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [debug, setDebug] = useState<string | null>(null)
 
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
   const today = useMemo(() => todayInTz(tz), [tz])
@@ -67,6 +68,14 @@ export default function GamePlanClient() {
       } = await supabase.auth.getSession()
       setProviderToken(session?.provider_token ?? null)
       const refreshToken = session?.provider_refresh_token ?? null
+
+      // TEMP visible diagnostic — captures what the callback + session returned.
+      const calParam = new URLSearchParams(window.location.search).get('cal')
+      setDebug(
+        `cal=${calParam ?? 'none'} · user=${user ? 'yes' : 'no'} · pToken=${
+          session?.provider_token ? 'yes' : 'no'
+        } · pRefresh=${session?.provider_refresh_token ? 'yes' : 'no'}`
+      )
 
       const [{ data: conn }, { data: settingsRow }] = await Promise.all([
         supabase
@@ -236,6 +245,12 @@ export default function GamePlanClient() {
           <IconCalendarBolt size={26} className="text-gold" stroke={1.5} />
           <h1 className="text-2xl font-semibold tracking-tight text-text">Game Plan</h1>
         </header>
+
+        {debug && (
+          <p className="text-[11px] font-mono text-gold bg-surface border border-border rounded-lg px-2 py-1.5 break-all">
+            {debug}
+          </p>
+        )}
 
         {loading ? (
           <p className="text-text-low text-sm py-12 text-center">Loading…</p>
