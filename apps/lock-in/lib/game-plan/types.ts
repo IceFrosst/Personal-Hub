@@ -29,6 +29,7 @@ export interface PlanBlock {
   id: string
   user_id: string
   task_id: string | null
+  recurring_id: string | null
   title: string
   plan_date: string // 'YYYY-MM-DD'
   start_local: string // 'HH:MM'
@@ -48,9 +49,24 @@ export interface PlannableTask {
   due_date: string | null
 }
 
-// A block as returned by the model, before it becomes a PlanBlock row.
+// Recurring routines due today, split by how they want placing.
+export interface FixedRecurringInput {
+  id: string
+  title: string
+  durationMinutes: number
+  fixedTime: string // 'HH:MM'
+}
+
+export interface FlexRecurringInput {
+  id: string
+  title: string
+  durationMinutes: number
+}
+
+// A block as returned by the planner, before it becomes a PlanBlock row.
 export interface ProposedBlock {
   task_id: string | null
+  recurring_id: string | null
   title: string
   start: string // 'HH:MM'
   end: string // 'HH:MM'
