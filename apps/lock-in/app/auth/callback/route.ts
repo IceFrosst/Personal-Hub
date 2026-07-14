@@ -22,19 +22,6 @@ export async function GET(request: Request) {
         const refreshToken = data.session?.provider_refresh_token
         const user = data.session?.user
 
-        // TEMP diagnostic: record what the exchange actually returned.
-        if (user) {
-          await supabase
-            .schema('lock_in')
-            .from('oauth_debug')
-            .insert({
-              user_id: user.id,
-              has_provider_token: !!data.session?.provider_token,
-              has_provider_refresh: !!data.session?.provider_refresh_token,
-              note: 'callback',
-            })
-        }
-
         let cal = 'notoken'
         if (refreshToken && user) {
           const { error: storeError } = await supabase
