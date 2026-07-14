@@ -71,11 +71,9 @@ export default function GamePlanClient() {
 
       // TEMP visible diagnostic — captures what the callback + session returned.
       const calParam = new URLSearchParams(window.location.search).get('cal')
-      setDebug(
-        `cal=${calParam ?? 'none'} · user=${user ? 'yes' : 'no'} · pToken=${
-          session?.provider_token ? 'yes' : 'no'
-        } · pRefresh=${session?.provider_refresh_token ? 'yes' : 'no'}`
-      )
+      let dbg = `cal=${calParam ?? 'none'} · user=${user ? 'yes' : 'no'} · pToken=${
+        session?.provider_token ? 'yes' : 'no'
+      } · pRefresh=${session?.provider_refresh_token ? 'yes' : 'no'}`
 
       const [{ data: conn }, { data: settingsRow }] = await Promise.all([
         supabase
@@ -103,16 +101,21 @@ export default function GamePlanClient() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken, email: session?.user?.email }),
           })
+          const j = await res.json().catch(() => ({}))
           if (res.ok) {
             connectionRow = {
               google_email: session?.user?.email ?? null,
               connected_at: new Date().toISOString(),
             }
+          } else {
+            dbg += ` · store=${j.error ?? res.status}:${String(j.detail ?? '').slice(0, 140)}`
           }
-        } catch {
-          // stays disconnected; the status flag below explains
+        } catch (e) {
+          dbg += ` · storeThrew=${e instanceof Error ? e.message : 'x'}`
         }
       }
+
+      setDebug(dbg)
 
       // Surface the connect outcome from the callback redirect (?cal=...).
       const cal = new URLSearchParams(window.location.search).get('cal')
