@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   IconCalendar,
-  IconClock,
   IconMicrophone,
   IconMicrophoneFilled,
   IconPlus,
   IconRepeat,
 } from '@tabler/icons-react'
+import TimeWheel from '@/components/TimeWheel'
 import {
   EVERY_DAY,
   WEEKDAY_LABELS,
@@ -36,9 +36,6 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; dot: string }[] = [
 ]
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120]
-const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
-const pad = (n: number) => String(n).padStart(2, '0')
 
 function formatChip(value: string | null): string {
   if (!value) return 'Date'
@@ -190,8 +187,6 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
     }
   }
 
-  const [fixedHour, fixedMinute] = fixedTime.split(':')
-
   return (
     <form onSubmit={submit} className="w-full flex flex-col gap-2">
       <div className="flex items-start gap-2">
@@ -262,7 +257,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                     type="button"
                     onClick={() => setPriority(opt.value)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      active ? 'bg-surface-elevated text-text' : 'text-text-muted'
+                      active ? 'bg-gold/15 text-gold' : 'text-text-muted'
                     }`}
                   >
                     <span className={`h-1.5 w-1.5 rounded-full ${opt.dot}`} />
@@ -323,37 +318,6 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
               })}
             </div>
 
-            {timeMode === 'fixed' && (
-              <div className="flex items-center gap-1 min-h-9 pl-2.5 pr-1.5 rounded-lg border bg-gold/10 border-gold/40 text-gold text-xs">
-                <IconClock size={14} />
-                <select
-                  value={fixedHour}
-                  onChange={(e) => setFixedTime(`${e.target.value}:${fixedMinute}`)}
-                  aria-label="Hour"
-                  className="bg-transparent outline-none appearance-none text-gold font-medium tabular-nums px-0.5 py-1.5 cursor-pointer"
-                >
-                  {HOURS.map((h) => (
-                    <option key={h} value={pad(h)} className="bg-surface text-text">
-                      {pad(h)}
-                    </option>
-                  ))}
-                </select>
-                <span className="opacity-70">:</span>
-                <select
-                  value={fixedMinute}
-                  onChange={(e) => setFixedTime(`${fixedHour}:${e.target.value}`)}
-                  aria-label="Minute"
-                  className="bg-transparent outline-none appearance-none text-gold font-medium tabular-nums px-0.5 py-1.5 cursor-pointer"
-                >
-                  {MINUTES.map((m) => (
-                    <option key={m} value={pad(m)} className="bg-surface text-text">
-                      {pad(m)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <label className="flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border bg-surface border-border text-text-muted text-xs">
               <select
                 value={duration}
@@ -370,6 +334,12 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
           </>
         )}
       </div>
+
+      {recurring && timeMode === 'fixed' && (
+        <div className="flex justify-start">
+          <TimeWheel value={fixedTime} onChange={setFixedTime} />
+        </div>
+      )}
 
       {recurring && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -391,7 +361,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                     setDayMode(val)
                   }}
                   className={`px-2 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-                    active ? 'bg-surface-elevated text-text' : 'text-text-muted'
+                    active ? 'bg-gold/15 text-gold' : 'text-text-muted'
                   }`}
                 >
                   {label}

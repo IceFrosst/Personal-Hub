@@ -62,7 +62,7 @@ export default function RecurringRow({
       onPointerCancel={endPress}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 bg-gold/70" />
+      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 bg-white/70" />
 
       <button
         type="button"
@@ -76,8 +76,8 @@ export default function RecurringRow({
         aria-label={completed ? 'Mark not done today' : 'Mark done today'}
         className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${
           completed
-            ? 'bg-gold/10 border-gold text-gold'
-            : 'border-border-focus text-transparent active:border-gold'
+            ? 'bg-white/10 border-white text-white'
+            : 'border-border-focus text-transparent active:border-white'
         }`}
       >
         <IconCheck size={14} stroke={3} />
@@ -93,7 +93,7 @@ export default function RecurringRow({
         </p>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted flex-wrap">
           <span className="flex items-center gap-1">
-            <IconInfinity size={13} className="text-gold/80" />
+            <IconInfinity size={13} className="text-white/70" />
             {describeRecurrence(task.weekdays)}
           </span>
           <span className="flex items-center gap-1">

@@ -88,7 +88,7 @@ export default function EditTaskSheet({ task, onSave, onClose }: Props) {
                   type="button"
                   onClick={() => setPriority(opt.value)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    active ? 'bg-surface-elevated text-text' : 'text-text-muted'
+                    active ? 'bg-gold/15 text-gold' : 'text-text-muted'
                   }`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-full ${opt.dot}`} />
