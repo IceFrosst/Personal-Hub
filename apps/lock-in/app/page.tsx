@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import AddTaskBar, { type RecurringDraft } from '@/components/AddTaskBar'
 import TaskRow from '@/components/TaskRow'
 import RecurringRow from '@/components/RecurringRow'
+import EditTaskSheet from '@/components/EditTaskSheet'
 import LockInLogo from '@/components/LockInLogo'
 import {
   PRIORITY_RANK,
@@ -53,6 +54,7 @@ export default function HomePage() {
   const [completions, setCompletions] = useState<Map<string, Set<string>>>(new Map())
   const [loading, setLoading] = useState(true)
   const [sheetTask, setSheetTask] = useState<Task | null>(null)
+  const [editTask, setEditTask] = useState<Task | null>(null)
   const [sheetRecurring, setSheetRecurring] = useState<RecurringTask | null>(null)
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -217,6 +219,28 @@ export default function HomePage() {
     [supabase]
   )
 
+  const updateTask = useCallback(
+    async (
+      task: Task,
+      updates: { title: string; priority: Priority; due_date: string | null }
+    ) => {
+      const prevState = task
+      // Optimistic update.
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...updates } : t)))
+      setEditTask(null)
+      const { error: updateError } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .update(updates)
+        .eq('id', task.id)
+      if (updateError) {
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? prevState : t)))
+        setError(updateError.message)
+      }
+    },
+    [supabase]
+  )
+
   const toggleRecurring = useCallback(
     async (task: RecurringTask) => {
       if (!userId) return
@@ -373,8 +397,18 @@ export default function HomePage() {
             <p className="text-text text-base truncate mb-3 px-1">{sheetTask.title}</p>
             <button
               type="button"
+              onClick={() => {
+                setEditTask(sheetTask)
+                setSheetTask(null)
+              }}
+              className="w-full min-h-12 rounded-xl bg-surface text-text font-medium active:bg-border/40 transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
               onClick={() => deleteTask(sheetTask)}
-              className="w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
+              className="mt-2 w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
             >
               Delete
             </button>
@@ -417,6 +451,14 @@ export default function HomePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {editTask && (
+        <EditTaskSheet
+          task={editTask}
+          onSave={(updates) => updateTask(editTask, updates)}
+          onClose={() => setEditTask(null)}
+        />
       )}
     </main>
   )
