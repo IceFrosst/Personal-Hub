@@ -379,7 +379,11 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                 <button
                   key={val}
                   type="button"
-                  onClick={() => setDayMode(val)}
+                  onClick={() => {
+                    // Entering Custom starts from a clean slate — no days checked.
+                    if (val === 'custom' && dayMode !== 'custom') setWeekdays([])
+                    setDayMode(val)
+                  }}
                   className={`px-2 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
                     active ? 'bg-surface-elevated text-text' : 'text-text-muted'
                   }`}
