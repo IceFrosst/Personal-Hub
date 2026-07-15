@@ -24,13 +24,53 @@ export interface PlanInput {
   today: string // 'YYYY-MM-DD'
 }
 
-// Model is swappable via the GEMINI_MODEL env var. Default is the rolling free
-// alias 'gemini-flash-latest' (works). 'gemini-2.5-pro' reasons better but has
-// no real free tier — it 429s on every call, which now surfaces as a visible
-// "rate-limited" note (AiStatus) rather than a silent fallback. So Pro is
-// opt-in via env, not the default.
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+// Primary model is swappable via GEMINI_MODEL (default rolling free alias
+// 'gemini-flash-latest'). 'gemini-2.5-pro' has no real free tier (429s). We try
+// the primary, then a lighter model if it's overloaded — flash 503s ("high
+// demand") are common and transient, so each model also gets one quick retry.
+const PRIMARY_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
+const GEMINI_MODELS = Array.from(new Set([PRIMARY_MODEL, 'gemini-flash-lite-latest']))
+const modelUrl = (m: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`
+
+/**
+ * Ask Gemini for JSON, resilient to transient overload: try each model up to
+ * twice (one quick backoff on 5xx), then move to the next model. Throws with the
+ * last status in the message so planDay can tell a 429 (rate limit) from other
+ * failures. Returns the raw model text.
+ */
+async function generateJson(prompt: string, key: string): Promise<string> {
+  let last = 'unknown'
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await fetch(`${modelUrl(model)}?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
+        }),
+      })
+      if (res.ok) {
+        const json = (await res.json()) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[]
+        }
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text
+        if (text) return text
+        last = 'empty'
+        break // empty output from this model — try the next one
+      }
+      last = String(res.status)
+      // Transient server overload → one quick backoff, then retry the same model.
+      if ([500, 502, 503, 504].includes(res.status) && attempt === 0) {
+        await new Promise((r) => setTimeout(r, 700))
+        continue
+      }
+      break // 429 or other non-retryable — move to the next model
+    }
+  }
+  throw new Error(`Gemini failed ${last}`)
+}
 
 // One schedulable thing handed to the model (a task to estimate, or a flexible
 // routine whose duration is fixed).
@@ -218,22 +258,7 @@ Day-shape rules (important):
 
 Return ONLY JSON: {"blocks":[{"id":"<id>","title":"<title>","start":"HH:MM","end":"HH:MM","estimated_minutes":<int>}]}`
 
-  const res = await fetch(`${GEMINI_URL}?key=${key}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
-    }),
-  })
-  // Keep the status code in the message so planDay can detect 429 (rate limit).
-  if (!res.ok) throw new Error(`Gemini failed ${res.status}`)
-
-  const json = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[]
-  }
-  const text = json.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) throw new Error('Gemini returned no text')
+  const text = await generateJson(prompt, key)
 
   const parsed = JSON.parse(text) as {
     blocks?: { id?: string; title?: string; start?: string; end?: string; estimated_minutes?: number }[]
