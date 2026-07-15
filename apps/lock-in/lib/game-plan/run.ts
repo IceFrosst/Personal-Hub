@@ -19,6 +19,7 @@ import {
   deleteEvent,
   getBusyIntervals,
   insertEvent,
+  listGamePlanEventIds,
   type BusyInterval,
 } from '@/lib/google/calendar'
 
@@ -134,23 +135,26 @@ export async function runPlanForUser(args: {
     today,
   })
 
-  // 4. Clear any existing Game Plan for today (idempotent replan).
-  const { data: prior } = await db
-    .schema('lock_in')
-    .from('plan_blocks')
-    .select('id, gcal_event_id')
-    .eq('user_id', userId)
-    .eq('plan_date', today)
-
-  for (const row of prior ?? []) {
-    if (row.gcal_event_id) {
-      try {
-        await deleteEvent(accessToken, row.gcal_event_id)
-      } catch {
-        // Event already gone or unreachable — the row delete below still cleans up.
-      }
-    }
+  // 4. Clear any existing Game Plan for the day (idempotent replan). Delete every
+  // tagged event in the day window — this also sweeps orphans a prior timed-out
+  // run left behind (events written, plan_blocks never saved).
+  let priorEventIds: string[] = []
+  try {
+    priorEventIds = await listGamePlanEventIds(accessToken, timeMin, timeMax)
+  } catch {
+    // Tag query failed — fall back to the events we have on record.
+    const { data: prior } = await db
+      .schema('lock_in')
+      .from('plan_blocks')
+      .select('gcal_event_id')
+      .eq('user_id', userId)
+      .eq('plan_date', today)
+    priorEventIds = ((prior ?? []) as { gcal_event_id: string | null }[])
+      .map((r) => r.gcal_event_id)
+      .filter((id): id is string => Boolean(id))
   }
+  await Promise.all(priorEventIds.map((id) => deleteEvent(accessToken, id).catch(() => {})))
+
   await db
     .schema('lock_in')
     .from('plan_blocks')
@@ -158,40 +162,41 @@ export async function runPlanForUser(args: {
     .eq('user_id', userId)
     .eq('plan_date', today)
 
-  // 5. Write calendar events + collect rows to insert.
-  const toInsert = []
-  for (const b of proposed) {
-    let eventId = ''
-    try {
-      eventId = await insertEvent(accessToken, {
-        summary: b.title,
-        date: today,
-        startLocal: b.start,
-        endLocal: b.end,
-        timeZone: tz,
-        description: 'Scheduled by Lock In · Game Plan',
-        colorId: eventColorId(b.recurring_id != null, b.priority),
-      })
-    } catch {
-      // Keep the block in-app even if the calendar write fails.
-      eventId = ''
-    }
-    toInsert.push({
-      user_id: userId,
-      task_id: b.task_id,
-      recurring_id: b.recurring_id,
-      title: b.title,
-      plan_date: today,
-      start_local: b.start,
-      end_local: b.end,
-      timezone: tz,
-      estimated_minutes: b.estimated_minutes,
-      category: b.category,
-      priority: b.priority,
-      gcal_event_id: eventId || null,
-      status: 'scheduled' as const,
+  // 5. Write calendar events (in parallel to stay under the function timeout).
+  const toInsert = await Promise.all(
+    proposed.map(async (b) => {
+      let eventId = ''
+      try {
+        eventId = await insertEvent(accessToken, {
+          summary: b.title,
+          date: today,
+          startLocal: b.start,
+          endLocal: b.end,
+          timeZone: tz,
+          description: 'Scheduled by Lock In · Game Plan',
+          colorId: eventColorId(b.recurring_id != null, b.priority),
+        })
+      } catch {
+        // Keep the block in-app even if the calendar write fails.
+        eventId = ''
+      }
+      return {
+        user_id: userId,
+        task_id: b.task_id,
+        recurring_id: b.recurring_id,
+        title: b.title,
+        plan_date: today,
+        start_local: b.start,
+        end_local: b.end,
+        timezone: tz,
+        estimated_minutes: b.estimated_minutes,
+        category: b.category,
+        priority: b.priority,
+        gcal_event_id: eventId || null,
+        status: 'scheduled' as const,
+      }
     })
-  }
+  )
 
   let blocks: PlanBlock[] = []
   if (toInsert.length > 0) {

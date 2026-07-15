@@ -121,6 +121,31 @@ export async function insertEvent(
   return json.id ?? ''
 }
 
+/**
+ * IDs of all Game Plan events on the primary calendar in [timeMin, timeMax].
+ * Found by the private `lockInGamePlan` tag, so it also catches orphans left by
+ * a previous run that timed out after writing events but before saving them.
+ */
+export async function listGamePlanEventIds(
+  accessToken: string,
+  timeMin: string,
+  timeMax: string
+): Promise<string[]> {
+  const params = new URLSearchParams({
+    privateExtendedProperty: 'lockInGamePlan=true',
+    timeMin,
+    timeMax,
+    singleEvents: 'true',
+    maxResults: '250',
+  })
+  const res = await fetch(`${CAL_BASE}/calendars/primary/events?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Google events.list failed (${res.status})`)
+  const json = (await res.json()) as { items?: { id?: string }[] }
+  return (json.items ?? []).map((e) => e.id).filter((id): id is string => Boolean(id))
+}
+
 /** Delete an event by id. Swallows 404/410 (already gone). */
 export async function deleteEvent(accessToken: string, eventId: string): Promise<void> {
   const res = await fetch(
