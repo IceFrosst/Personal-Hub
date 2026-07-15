@@ -17,8 +17,11 @@ export interface PlanInput {
   today: string // 'YYYY-MM-DD'
 }
 
+// gemini-flash-latest is Google's rolling alias for the current free-tier flash
+// model. Pinned model names rot: gemini-2.0-flash's free quota was cut to zero
+// (429 on every call), which silently forced the fallback packer.
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
 
 // One schedulable thing handed to the model (a task to estimate, or a flexible
 // routine whose duration is fixed).

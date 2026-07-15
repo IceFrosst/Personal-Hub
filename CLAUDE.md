@@ -240,7 +240,7 @@ All set in the Claude Code cloud env vars panel. Available every session.
 
 ### `GEMINI_API_KEY`
 - Google AI Studio key, project `icefrosst-apps`
-- Model: `gemini-2.0-flash` — free tier: 15 req/min, 1,500 req/day
+- Model: `gemini-flash-latest` (rolling alias — always the current free-tier flash model; pinned names like `gemini-2.0-flash` lost their free quota and 429 on every call)
 - Renew: aistudio.google.com → Get API key
 - **Must be added manually to each Vercel project that uses AI** — setup script only injects Supabase vars
 - Call server-side only. Always write a graceful fallback. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
