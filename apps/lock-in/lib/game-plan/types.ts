@@ -1,5 +1,7 @@
 // Game Plan — shared types for the AI day-scheduler.
 
+import type { TaskCategory } from '@/lib/types'
+
 export interface CalendarConnection {
   user_id: string
   google_email: string | null
@@ -37,6 +39,7 @@ export interface PlanBlock {
   timezone: string
   estimated_minutes: number | null
   gcal_event_id: string | null
+  category: TaskCategory | null
   status: PlanBlockStatus
   created_at: string
 }
@@ -47,6 +50,7 @@ export interface PlannableTask {
   title: string
   priority: 'low' | 'medium' | 'high'
   due_date: string | null
+  category: TaskCategory | null
 }
 
 // Recurring routines due today, split by how they want placing.
@@ -71,4 +75,5 @@ export interface ProposedBlock {
   start: string // 'HH:MM'
   end: string // 'HH:MM'
   estimated_minutes: number
+  category: TaskCategory | null
 }

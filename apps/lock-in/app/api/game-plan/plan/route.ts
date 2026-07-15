@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateSettings } from '@/lib/game-plan/settings'
 import { runPlanForUser } from '@/lib/game-plan/run'
+import { addDays, todayInTz } from '@/lib/game-plan/time'
 import { hasOfflineCredentials, refreshAccessToken } from '@/lib/google/calendar'
 
 export const dynamic = 'force-dynamic'
@@ -25,9 +26,11 @@ export async function POST(request: Request) {
   }
 
   let providerToken: string | undefined
+  let day: 'today' | 'tomorrow' = 'today'
   try {
-    const body = (await request.json()) as { providerToken?: string }
+    const body = (await request.json()) as { providerToken?: string; day?: string }
     providerToken = body?.providerToken
+    if (body?.day === 'tomorrow') day = 'tomorrow'
   } catch {
     // no body — fine
   }
@@ -60,6 +63,8 @@ export async function POST(request: Request) {
   }
 
   const settings = await getOrCreateSettings(supabase, user.id)
+  const todayStr = todayInTz(settings.timezone)
+  const targetDate = day === 'tomorrow' ? addDays(todayStr, 1) : todayStr
 
   try {
     const result = await runPlanForUser({
@@ -67,6 +72,7 @@ export async function POST(request: Request) {
       userId: user.id,
       accessToken,
       settings,
+      targetDate,
     })
     return NextResponse.json(result)
   } catch (err) {

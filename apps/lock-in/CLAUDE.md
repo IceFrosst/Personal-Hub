@@ -52,12 +52,19 @@ durations and time-blocks a realistic day around existing events, and the blocks
 real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggle in settings.
 A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
 
-The planner (`lib/game-plan/planner.ts`) now also schedules **recurring routines due today**
-(`run.ts` loads them, skipping ones completed today): fixed-time routines are pinned to their
-`fixed_time` and slid to the nearest free slot if busy; flexible routines + one-off tasks go to
-Gemini with the day-shape strategy (quick win first · protect deep-work blocks · end on a high).
-Blocks link back via `plan_blocks.recurring_id` (`0006`). One-off task durations are Gemini-estimated
-from the title; routine durations are exact (user-set).
+The planner (`lib/game-plan/planner.ts`) schedules **recurring routines** (fixed-time pinned +
+nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a day-shape strategy:
+quick win first · protect deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
+hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
+(skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
+durations are exact. Model: `gemini-flash-latest` (rolling alias — pinned names lose free quota).
+
+**Timeline is interactive:** tap a block to mark it done → the underlying task is completed
+(`focus_gate.tasks.is_completed`) or the routine checked (`recurring_completions` for that date),
+and `plan_blocks.status` flips — plan and list stay in sync. **Today / Tomorrow** toggle plans and
+views either day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
+window, today starts from now). Blocks show a repeat glyph for routines and a tag-colored left
+border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
 
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
 Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);
@@ -79,13 +86,12 @@ add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/du
 ## Next
 - **Duration learning:** one-off task durations are Gemini-guessed from the title. Later, learn from
   actuals (planned vs. real) and/or let a one-off task carry a user-set duration.
-- **Timeline polish:** show a repeat glyph on recurring-sourced blocks (`plan_blocks.recurring_id`);
-  mark a block done from the timeline and reflect it back onto the task/routine.
-- **To turn on the unattended morning cron + durable on-demand planning, add to the
-  `icefrosst-lock-in` Vercel project env** (all Production): `SUPABASE_SERVICE_ROLE_KEY`,
-  `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (the last two are the Google client
-  already configured in Supabase Auth → Google provider).
-- **Google Cloud console:** done — Calendar API enabled, `calendar.events` scope added, app
-  published (In production).
-- Nice-to-haves: mark a plan block done from the timeline; per-routine "every day"/"weekdays"
-  quick presets; reflect completed blocks back onto the task.
+- **Edit recurring routines:** currently delete-and-recreate; add a routine variant of `EditTaskSheet`.
+- **Settings depth:** per-weekday work hours; a timezone picker (currently the `plan_settings`
+  default `Europe/Vilnius`).
+- **Surface AI-vs-fallback:** the plan silently uses the deterministic packer when Gemini fails
+  (how the dead-model bug hid). Consider returning an `ai` flag and a subtle "basic estimates" note.
+- **Block-start notifications** (web push) — real nudge value, meaningful PWA push setup cost.
+- **Provisioning is DONE:** the three secrets (`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_OAUTH_CLIENT_ID`,
+  `GOOGLE_OAUTH_CLIENT_SECRET`) are set on `icefrosst-lock-in` (Production), so the morning cron +
+  durable planning are live. Google Cloud console done (Calendar API, scope, published).

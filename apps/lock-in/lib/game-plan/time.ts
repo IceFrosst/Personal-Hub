@@ -12,6 +12,14 @@ export function todayInTz(timeZone: string): string {
   }).format(new Date())
 }
 
+/** Add n days to a 'YYYY-MM-DD' date, returning 'YYYY-MM-DD'. Calendar-correct. */
+export function addDays(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + n)
+  return dt.toISOString().slice(0, 10)
+}
+
 /** Current 'HH:MM' in the given timezone. */
 export function nowLocalHM(timeZone: string): string {
   return new Intl.DateTimeFormat('en-GB', {
