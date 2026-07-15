@@ -12,7 +12,7 @@ Instagram muscle-memory slot. Two buttons — **Lock in** (jumps to the Lock In 
 - Next.js 15 (App Router, `next 15.5.18`) + React 19 + TypeScript
 - Tailwind 3 + Radix Colors (`@radix-ui/colors`), dark/black only — **no `@tabler` here** (uses the IG-style wordmark, not Tabler icons)
 - Supabase SSR (`@supabase/ssr`) — Google OAuth, shared `focus_gate` schema
-- Gemini `gemini-2.0-flash` for the suggestion, **server-side only**, with a deterministic fallback
+- Gemini `gemini-flash-latest` for the suggestion (rolling alias — pinned model names lose free quota and 429), **server-side only**, with a deterministic fallback
 - ESLint flat config (`eslint.config.mjs`), `next.config.ts` (empty), PWA (manifest + `public/sw.js`)
 - Prod: `icefrosst-focus-gate-personal-app.vercel.app` (Vercel project `icefrosst-focus-gate-personal-app`, Root Directory `apps/focus-gate`)
 

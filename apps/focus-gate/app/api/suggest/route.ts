@@ -158,7 +158,10 @@ Reply as JSON only (no markdown), task IDs only, best first:
 {"taskIds":["<id>", "<id>"]}`
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      // gemini-flash-latest = rolling alias for the current free-tier flash model.
+      // Pinned names rot: gemini-2.0-flash's free quota was cut to zero (429s),
+      // which silently forced the heuristic fallback on every gate open.
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
