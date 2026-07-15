@@ -41,6 +41,7 @@ export interface PlanBlock {
   gcal_event_id: string | null
   category: TaskCategory | null
   priority: 'low' | 'medium' | 'high' | null
+  locked: boolean
   status: PlanBlockStatus
   created_at: string
 }

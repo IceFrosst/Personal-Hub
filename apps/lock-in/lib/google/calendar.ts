@@ -146,6 +146,90 @@ export async function listGamePlanEventIds(
   return (json.items ?? []).map((e) => e.id).filter((id): id is string => Boolean(id))
 }
 
+export interface DayEvent {
+  id: string
+  summary: string
+  start: string // ISO instant
+  end: string
+}
+
+/**
+ * The user's real timed events on the primary calendar in [timeMin, timeMax],
+ * excluding all-day events and Game Plan's own events. Used both as "busy" for
+ * the planner and as locked blocks shown in the timeline.
+ */
+export async function listDayEvents(
+  accessToken: string,
+  timeMin: string,
+  timeMax: string
+): Promise<DayEvent[]> {
+  const params = new URLSearchParams({
+    timeMin,
+    timeMax,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '250',
+  })
+  const res = await fetch(`${CAL_BASE}/calendars/primary/events?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Google events.list failed (${res.status})`)
+
+  const json = (await res.json()) as {
+    items?: {
+      id?: string
+      summary?: string
+      status?: string
+      transparency?: string
+      start?: { dateTime?: string }
+      end?: { dateTime?: string }
+      extendedProperties?: { private?: Record<string, string> }
+    }[]
+  }
+  return (json.items ?? [])
+    .filter(
+      (e) =>
+        e.id &&
+        e.status !== 'cancelled' &&
+        e.transparency !== 'transparent' && // "free" events don't block
+        e.start?.dateTime && // timed only (skip all-day)
+        e.end?.dateTime &&
+        e.extendedProperties?.private?.lockInGamePlan !== 'true' // not our own
+    )
+    .map((e) => ({
+      id: e.id as string,
+      summary: e.summary || 'Busy',
+      start: e.start!.dateTime as string,
+      end: e.end!.dateTime as string,
+    }))
+}
+
+/** Update an existing event's start/end (used when a block is dragged). */
+export async function patchEvent(
+  accessToken: string,
+  eventId: string,
+  ev: { date: string; startLocal: string; endLocal: string; timeZone: string }
+): Promise<void> {
+  const res = await fetch(
+    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        start: { dateTime: `${ev.date}T${ev.startLocal}:00`, timeZone: ev.timeZone },
+        end: { dateTime: `${ev.date}T${ev.endLocal}:00`, timeZone: ev.timeZone },
+      }),
+    }
+  )
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    const body = await res.text()
+    throw new Error(`Google event patch failed (${res.status}): ${body}`)
+  }
+}
+
 /** Delete an event by id. Swallows 404/410 (already gone). */
 export async function deleteEvent(accessToken: string, eventId: string): Promise<void> {
   const res = await fetch(
