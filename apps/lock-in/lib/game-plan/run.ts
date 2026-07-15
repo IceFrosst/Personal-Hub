@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
+  AiStatus,
   FixedRecurringInput,
   FlexRecurringInput,
   PlanBlock,
@@ -26,6 +27,7 @@ export interface RunResult {
   blocks: PlanBlock[]
   scheduledCount: number
   totalTasks: number
+  ai: AiStatus
 }
 
 /**
@@ -121,7 +123,7 @@ export async function runPlanForUser(args: {
       ? roundUp5(now)
       : settings.work_start
 
-  const proposed = await planDay({
+  const { blocks: proposed, ai } = await planDay({
     tasks,
     recurringFixed,
     recurringFlex,
@@ -184,6 +186,7 @@ export async function runPlanForUser(args: {
       timezone: tz,
       estimated_minutes: b.estimated_minutes,
       category: b.category,
+      priority: b.priority,
       gcal_event_id: eventId || null,
       status: 'scheduled' as const,
     })
@@ -204,6 +207,7 @@ export async function runPlanForUser(args: {
     blocks: blocks.sort((a, b) => hmToMinutes(a.start_local) - hmToMinutes(b.start_local)),
     scheduledCount: blocks.length,
     totalTasks: tasks.length + dueRecurring.length,
+    ai,
   }
 }
 

@@ -6,8 +6,7 @@ import {
   IconArrowLeft,
   IconBrandGoogle,
   IconCalendarBolt,
-  IconCircleCheck,
-  IconCircle,
+  IconCheck,
   IconRefresh,
   IconRepeat,
   IconSettings,
@@ -187,6 +186,12 @@ export default function GamePlanClient() {
         )
       } else {
         setMessage(`Planned ${data.scheduledCount} block${data.scheduledCount === 1 ? '' : 's'} for ${when}.`)
+      }
+      // Surface when the model didn't actually plan (rate limit / unavailable).
+      if (data.ai === 'rate_limited') {
+        setError('AI model is rate-limited — planned with basic estimates. Try again later.')
+      } else if (data.ai === 'fallback' && data.scheduledCount > 0) {
+        setError('AI was unavailable — planned with basic estimates.')
       }
     } catch {
       setError('Planning failed. Check your connection and try again.')
@@ -435,6 +440,12 @@ function SettingsPanel({
   )
 }
 
+const PRIO_ACCENT: Record<'low' | 'medium' | 'high', string> = {
+  low: 'bg-prio-low',
+  medium: 'bg-prio-medium',
+  high: 'bg-prio-high',
+}
+
 function Timeline({
   blocks,
   onToggleDone,
@@ -453,64 +464,59 @@ function Timeline({
     <section className="flex flex-col mt-1">
       {blocks.map((b) => {
         const done = b.status === 'done'
+        const isRecurring = !!b.recurring_id
         const cat = b.category ? TASK_CATEGORIES.find((c) => c.value === b.category) : null
+        // Recurring blocks are white; task blocks take their priority colour.
+        const accent = isRecurring ? 'bg-white/70' : PRIO_ACCENT[b.priority ?? 'medium']
+        const checkbox = done
+          ? isRecurring
+            ? 'bg-white/10 border-white text-white'
+            : 'bg-gold/10 border-gold text-gold'
+          : `border-border-focus text-transparent ${isRecurring ? 'active:border-white' : 'active:border-gold'}`
         return (
           <div key={b.id} className="flex gap-3 items-stretch">
             <div className="w-12 shrink-0 pt-3 text-right">
               <span className="text-text-muted text-xs tabular-nums">{b.start_local}</span>
             </div>
-            <div className="relative flex flex-col items-center">
-              <span className="h-full w-px bg-border" />
-              <span
-                className={`absolute top-4 h-2 w-2 rounded-full ${done ? 'bg-text-low' : 'bg-gold'}`}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => onToggleDone(b)}
-              className={`flex-1 min-w-0 text-left py-2 mb-2 ${done ? 'opacity-60' : ''}`}
-            >
-              <div
-                className="rounded-xl bg-surface border border-border px-3 py-2.5"
-                style={cat ? { borderLeft: `3px solid ${cat.color}` } : undefined}
-              >
-                <div className="flex items-start gap-2">
-                  {done ? (
-                    <IconCircleCheck size={18} className="text-gold shrink-0 mt-0.5" />
-                  ) : (
-                    <IconCircle size={18} className="text-text-low shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p
-                        className={`text-base leading-snug break-words ${
-                          done ? 'line-through text-text-low' : 'text-text'
-                        }`}
+            <div className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
+              <div className="relative flex items-start gap-3 pl-5 pr-3 py-2.5 rounded-xl bg-surface border border-border overflow-hidden">
+                <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} />
+                <button
+                  type="button"
+                  onClick={() => onToggleDone(b)}
+                  aria-label={done ? 'Mark not done' : 'Mark done'}
+                  className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
+                >
+                  <IconCheck size={14} stroke={3} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p
+                      className={`text-base leading-snug break-words ${
+                        done ? 'line-through text-text-low' : 'text-text'
+                      }`}
+                    >
+                      {b.title}
+                    </p>
+                    {isRecurring && <IconRepeat size={13} className="text-text-low shrink-0" />}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-text-low text-xs tabular-nums">
+                      {b.start_local}–{b.end_local}
+                      {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
+                    </span>
+                    {cat && (
+                      <span
+                        className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
+                        style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
                       >
-                        {b.title}
-                      </p>
-                      {b.recurring_id && (
-                        <IconRepeat size={13} className="text-text-low shrink-0" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-text-low text-xs tabular-nums">
-                        {b.start_local}–{b.end_local}
-                        {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
+                        {cat.label}
                       </span>
-                      {cat && (
-                        <span
-                          className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
-                          style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
-                        >
-                          {cat.label}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </button>
+            </div>
           </div>
         )
       })}
