@@ -6,6 +6,7 @@ import { addDays, todayInTz } from '@/lib/game-plan/time'
 import { hasOfflineCredentials, refreshAccessToken } from '@/lib/google/calendar'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 /**
  * On-demand "Plan my day" for the signed-in user.
