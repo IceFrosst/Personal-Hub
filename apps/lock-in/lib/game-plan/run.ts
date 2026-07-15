@@ -41,16 +41,18 @@ export async function runPlanForUser(args: {
   userId: string
   accessToken: string
   settings: PlanSettings
+  targetDate?: string // 'YYYY-MM-DD'; defaults to today in the user's tz
 }): Promise<RunResult> {
   const { db, userId, accessToken, settings } = args
   const tz = settings.timezone
-  const today = todayInTz(tz)
+  const today = args.targetDate ?? todayInTz(tz)
+  const isToday = today === todayInTz(tz)
 
   // 1. Open tasks.
   const { data: taskRows } = await db
     .schema('focus_gate')
     .from('tasks')
-    .select('id, title, priority, due_date')
+    .select('id, title, priority, due_date, category')
     .eq('user_id', userId)
     .eq('is_completed', false)
 
@@ -112,9 +114,10 @@ export async function runPlanForUser(args: {
   }))
 
   // 3. Don't schedule in the past: start from max(work_start, now rounded up).
+  // For today, don't schedule in the past; future days use the full window.
   const now = nowLocalHM(tz)
   const earliestStart =
-    hmToMinutes(now) > hmToMinutes(settings.work_start)
+    isToday && hmToMinutes(now) > hmToMinutes(settings.work_start)
       ? roundUp5(now)
       : settings.work_start
 
@@ -180,6 +183,7 @@ export async function runPlanForUser(args: {
       end_local: b.end,
       timezone: tz,
       estimated_minutes: b.estimated_minutes,
+      category: b.category,
       gcal_event_id: eventId || null,
       status: 'scheduled' as const,
     })

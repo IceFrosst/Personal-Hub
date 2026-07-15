@@ -6,16 +6,21 @@ import {
   IconArrowLeft,
   IconBrandGoogle,
   IconCalendarBolt,
+  IconCircleCheck,
+  IconCircle,
   IconRefresh,
+  IconRepeat,
   IconSettings,
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { DEFAULT_SETTINGS, type PlanBlock, type PlanSettings } from '@/lib/game-plan/types'
-import { todayInTz } from '@/lib/game-plan/time'
+import { addDays, todayInTz } from '@/lib/game-plan/time'
+import { TASK_CATEGORIES } from '@/lib/types'
 
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 
 type Connection = { google_email: string | null; connected_at: string } | null
+type Day = 'today' | 'tomorrow'
 
 export default function GamePlanClient() {
   const supabase = useMemo(() => createClient(), [])
@@ -24,6 +29,7 @@ export default function GamePlanClient() {
   const [connection, setConnection] = useState<Connection>(null)
   const [settings, setSettings] = useState<PlanSettings | null>(null)
   const [blocks, setBlocks] = useState<PlanBlock[]>([])
+  const [day, setDay] = useState<Day>('today')
   const [loading, setLoading] = useState(true)
   const [planning, setPlanning] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -31,16 +37,20 @@ export default function GamePlanClient() {
   const [showSettings, setShowSettings] = useState(false)
 
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
-  const today = useMemo(() => todayInTz(tz), [tz])
+  const todayStr = useMemo(() => todayInTz(tz), [tz])
+  const activeDate = useMemo(
+    () => (day === 'today' ? todayStr : addDays(todayStr, 1)),
+    [day, todayStr]
+  )
 
   const loadBlocks = useCallback(
-    async (uid: string, timezone: string) => {
+    async (uid: string, dateKey: string) => {
       const { data } = await supabase
         .schema('lock_in')
         .from('plan_blocks')
         .select('*')
         .eq('user_id', uid)
-        .eq('plan_date', todayInTz(timezone))
+        .eq('plan_date', dateKey)
         .order('start_local', { ascending: true })
       setBlocks((data ?? []) as PlanBlock[])
     },
@@ -85,8 +95,6 @@ export default function GamePlanClient() {
 
       let connectionRow = (conn as Connection) ?? null
 
-      // Fallback capture: if the OAuth callback didn't persist the token but it
-      // surfaced in the browser session, store it now so the connection lands.
       if (!connectionRow && refreshToken) {
         try {
           const res = await fetch('/api/game-plan/connect', {
@@ -105,16 +113,13 @@ export default function GamePlanClient() {
         }
       }
 
-      // Surface the connect outcome from the callback redirect (?cal=...).
       const cal = new URLSearchParams(window.location.search).get('cal')
       if (cal && !connectionRow) {
         setError(
           "Couldn't finish connecting your calendar. Tap Connect Google Calendar again and make sure you allow calendar access."
         )
       }
-      if (cal) {
-        window.history.replaceState({}, '', '/game-plan')
-      }
+      if (cal) window.history.replaceState({}, '', '/game-plan')
 
       setConnection(connectionRow)
       const resolved = (settingsRow as PlanSettings) ?? {
@@ -123,11 +128,22 @@ export default function GamePlanClient() {
         updated_at: new Date().toISOString(),
       }
       setSettings(resolved)
-      await loadBlocks(user.id, resolved.timezone)
+      await loadBlocks(user.id, todayInTz(resolved.timezone))
       setLoading(false)
     }
     init()
   }, [supabase, loadBlocks])
+
+  async function switchDay(next: Day) {
+    if (next === day) return
+    setDay(next)
+    setMessage(null)
+    setError(null)
+    if (userId) {
+      const dateKey = next === 'today' ? todayStr : addDays(todayStr, 1)
+      await loadBlocks(userId, dateKey)
+    }
+  }
 
   async function connectCalendar() {
     await supabase.auth.signInWithOAuth({
@@ -149,34 +165,28 @@ export default function GamePlanClient() {
       const res = await fetch('/api/game-plan/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerToken }),
+        body: JSON.stringify({ providerToken, day }),
       })
       const data = await res.json()
 
       if (!res.ok) {
-        if (data.error === 'not_connected') {
-          setError('Connect your Google Calendar first.')
-        } else if (data.error === 'reconnect_needed') {
+        if (data.error === 'not_connected') setError('Connect your Google Calendar first.')
+        else if (data.error === 'reconnect_needed')
           setError('Calendar access expired — reconnect to finish setup.')
-        } else {
-          setError('Planning failed. Try again in a moment.')
-        }
+        else setError('Planning failed. Try again in a moment.')
         return
       }
 
       setBlocks((data.blocks ?? []) as PlanBlock[])
+      const when = day === 'today' ? 'today' : 'tomorrow'
       if (data.scheduledCount === 0) {
         setMessage(
           data.totalTasks === 0
-            ? 'No open tasks to schedule — add some in Lock In.'
-            : 'Nothing fit your free time today.'
+            ? 'Nothing to schedule — add tasks or routines in Lock In.'
+            : `Nothing fit the free time ${when}.`
         )
       } else {
-        setMessage(
-          `Scheduled ${data.scheduledCount} of ${data.totalTasks} task${
-            data.totalTasks === 1 ? '' : 's'
-          } to your calendar.`
-        )
+        setMessage(`Planned ${data.scheduledCount} block${data.scheduledCount === 1 ? '' : 's'} for ${when}.`)
       }
     } catch {
       setError('Planning failed. Check your connection and try again.')
@@ -184,6 +194,62 @@ export default function GamePlanClient() {
       setPlanning(false)
     }
   }
+
+  const toggleBlockDone = useCallback(
+    async (block: PlanBlock) => {
+      if (!userId) return
+      const nextStatus = block.status === 'done' ? 'scheduled' : 'done'
+      const done = nextStatus === 'done'
+      setBlocks((prev) =>
+        prev.map((b) => (b.id === block.id ? { ...b, status: nextStatus } : b))
+      )
+
+      const { error: blockErr } = await supabase
+        .schema('lock_in')
+        .from('plan_blocks')
+        .update({ status: nextStatus })
+        .eq('id', block.id)
+
+      if (blockErr) {
+        setBlocks((prev) =>
+          prev.map((b) => (b.id === block.id ? { ...b, status: block.status } : b))
+        )
+        setError('Could not update — try again.')
+        return
+      }
+
+      // Mirror to the underlying task or routine so the plan and list stay in sync.
+      if (block.task_id) {
+        await supabase
+          .schema('focus_gate')
+          .from('tasks')
+          .update({ is_completed: done })
+          .eq('id', block.task_id)
+      } else if (block.recurring_id) {
+        if (done) {
+          await supabase
+            .schema('lock_in')
+            .from('recurring_completions')
+            .upsert(
+              {
+                user_id: userId,
+                recurring_id: block.recurring_id,
+                completed_date: block.plan_date,
+              },
+              { onConflict: 'recurring_id,completed_date' }
+            )
+        } else {
+          await supabase
+            .schema('lock_in')
+            .from('recurring_completions')
+            .delete()
+            .eq('recurring_id', block.recurring_id)
+            .eq('completed_date', block.plan_date)
+        }
+      }
+    },
+    [supabase, userId]
+  )
 
   async function saveSettings(patch: Partial<PlanSettings>) {
     if (!userId || !settings) return
@@ -208,12 +274,12 @@ export default function GamePlanClient() {
   const connected = !!connection
   const dateLabel = useMemo(
     () =>
-      new Date(`${today}T12:00:00`).toLocaleDateString(undefined, {
+      new Date(`${activeDate}T12:00:00`).toLocaleDateString(undefined, {
         weekday: 'long',
         month: 'long',
         day: 'numeric',
       }),
-    [today]
+    [activeDate]
   )
 
   return (
@@ -244,11 +310,19 @@ export default function GamePlanClient() {
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-text text-base font-medium">{dateLabel}</p>
-                <p className="text-text-low text-xs mt-0.5">
-                  {connection?.google_email ?? 'Calendar connected'}
-                </p>
+              <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
+                {(['today', 'tomorrow'] as Day[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => switchDay(d)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
               </div>
               <button
                 type="button"
@@ -258,6 +332,13 @@ export default function GamePlanClient() {
               >
                 <IconSettings size={20} />
               </button>
+            </div>
+
+            <div>
+              <p className="text-text text-base font-medium">{dateLabel}</p>
+              <p className="text-text-low text-xs mt-0.5">
+                {connection?.google_email ?? 'Calendar connected'}
+              </p>
             </div>
 
             {showSettings && settings && (
@@ -271,7 +352,9 @@ export default function GamePlanClient() {
               className="lock-in-gold-button flex items-center justify-center gap-2 min-h-12 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-60"
             >
               <IconRefresh size={18} stroke={2.4} className={planning ? 'animate-spin' : ''} />
-              {planning ? 'Planning…' : blocks.length ? 'Replan day' : 'Plan my day'}
+              {planning
+                ? 'Planning…'
+                : `${blocks.length ? 'Replan' : 'Plan'} ${day === 'today' ? 'my day' : 'tomorrow'}`}
             </button>
 
             {message && (
@@ -283,7 +366,7 @@ export default function GamePlanClient() {
               </p>
             )}
 
-            <Timeline blocks={blocks} />
+            <Timeline blocks={blocks} onToggleDone={toggleBlockDone} />
           </>
         )}
       </div>
@@ -352,36 +435,85 @@ function SettingsPanel({
   )
 }
 
-function Timeline({ blocks }: { blocks: PlanBlock[] }) {
+function Timeline({
+  blocks,
+  onToggleDone,
+}: {
+  blocks: PlanBlock[]
+  onToggleDone: (b: PlanBlock) => void
+}) {
   if (blocks.length === 0) {
     return (
       <p className="text-text-low text-sm py-10 text-center">
-        No blocks yet. Tap “Plan my day” to schedule your tasks.
+        No blocks yet. Tap the button above to schedule your day.
       </p>
     )
   }
   return (
     <section className="flex flex-col mt-1">
-      {blocks.map((b) => (
-        <div key={b.id} className="flex gap-3 items-stretch">
-          <div className="w-12 shrink-0 pt-3 text-right">
-            <span className="text-text-muted text-xs tabular-nums">{b.start_local}</span>
-          </div>
-          <div className="relative flex flex-col items-center">
-            <span className="h-full w-px bg-border" />
-            <span className="absolute top-4 h-2 w-2 rounded-full bg-gold" />
-          </div>
-          <div className="flex-1 min-w-0 py-2 mb-2">
-            <div className="rounded-xl bg-surface border border-border px-3 py-2.5">
-              <p className="text-text text-base leading-snug break-words">{b.title}</p>
-              <p className="text-text-low text-xs mt-0.5 tabular-nums">
-                {b.start_local}–{b.end_local}
-                {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
-              </p>
+      {blocks.map((b) => {
+        const done = b.status === 'done'
+        const cat = b.category ? TASK_CATEGORIES.find((c) => c.value === b.category) : null
+        return (
+          <div key={b.id} className="flex gap-3 items-stretch">
+            <div className="w-12 shrink-0 pt-3 text-right">
+              <span className="text-text-muted text-xs tabular-nums">{b.start_local}</span>
             </div>
+            <div className="relative flex flex-col items-center">
+              <span className="h-full w-px bg-border" />
+              <span
+                className={`absolute top-4 h-2 w-2 rounded-full ${done ? 'bg-text-low' : 'bg-gold'}`}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => onToggleDone(b)}
+              className={`flex-1 min-w-0 text-left py-2 mb-2 ${done ? 'opacity-60' : ''}`}
+            >
+              <div
+                className="rounded-xl bg-surface border border-border px-3 py-2.5"
+                style={cat ? { borderLeft: `3px solid ${cat.color}` } : undefined}
+              >
+                <div className="flex items-start gap-2">
+                  {done ? (
+                    <IconCircleCheck size={18} className="text-gold shrink-0 mt-0.5" />
+                  ) : (
+                    <IconCircle size={18} className="text-text-low shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p
+                        className={`text-base leading-snug break-words ${
+                          done ? 'line-through text-text-low' : 'text-text'
+                        }`}
+                      >
+                        {b.title}
+                      </p>
+                      {b.recurring_id && (
+                        <IconRepeat size={13} className="text-text-low shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-text-low text-xs tabular-nums">
+                        {b.start_local}–{b.end_local}
+                        {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
+                      </span>
+                      {cat && (
+                        <span
+                          className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
+                          style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
+                        >
+                          {cat.label}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </button>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </section>
   )
 }

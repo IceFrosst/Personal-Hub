@@ -4,6 +4,7 @@ import type {
   PlannableTask,
   ProposedBlock,
 } from './types'
+import type { TaskCategory } from '@/lib/types'
 import { hmToMinutes } from './time'
 
 export interface PlanInput {
@@ -31,6 +32,7 @@ interface FlexItem {
   title: string
   priority?: 'low' | 'medium' | 'high'
   due?: string | null
+  category?: TaskCategory | null
   fixedDuration?: number // recurring routines: use exactly this
 }
 
@@ -67,6 +69,7 @@ export async function planDay(input: PlanInput): Promise<ProposedBlock[]> {
       start: toHM(start),
       end: toHM(start + dur),
       estimated_minutes: dur,
+      category: null,
     })
   }
 
@@ -78,6 +81,7 @@ export async function planDay(input: PlanInput): Promise<ProposedBlock[]> {
       title: t.title,
       priority: t.priority,
       due: t.due_date,
+      category: t.category,
     })),
     ...input.recurringFlex.map<FlexItem>((r) => ({
       id: r.id,
@@ -167,7 +171,7 @@ async function geminiSchedule(
     .map((it) =>
       it.kind === 'recurring'
         ? `- id=${it.id} | ROUTINE | use exactly ${it.fixedDuration} min | ${it.title}`
-        : `- id=${it.id} | task | priority=${it.priority} | due=${it.due ?? 'none'} | ${it.title}`
+        : `- id=${it.id} | task | priority=${it.priority} | due=${it.due ?? 'none'} | tag=${it.category ?? 'none'} | ${it.title}`
     )
     .join('\n')
 
@@ -185,6 +189,7 @@ Day-shape rules (important):
 - Start with a QUICK WIN: put one short, easy item first so the day opens with momentum.
 - Protect DEEP WORK: any long/focus task or routine gets one uninterrupted block — never split it or sandwich it between tiny tasks.
 - END ON A HIGH: don't finish the day on the most draining task; leave something lighter or satisfying last.
+- USE THE TAGS: 'work' and 'hustle' are focus-heavy — put them in the earlier, higher-energy hours and give them the protected deep-work treatment. 'social' and 'other' are lighter — lean them later in the day. Group same-tag items together rather than ping-ponging between kinds of work.
 - ROUTINE items must use exactly the stated duration. For tasks, estimate a sensible duration (typically 20–90 min; bigger/vaguer = longer).
 - Leave 5–10 min between blocks. Never overlap a blocked interval or another block.
 - Prefer scheduling fewer things well over cramming an unrealistic day. Leave unscheduled items off.
@@ -217,6 +222,7 @@ Return ONLY JSON: {"blocks":[{"id":"<id>","title":"<title>","start":"HH:MM","end
     start: String(b.start ?? ''),
     end: String(b.end ?? ''),
     estimated_minutes: Number(b.estimated_minutes) || 0,
+    category: null,
     // carry the model's id through title-less; resolved in sanitize
     _id: b.id,
   })) as unknown as ProposedBlock[]
@@ -256,6 +262,7 @@ function sanitize(
       start: b.start,
       end: toHM(e),
       estimated_minutes: e - s,
+      category: item?.category ?? null,
     })
   }
   return out
@@ -309,6 +316,7 @@ function naiveSchedule(
           start: toHM(at),
           end: toHM(at + dur),
           estimated_minutes: dur,
+          category: it.category ?? null,
         })
         at += dur + GAP
         break
