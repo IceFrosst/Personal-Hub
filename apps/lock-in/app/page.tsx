@@ -8,6 +8,7 @@ import AddTaskBar, { type RecurringDraft } from '@/components/AddTaskBar'
 import TaskRow from '@/components/TaskRow'
 import RecurringRow from '@/components/RecurringRow'
 import EditTaskSheet from '@/components/EditTaskSheet'
+import EditRecurringSheet, { type RecurringUpdate } from '@/components/EditRecurringSheet'
 import LockInLogo from '@/components/LockInLogo'
 import {
   PRIORITY_RANK,
@@ -57,6 +58,7 @@ export default function HomePage() {
   const [sheetTask, setSheetTask] = useState<Task | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [sheetRecurring, setSheetRecurring] = useState<RecurringTask | null>(null)
+  const [editRecurring, setEditRecurring] = useState<RecurringTask | null>(null)
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
@@ -306,6 +308,24 @@ export default function HomePage() {
     [supabase, userId, completions]
   )
 
+  const updateRecurring = useCallback(
+    async (task: RecurringTask, updates: RecurringUpdate) => {
+      const prevState = task
+      setRecurring((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...updates } : t)))
+      setEditRecurring(null)
+      const { error: updateError } = await supabase
+        .schema('lock_in')
+        .from('recurring_tasks')
+        .update(updates)
+        .eq('id', task.id)
+      if (updateError) {
+        setRecurring((prev) => prev.map((t) => (t.id === task.id ? prevState : t)))
+        setError(updateError.message)
+      }
+    },
+    [supabase]
+  )
+
   const deleteRecurring = useCallback(
     async (task: RecurringTask) => {
       setRecurring((prev) => prev.filter((t) => t.id !== task.id))
@@ -455,8 +475,18 @@ export default function HomePage() {
             <p className="text-text-low text-xs mb-3 px-1">Recurring routine</p>
             <button
               type="button"
+              onClick={() => {
+                setEditRecurring(sheetRecurring)
+                setSheetRecurring(null)
+              }}
+              className="w-full min-h-12 rounded-xl bg-surface text-text font-medium active:bg-border/40 transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
               onClick={() => deleteRecurring(sheetRecurring)}
-              className="w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
+              className="mt-2 w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
             >
               Delete routine
             </button>
@@ -476,6 +506,14 @@ export default function HomePage() {
           task={editTask}
           onSave={(updates) => updateTask(editTask, updates)}
           onClose={() => setEditTask(null)}
+        />
+      )}
+
+      {editRecurring && (
+        <EditRecurringSheet
+          task={editRecurring}
+          onSave={(updates) => updateRecurring(editRecurring, updates)}
+          onClose={() => setEditRecurring(null)}
         />
       )}
     </main>
