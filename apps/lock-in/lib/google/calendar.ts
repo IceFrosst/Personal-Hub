@@ -84,6 +84,7 @@ export interface EventInput {
   endLocal: string // 'HH:MM'
   timeZone: string
   description?: string
+  colorId?: string // Google Calendar event colour (1–11)
 }
 
 /**
@@ -105,6 +106,7 @@ export async function insertEvent(
       description: ev.description,
       start: { dateTime: `${ev.date}T${ev.startLocal}:00`, timeZone: ev.timeZone },
       end: { dateTime: `${ev.date}T${ev.endLocal}:00`, timeZone: ev.timeZone },
+      ...(ev.colorId ? { colorId: ev.colorId } : {}),
       // Tag so we can find/replace Game Plan's own events without touching others.
       extendedProperties: { private: { lockInGamePlan: 'true' } },
     }),

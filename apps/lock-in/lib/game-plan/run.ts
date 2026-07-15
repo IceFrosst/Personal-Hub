@@ -170,6 +170,7 @@ export async function runPlanForUser(args: {
         endLocal: b.end,
         timeZone: tz,
         description: 'Scheduled by Lock In · Game Plan',
+        colorId: eventColorId(b.recurring_id != null, b.priority),
       })
     } catch {
       // Keep the block in-app even if the calendar write fails.
@@ -223,4 +224,21 @@ function isoWeekdayFromDate(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number)
   const js = new Date(Date.UTC(y, m - 1, d)).getUTCDay() // 0=Sun
   return js === 0 ? 7 : js
+}
+
+/**
+ * Google Calendar event colour by priority, matching the in-app timeline:
+ * high = tomato (red), medium = tangerine (orange), low = banana (yellow),
+ * recurring routines = graphite (grey, Google has no white).
+ */
+function eventColorId(isRecurring: boolean, priority: string | null): string {
+  if (isRecurring) return '8' // Graphite
+  switch (priority) {
+    case 'high':
+      return '11' // Tomato
+    case 'low':
+      return '5' // Banana
+    default:
+      return '6' // Tangerine (medium)
+  }
 }
