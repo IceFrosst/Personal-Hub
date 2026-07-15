@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   IconArrowLeft,
   IconBrandGoogle,
   IconCalendarBolt,
   IconCheck,
+  IconGripVertical,
+  IconLock,
   IconRefresh,
   IconRepeat,
   IconSettings,
@@ -31,6 +33,7 @@ export default function GamePlanClient() {
   const [day, setDay] = useState<Day>('today')
   const [loading, setLoading] = useState(true)
   const [planning, setPlanning] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -199,6 +202,31 @@ export default function GamePlanClient() {
       setPlanning(false)
     }
   }
+
+  const reorderBlocks = useCallback(
+    async (orderedMovableIds: string[]) => {
+      setReordering(true)
+      setError(null)
+      try {
+        const res = await fetch('/api/game-plan/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: activeDate, orderedIds: orderedMovableIds, providerToken }),
+        })
+        const data = await res.json()
+        if (res.ok && data.blocks) {
+          setBlocks(data.blocks as PlanBlock[])
+        } else {
+          setError('Could not save the new order — try again.')
+        }
+      } catch {
+        setError('Could not save the new order — check your connection.')
+      } finally {
+        setReordering(false)
+      }
+    },
+    [activeDate, providerToken]
+  )
 
   const toggleBlockDone = useCallback(
     async (block: PlanBlock) => {
@@ -371,7 +399,10 @@ export default function GamePlanClient() {
               </p>
             )}
 
-            <Timeline blocks={blocks} onToggleDone={toggleBlockDone} />
+            {reordering && (
+              <p className="text-text-low text-xs px-1 -mt-1">Saving new order…</p>
+            )}
+            <Timeline blocks={blocks} onToggleDone={toggleBlockDone} onReorder={reorderBlocks} />
           </>
         )}
       </div>
@@ -446,13 +477,78 @@ const PRIO_ACCENT: Record<'low' | 'medium' | 'high', string> = {
   high: 'bg-prio-high',
 }
 
+function swap<T>(arr: T[], i: number, j: number): T[] {
+  const next = [...arr]
+  ;[next[i], next[j]] = [next[j], next[i]]
+  return next
+}
+
 function Timeline({
   blocks,
   onToggleDone,
+  onReorder,
 }: {
   blocks: PlanBlock[]
   onToggleDone: (b: PlanBlock) => void
+  onReorder: (orderedMovableIds: string[]) => void
 }) {
+  const [order, setOrder] = useState<string[]>(() => blocks.map((b) => b.id))
+  const [dragId, setDragId] = useState<string | null>(null)
+  const rowRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const initialOrder = useRef<string[]>([])
+
+  const byId = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
+
+  // Resync when the plan changes (but never mid-drag).
+  useEffect(() => {
+    if (!dragId) setOrder(blocks.map((b) => b.id))
+  }, [blocks, dragId])
+
+  function startDrag(e: React.PointerEvent, id: string) {
+    e.preventDefault()
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+    initialOrder.current = order
+    setDragId(id)
+  }
+
+  function onMove(e: React.PointerEvent) {
+    if (!dragId) return
+    const idx = order.indexOf(dragId)
+    const y = e.clientY
+    if (idx > 0) {
+      const el = rowRefs.current.get(order[idx - 1])
+      if (el) {
+        const r = el.getBoundingClientRect()
+        if (y < r.top + r.height / 2) {
+          setOrder(swap(order, idx, idx - 1))
+          return
+        }
+      }
+    }
+    if (idx < order.length - 1) {
+      const el = rowRefs.current.get(order[idx + 1])
+      if (el) {
+        const r = el.getBoundingClientRect()
+        if (y > r.top + r.height / 2) {
+          setOrder(swap(order, idx, idx + 1))
+        }
+      }
+    }
+  }
+
+  function endDrag() {
+    if (!dragId) return
+    const changed = order.join() !== initialOrder.current.join()
+    setDragId(null)
+    if (changed) {
+      const movableIds = order.filter((id) => {
+        const b = byId.get(id)
+        return b && !b.locked
+      })
+      onReorder(movableIds)
+    }
+  }
+
   if (blocks.length === 0) {
     return (
       <p className="text-text-low text-sm py-10 text-center">
@@ -460,40 +556,77 @@ function Timeline({
       </p>
     )
   }
+
   return (
     <section className="flex flex-col mt-1">
-      {blocks.map((b) => {
+      {order.map((id) => {
+        const b = byId.get(id)
+        if (!b) return null
         const done = b.status === 'done'
         const isRecurring = !!b.recurring_id
         const cat = b.category ? TASK_CATEGORIES.find((c) => c.value === b.category) : null
-        // Recurring blocks are white; task blocks take their priority colour.
-        const accent = isRecurring ? 'bg-white/70' : PRIO_ACCENT[b.priority ?? 'medium']
+        const dragging = dragId === b.id
+        // Recurring = white; locked (calendar events) = muted; tasks take priority colour.
+        const accent = b.locked
+          ? 'bg-text-low'
+          : isRecurring
+            ? 'bg-white/70'
+            : PRIO_ACCENT[b.priority ?? 'medium']
         const checkbox = done
           ? isRecurring
             ? 'bg-white/10 border-white text-white'
             : 'bg-gold/10 border-gold text-gold'
           : `border-border-focus text-transparent ${isRecurring ? 'active:border-white' : 'active:border-gold'}`
         return (
-          <div key={b.id} className="flex gap-3 items-stretch">
+          <div
+            key={b.id}
+            ref={(el) => {
+              if (el) rowRefs.current.set(b.id, el)
+              else rowRefs.current.delete(b.id)
+            }}
+            className="flex gap-3 items-stretch"
+          >
             <div className="w-12 shrink-0 pt-3 text-right">
               <span className="text-text-muted text-xs tabular-nums">{b.start_local}</span>
             </div>
-            <div className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
-              <div className="relative flex items-start gap-3 pl-5 pr-3 py-2.5 rounded-xl bg-surface border border-border overflow-hidden">
+            <div
+              className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''} ${
+                dragging ? 'relative z-10' : ''
+              }`}
+            >
+              <div
+                className={`relative flex items-start gap-2 pl-5 pr-2 py-2.5 rounded-xl border overflow-hidden ${
+                  b.locked
+                    ? 'bg-surface/60 border-border/70'
+                    : dragging
+                      ? 'bg-surface-elevated border-border-focus shadow-[0_8px_24px_rgba(0,0,0,0.5)]'
+                      : 'bg-surface border-border'
+                }`}
+              >
                 <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} />
-                <button
-                  type="button"
-                  onClick={() => onToggleDone(b)}
-                  aria-label={done ? 'Mark not done' : 'Mark done'}
-                  className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
-                >
-                  <IconCheck size={14} stroke={3} />
-                </button>
+
+                {b.locked ? (
+                  <IconLock size={18} className="mt-0.5 shrink-0 text-text-low" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onToggleDone(b)}
+                    aria-label={done ? 'Mark not done' : 'Mark done'}
+                    className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
+                  >
+                    <IconCheck size={14} stroke={3} />
+                  </button>
+                )}
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p
                       className={`text-base leading-snug break-words ${
-                        done ? 'line-through text-text-low' : 'text-text'
+                        b.locked
+                          ? 'text-text-muted'
+                          : done
+                            ? 'line-through text-text-low'
+                            : 'text-text'
                       }`}
                     >
                       {b.title}
@@ -505,6 +638,7 @@ function Timeline({
                       {b.start_local}–{b.end_local}
                       {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
                     </span>
+                    {b.locked && <span className="text-text-low text-[11px]">calendar</span>}
                     {cat && (
                       <span
                         className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
@@ -515,6 +649,20 @@ function Timeline({
                     )}
                   </div>
                 </div>
+
+                {!b.locked && (
+                  <button
+                    type="button"
+                    aria-label="Drag to reorder"
+                    onPointerDown={(e) => startDrag(e, b.id)}
+                    onPointerMove={onMove}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    className="mt-0.5 shrink-0 h-8 w-8 -mr-1 flex items-center justify-center text-text-low active:text-text touch-none cursor-grab"
+                  >
+                    <IconGripVertical size={18} />
+                  </button>
+                )}
               </div>
             </div>
           </div>

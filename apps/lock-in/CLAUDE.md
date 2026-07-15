@@ -72,6 +72,14 @@ views either day (route takes `day`; `run.ts` takes `targetDate` — future days
 window, today starts from now). Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
 
+**The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;
+`listDayEvents` reads real timed events excluding our tagged ones — `run.ts` now cleans up *before*
+reading so old GP events aren't re-read). Locked blocks have a lock icon, aren't draggable, and no
+calendar event is written for them (they already exist). **Drag** a movable block by its grip handle
+to reorder (`Timeline` neighbour-swap on pointer events); on drop, `POST /api/game-plan/reorder`
+reflows the movable blocks in the new order around the locked ones (never overlapping them), updates
+`plan_blocks` start/end, and `patchEvent`s each moved Google Calendar event.
+
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
 Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);
 the **on-demand button works now** (via the live-session token, ~1h window).

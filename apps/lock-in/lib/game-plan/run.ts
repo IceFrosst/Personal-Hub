@@ -17,10 +17,10 @@ import {
 } from './time'
 import {
   deleteEvent,
-  getBusyIntervals,
   insertEvent,
+  listDayEvents,
   listGamePlanEventIds,
-  type BusyInterval,
+  type DayEvent,
 } from '@/lib/google/calendar'
 
 export interface RunResult {
@@ -103,21 +103,46 @@ export async function runPlanForUser(args: {
     .filter((r) => !(r.time_mode === 'fixed' && r.fixed_time))
     .map((r) => ({ id: r.id, title: r.title, durationMinutes: r.duration_minutes }))
 
-  // 2. Today's busy intervals → local HH:MM.
   const { timeMin, timeMax } = dayBoundsIso(today, tz)
-  let busyRaw: BusyInterval[] = []
+
+  // 2. Clear any existing Game Plan for the day FIRST (events + rows) — before
+  // reading the calendar, so our own old events aren't read back as "real"
+  // events. Deletes every tagged event in the window (sweeps orphans too).
+  let priorEventIds: string[] = []
   try {
-    busyRaw = await getBusyIntervals(accessToken, timeMin, timeMax)
+    priorEventIds = await listGamePlanEventIds(accessToken, timeMin, timeMax)
   } catch {
-    busyRaw = []
+    const { data: prior } = await db
+      .schema('lock_in')
+      .from('plan_blocks')
+      .select('gcal_event_id')
+      .eq('user_id', userId)
+      .eq('plan_date', today)
+    priorEventIds = ((prior ?? []) as { gcal_event_id: string | null }[])
+      .map((r) => r.gcal_event_id)
+      .filter((id): id is string => Boolean(id))
   }
-  const busy = busyRaw.map((b) => ({
-    start: isoToLocalHM(b.start, tz),
-    end: isoToLocalHM(b.end, tz),
+  await Promise.all(priorEventIds.map((id) => deleteEvent(accessToken, id).catch(() => {})))
+  await db
+    .schema('lock_in')
+    .from('plan_blocks')
+    .delete()
+    .eq('user_id', userId)
+    .eq('plan_date', today)
+
+  // 3. The user's real calendar events → busy (for the planner) + locked blocks.
+  let dayEvents: DayEvent[] = []
+  try {
+    dayEvents = await listDayEvents(accessToken, timeMin, timeMax)
+  } catch {
+    dayEvents = []
+  }
+  const busy = dayEvents.map((e) => ({
+    start: isoToLocalHM(e.start, tz),
+    end: isoToLocalHM(e.end, tz),
   }))
 
-  // 3. Don't schedule in the past: start from max(work_start, now rounded up).
-  // For today, don't schedule in the past; future days use the full window.
+  // 4. Don't schedule in the past on today; future days use the full window.
   const now = nowLocalHM(tz)
   const earliestStart =
     isToday && hmToMinutes(now) > hmToMinutes(settings.work_start)
@@ -135,35 +160,8 @@ export async function runPlanForUser(args: {
     today,
   })
 
-  // 4. Clear any existing Game Plan for the day (idempotent replan). Delete every
-  // tagged event in the day window — this also sweeps orphans a prior timed-out
-  // run left behind (events written, plan_blocks never saved).
-  let priorEventIds: string[] = []
-  try {
-    priorEventIds = await listGamePlanEventIds(accessToken, timeMin, timeMax)
-  } catch {
-    // Tag query failed — fall back to the events we have on record.
-    const { data: prior } = await db
-      .schema('lock_in')
-      .from('plan_blocks')
-      .select('gcal_event_id')
-      .eq('user_id', userId)
-      .eq('plan_date', today)
-    priorEventIds = ((prior ?? []) as { gcal_event_id: string | null }[])
-      .map((r) => r.gcal_event_id)
-      .filter((id): id is string => Boolean(id))
-  }
-  await Promise.all(priorEventIds.map((id) => deleteEvent(accessToken, id).catch(() => {})))
-
-  await db
-    .schema('lock_in')
-    .from('plan_blocks')
-    .delete()
-    .eq('user_id', userId)
-    .eq('plan_date', today)
-
-  // 5. Write calendar events (in parallel to stay under the function timeout).
-  const toInsert = await Promise.all(
+  // 5. Write a calendar event per planned block (parallel, to beat the timeout).
+  const plannedRows = await Promise.all(
     proposed.map(async (b) => {
       let eventId = ''
       try {
@@ -177,7 +175,6 @@ export async function runPlanForUser(args: {
           colorId: eventColorId(b.recurring_id != null, b.priority),
         })
       } catch {
-        // Keep the block in-app even if the calendar write fails.
         eventId = ''
       }
       return {
@@ -193,10 +190,31 @@ export async function runPlanForUser(args: {
         category: b.category,
         priority: b.priority,
         gcal_event_id: eventId || null,
+        locked: false,
         status: 'scheduled' as const,
       }
     })
   )
+
+  // Locked rows mirror the user's real events (no calendar write — they exist).
+  const lockedRows = dayEvents.map((e) => ({
+    user_id: userId,
+    task_id: null,
+    recurring_id: null,
+    title: e.summary,
+    plan_date: today,
+    start_local: isoToLocalHM(e.start, tz),
+    end_local: isoToLocalHM(e.end, tz),
+    timezone: tz,
+    estimated_minutes: null,
+    category: null,
+    priority: null,
+    gcal_event_id: e.id,
+    locked: true,
+    status: 'scheduled' as const,
+  }))
+
+  const toInsert = [...plannedRows, ...lockedRows]
 
   let blocks: PlanBlock[] = []
   if (toInsert.length > 0) {
@@ -211,7 +229,7 @@ export async function runPlanForUser(args: {
   return {
     date: today,
     blocks: blocks.sort((a, b) => hmToMinutes(a.start_local) - hmToMinutes(b.start_local)),
-    scheduledCount: blocks.length,
+    scheduledCount: plannedRows.length, // planned blocks only, not locked events
     totalTasks: tasks.length + dueRecurring.length,
     ai,
   }
