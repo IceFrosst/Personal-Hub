@@ -57,7 +57,13 @@ nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a d
 quick win first · protect deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
-durations are exact. Model: `gemini-flash-latest` (rolling alias — pinned names lose free quota).
+durations are exact. Model: `process.env.GEMINI_MODEL || 'gemini-flash-latest'` (rolling free alias;
+pinned names lose free quota). **`gemini-2.5-pro` has no free tier — it 429s on every call**, so it's
+opt-in via `GEMINI_MODEL`, not the default. `planDay` returns an `ai` status (`ok` / `fallback` /
+`rate_limited`); the client shows a note when the model didn't actually plan (this is the safety net
+for silent model-death). Blocks are coloured by **priority** (`plan_blocks.priority`, `0008`;
+prio-low/medium/high like the task list); **recurring blocks are white**. Timeline uses the same
+square checkbox as `TaskRow`/`RecurringRow` (gold for tasks, white for routines).
 
 **Timeline is interactive:** tap a block to mark it done → the underlying task is completed
 (`focus_gate.tasks.is_completed`) or the routine checked (`recurring_completions` for that date),

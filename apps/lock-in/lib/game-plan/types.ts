@@ -40,6 +40,7 @@ export interface PlanBlock {
   estimated_minutes: number | null
   gcal_event_id: string | null
   category: TaskCategory | null
+  priority: 'low' | 'medium' | 'high' | null
   status: PlanBlockStatus
   created_at: string
 }
@@ -76,4 +77,8 @@ export interface ProposedBlock {
   end: string // 'HH:MM'
   estimated_minutes: number
   category: TaskCategory | null
+  priority: 'low' | 'medium' | 'high' | null
 }
+
+// Whether the model actually planned, or we fell back (and why).
+export type AiStatus = 'ok' | 'fallback' | 'rate_limited'

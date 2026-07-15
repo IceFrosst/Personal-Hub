@@ -1,4 +1,5 @@
 import type {
+  AiStatus,
   FixedRecurringInput,
   FlexRecurringInput,
   PlannableTask,
@@ -6,6 +7,11 @@ import type {
 } from './types'
 import type { TaskCategory } from '@/lib/types'
 import { hmToMinutes } from './time'
+
+export interface PlanResult {
+  blocks: ProposedBlock[]
+  ai: AiStatus
+}
 
 export interface PlanInput {
   tasks: PlannableTask[]
@@ -18,11 +24,13 @@ export interface PlanInput {
   today: string // 'YYYY-MM-DD'
 }
 
-// gemini-flash-latest is Google's rolling alias for the current free-tier flash
-// model. Pinned model names rot: gemini-2.0-flash's free quota was cut to zero
-// (429 on every call), which silently forced the fallback packer.
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
+// Model is swappable via the GEMINI_MODEL env var. Default is the rolling free
+// alias 'gemini-flash-latest' (works). 'gemini-2.5-pro' reasons better but has
+// no real free tier — it 429s on every call, which now surfaces as a visible
+// "rate-limited" note (AiStatus) rather than a silent fallback. So Pro is
+// opt-in via env, not the default.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 // One schedulable thing handed to the model (a task to estimate, or a flexible
 // routine whose duration is fixed).
@@ -44,7 +52,7 @@ interface FlexItem {
  *      free time, following the day-shape strategy (quick win first, protect
  *      deep-work blocks, end on a high). Falls back to a deterministic packer.
  */
-export async function planDay(input: PlanInput): Promise<ProposedBlock[]> {
+export async function planDay(input: PlanInput): Promise<PlanResult> {
   const winStart = hmToMinutes(input.earliestStart)
   const winEnd = hmToMinutes(input.workEnd)
 
@@ -70,6 +78,7 @@ export async function planDay(input: PlanInput): Promise<ProposedBlock[]> {
       end: toHM(start + dur),
       estimated_minutes: dur,
       category: null,
+      priority: null,
     })
   }
 
@@ -92,22 +101,35 @@ export async function planDay(input: PlanInput): Promise<ProposedBlock[]> {
   ]
 
   let rest: ProposedBlock[] = []
+  let ai: AiStatus = 'ok'
   if (flexItems.length > 0) {
     const key = process.env.GEMINI_API_KEY
-    if (key) {
+    if (!key) {
+      ai = 'fallback'
+      rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
+    } else {
       try {
         const raw = await geminiSchedule(flexItems, occupied, winStart, winEnd, input.today, key)
         rest = sanitize(raw, flexItems, occupied, winStart, winEnd)
-      } catch {
-        rest = []
+        // Model returned nothing usable → pack deterministically and flag it.
+        if (rest.length === 0) {
+          const packed = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
+          if (packed.length > 0) {
+            rest = packed
+            ai = 'fallback'
+          }
+        }
+      } catch (err) {
+        ai = String(err).includes('429') ? 'rate_limited' : 'fallback'
+        rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
       }
-    }
-    if (rest.length === 0) {
-      rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
     }
   }
 
-  return [...fixedBlocks, ...rest].sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start))
+  const blocks = [...fixedBlocks, ...rest].sort(
+    (a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)
+  )
+  return { blocks, ai }
 }
 
 /** Nearest free start to `desired` that fits `dur` inside the window, or null. */
@@ -204,7 +226,8 @@ Return ONLY JSON: {"blocks":[{"id":"<id>","title":"<title>","start":"HH:MM","end
       generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
     }),
   })
-  if (!res.ok) throw new Error(`Gemini failed (${res.status})`)
+  // Keep the status code in the message so planDay can detect 429 (rate limit).
+  if (!res.ok) throw new Error(`Gemini failed ${res.status}`)
 
   const json = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[]
@@ -223,6 +246,7 @@ Return ONLY JSON: {"blocks":[{"id":"<id>","title":"<title>","start":"HH:MM","end
     end: String(b.end ?? ''),
     estimated_minutes: Number(b.estimated_minutes) || 0,
     category: null,
+    priority: null,
     // carry the model's id through title-less; resolved in sanitize
     _id: b.id,
   })) as unknown as ProposedBlock[]
@@ -263,6 +287,7 @@ function sanitize(
       end: toHM(e),
       estimated_minutes: e - s,
       category: item?.category ?? null,
+      priority: item?.priority ?? null,
     })
   }
   return out
@@ -317,6 +342,7 @@ function naiveSchedule(
           end: toHM(at + dur),
           estimated_minutes: dur,
           category: it.category ?? null,
+          priority: it.priority ?? null,
         })
         at += dur + GAP
         break
