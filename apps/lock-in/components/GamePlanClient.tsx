@@ -494,6 +494,11 @@ function Timeline({
 }) {
   const [order, setOrder] = useState<string[]>(() => blocks.map((b) => b.id))
   const [dragId, setDragId] = useState<string | null>(null)
+  // How far (px) the dragged row is translated from its current slot, so it
+  // tracks the finger. When the row swaps slots, the anchor shifts by the
+  // swapped neighbour's height to keep the card glued to the finger.
+  const [dragOffset, setDragOffset] = useState(0)
+  const anchorY = useRef(0)
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map())
   const initialOrder = useRef<string[]>([])
 
@@ -508,38 +513,49 @@ function Timeline({
     e.preventDefault()
     ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
     initialOrder.current = order
+    anchorY.current = e.clientY
+    setDragOffset(0)
     setDragId(id)
   }
 
   function onMove(e: React.PointerEvent) {
     if (!dragId) return
-    const idx = order.indexOf(dragId)
     const y = e.clientY
+    let nextOrder = order
+    const idx = order.indexOf(dragId)
+
     if (idx > 0) {
       const el = rowRefs.current.get(order[idx - 1])
       if (el) {
         const r = el.getBoundingClientRect()
         if (y < r.top + r.height / 2) {
-          setOrder(swap(order, idx, idx - 1))
-          return
+          // Moving up one slot: the row's natural position rises by the
+          // neighbour's height, so shift the anchor to keep it under the finger.
+          nextOrder = swap(order, idx, idx - 1)
+          anchorY.current -= r.height
         }
       }
     }
-    if (idx < order.length - 1) {
+    if (nextOrder === order && idx < order.length - 1) {
       const el = rowRefs.current.get(order[idx + 1])
       if (el) {
         const r = el.getBoundingClientRect()
         if (y > r.top + r.height / 2) {
-          setOrder(swap(order, idx, idx + 1))
+          nextOrder = swap(order, idx, idx + 1)
+          anchorY.current += r.height
         }
       }
     }
+
+    if (nextOrder !== order) setOrder(nextOrder)
+    setDragOffset(y - anchorY.current)
   }
 
   function endDrag() {
     if (!dragId) return
     const changed = order.join() !== initialOrder.current.join()
     setDragId(null)
+    setDragOffset(0) // snaps the card into its slot (animated by the transition)
     if (changed) {
       const movableIds = order.filter((id) => {
         const b = byId.get(id)
@@ -584,22 +600,23 @@ function Timeline({
               if (el) rowRefs.current.set(b.id, el)
               else rowRefs.current.delete(b.id)
             }}
-            className="flex gap-3 items-stretch"
+            className={`flex gap-3 items-stretch ${
+              dragging
+                ? 'relative z-10 transition-none'
+                : 'transition-transform duration-150 ease-out'
+            }`}
+            style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
             <div className="w-12 shrink-0 pt-3 text-right">
               <span className="text-text-muted text-xs tabular-nums">{b.start_local}</span>
             </div>
-            <div
-              className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''} ${
-                dragging ? 'relative z-10' : ''
-              }`}
-            >
+            <div className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
               <div
-                className={`relative flex items-start gap-2 pl-5 pr-2 py-2.5 rounded-xl border overflow-hidden ${
+                className={`relative flex items-start gap-2 pl-5 pr-2 py-2.5 rounded-xl border overflow-hidden transition-[background-color,border-color,box-shadow] duration-150 ${
                   b.locked
                     ? 'bg-surface/60 border-border/70'
                     : dragging
-                      ? 'bg-surface-elevated border-border-focus shadow-[0_8px_24px_rgba(0,0,0,0.5)]'
+                      ? 'bg-surface-elevated border-border-focus shadow-[0_8px_24px_rgba(0,0,0,0.5)] scale-[1.02]'
                       : 'bg-surface border-border'
                 }`}
               >
