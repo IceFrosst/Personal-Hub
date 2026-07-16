@@ -8,11 +8,14 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * After a task or routine is deleted, remove its Game Plan blocks from today
- * onward — both the `plan_blocks` rows and their Google Calendar events. Past
- * blocks are left as history. Calendar cleanup is best-effort (a missing token
- * or event is swallowed); the rows are always removed so the timeline stays in
- * sync even when the calendar can't be reached.
+ * Remove Game Plan blocks + their Google Calendar events. Two modes:
+ *   • `blockId` — remove exactly ONE block from the plan (used by the Game Plan
+ *     "Remove from plan" action; the underlying task/routine is kept, so a
+ *     replan can re-add it).
+ *   • `taskId` / `recurringId` — remove all of a task's/routine's blocks from
+ *     today onward (used when the task/routine itself is deleted from the list).
+ * Calendar cleanup is best-effort (a missing token or event is swallowed); the
+ * rows are always removed so the timeline stays in sync.
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -23,33 +26,39 @@ export async function POST(request: Request) {
 
   let taskId: string | undefined
   let recurringId: string | undefined
+  let blockId: string | undefined
   let providerToken: string | undefined
   try {
     const body = (await request.json()) as {
       taskId?: string
       recurringId?: string
+      blockId?: string
       providerToken?: string
     }
     taskId = body.taskId
     recurringId = body.recurringId
+    blockId = body.blockId
     providerToken = body.providerToken
   } catch {
     // validated below
   }
-  if (!taskId && !recurringId) {
+  if (!taskId && !recurringId && !blockId) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }
-
-  const settings = await getOrCreateSettings(supabase, user.id)
-  const today = todayInTz(settings.timezone)
 
   let query = supabase
     .schema('lock_in')
     .from('plan_blocks')
     .select('id, gcal_event_id')
     .eq('user_id', user.id)
-    .gte('plan_date', today)
-  query = taskId ? query.eq('task_id', taskId) : query.eq('recurring_id', recurringId as string)
+  if (blockId) {
+    query = query.eq('id', blockId)
+  } else {
+    const settings = await getOrCreateSettings(supabase, user.id)
+    const today = todayInTz(settings.timezone)
+    query = query.gte('plan_date', today)
+    query = taskId ? query.eq('task_id', taskId) : query.eq('recurring_id', recurringId as string)
+  }
   const { data: rows } = await query
   const blocks = (rows ?? []) as { id: string; gcal_event_id: string | null }[]
   if (blocks.length === 0) return NextResponse.json({ ok: true, removed: 0 })

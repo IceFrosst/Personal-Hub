@@ -102,10 +102,12 @@ the **list** likewise syncs its blocks (`page.tsx` `updateTask`/`updateRecurring
 routine's **time or duration adjusts the existing block instantly** (no replan): `POST
 /api/game-plan/adjust-routine` re-places its block(s) from today onward into the nearest free slot
 around the day's other blocks (fixed → its clock time, flexible → keeps its start; both take the new
-duration) and `patchEvent`s the calendar event. **Delete** removes the
-underlying task/routine (like the list) and calls `POST /api/game-plan/cleanup-blocks`, which drops
-its `plan_blocks` from today onward and deletes their Google Calendar events (durable token, so the
-list's delete — which has no `provider_token` — cleans up too).
+duration) and `patchEvent`s the calendar event. **Remove from plan** deletes only *that* block
+(`POST /api/game-plan/cleanup-blocks` with `blockId`) + its calendar event — the underlying
+task/routine **stays on the list**, so a replan can re-add it. (Deleting the task/routine outright is
+done from the **list**, which calls the same route with `taskId`/`recurringId` to drop all its blocks
+from today onward + their calendar events — durable token, so the list's delete, which has no
+`provider_token`, cleans up too.)
 
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
 Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);

@@ -411,32 +411,19 @@ export default function GamePlanClient() {
     [supabase, userId, todayStr, providerToken, activeDate, loadBlocks]
   )
 
-  // Delete the block's task / routine (same as the list) and clean up its blocks
-  // and calendar events from today onward.
-  const deleteForBlock = useCallback(
+  // Remove just this block from today's plan (and its calendar event). The
+  // underlying task / routine stays on the list — a replan can re-add it.
+  const removeBlockFromPlan = useCallback(
     async (b: PlanBlock) => {
       setSheetBlock(null)
-      setBlocks((prev) =>
-        prev.filter((x) =>
-          b.task_id ? x.task_id !== b.task_id : x.recurring_id !== b.recurring_id
-        )
-      )
-      if (b.task_id) {
-        await supabase.schema('focus_gate').from('tasks').delete().eq('id', b.task_id)
-      } else if (b.recurring_id) {
-        await supabase.schema('lock_in').from('recurring_tasks').delete().eq('id', b.recurring_id)
-      }
+      setBlocks((prev) => prev.filter((x) => x.id !== b.id))
       await fetch('/api/game-plan/cleanup-blocks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          taskId: b.task_id ?? undefined,
-          recurringId: b.recurring_id ?? undefined,
-          providerToken,
-        }),
+        body: JSON.stringify({ blockId: b.id, providerToken }),
       }).catch(() => {})
     },
-    [supabase, providerToken]
+    [providerToken]
   )
 
   async function saveSettings(patch: Partial<PlanSettings>) {
@@ -590,10 +577,10 @@ export default function GamePlanClient() {
             </button>
             <button
               type="button"
-              onClick={() => deleteForBlock(sheetBlock)}
+              onClick={() => removeBlockFromPlan(sheetBlock)}
               className="mt-2 w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
             >
-              {sheetBlock.recurring_id ? 'Delete routine' : 'Delete task'}
+              Remove from plan
             </button>
             <button
               type="button"
