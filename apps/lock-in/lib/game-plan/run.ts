@@ -61,9 +61,11 @@ export async function runPlanForUser(args: {
 
   const tasks: PlannableTask[] = (taskRows ?? []) as PlannableTask[]
 
-  // 1a. Existing plan for the day → keep the blocks that are DONE or (today)
-  // in progress. Replan only around them, so replanning mid-day never erases
-  // your morning or yanks the block you're currently in.
+  // 1a. Existing plan for the day → keep only the block you're CURRENTLY IN (an
+  // undone, in-progress block today), so replanning doesn't yank it out from
+  // under you. DONE blocks are intentionally NOT kept: their calendar events get
+  // cleaned up and the completed task/routine isn't rescheduled — a completed
+  // item disappears from the plan instead of lingering at the current time.
   const nowMin = hmToMinutes(nowLocalHM(tz))
   const { data: existingRows } = await db
     .schema('lock_in')
@@ -75,10 +77,10 @@ export async function runPlanForUser(args: {
   const kept = existing.filter(
     (b) =>
       !b.locked &&
-      (b.status === 'done' ||
-        (isToday &&
-          hmToMinutes(b.start_local) <= nowMin &&
-          hmToMinutes(b.end_local) > nowMin))
+      b.status !== 'done' &&
+      isToday &&
+      hmToMinutes(b.start_local) <= nowMin &&
+      hmToMinutes(b.end_local) > nowMin
   )
   const keptIds = kept.map((b) => b.id)
   const keptEventIds = new Set(
