@@ -87,14 +87,15 @@ border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link,
 **The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;
 `listDayEvents` reads real timed events excluding our tagged ones — `run.ts` now cleans up *before*
 reading so old GP events aren't re-read). Locked blocks have a lock icon, aren't draggable, and no
-calendar event is written for them (they already exist). **Press-and-hold anywhere on a movable
-block to pick it up** (`Timeline`: a ~300 ms long-press arms the drag from any position, not just a
-handle; a pre-arm finger move >10 px is treated as a page scroll and lets go). Once armed, drag to
-reorder (neighbour-swap, follows the finger; a non-passive `touchmove` listener blocks page scroll
-while held); on drop, `POST /api/game-plan/reorder` reflows the movable blocks around the locked ones
-(never overlapping), updates `plan_blocks` start/end, and `patchEvent`s each moved calendar event.
-**Release without moving = a long-press:** it opens an action sheet (Edit / Delete), same as the
-task list. **Edit** reuses `EditTaskSheet` / `EditRecurringSheet` (fetching the full task/routine
+calendar event is written for them (they already exist). Rows have **no left time gutter** (the
+start–end time lives in the card's meta line). **Press-and-hold anywhere on a movable block to pick
+it up** (`Timeline`: a ~300 ms long-press arms the drag from any position; a pre-arm finger move
+>10 px is treated as a page scroll and lets go). Once armed, drag to reorder (neighbour-swap, follows
+the finger; a non-passive `touchmove` listener blocks page scroll while held); on drop, `POST
+/api/game-plan/reorder` reflows the movable blocks around the locked ones (never overlapping), updates
+`plan_blocks` start/end, and `patchEvent`s each moved calendar event. Each movable block has a
+**pencil button on the right** that opens an action sheet (Edit / Delete), same as the task list.
+**Edit** reuses `EditTaskSheet` / `EditRecurringSheet` (fetching the full task/routine
 row); saving writes the task/routine **and** mirrors the denormalised fields (title, priority,
 category) onto its `plan_blocks` so the timeline and list stay in lockstep — and editing a task in
 the **list** likewise syncs its blocks (`page.tsx` `updateTask`/`updateRecurring`). Changing a
