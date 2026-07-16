@@ -288,6 +288,36 @@ node scripts/setup-vercel-project.mjs --repo Personal-Hub --name icefrosst-<name
 
 ---
 
+## Dual-agent workflow (Claude Code + Grok)
+
+Two agents share this repo and must be able to **take over from each other mid-task with
+no lost context**. The living docs ARE the handoff — **no separate handoff files**; this
+applies to every app in the repo, not any one feature.
+
+- **Claude Code** — primary coding sessions; auto-loads this root `CLAUDE.md` and the
+  nested `apps/<name>/CLAUDE.md` when it touches that app's files.
+- **Grok** — full GitHub read/write; point it at this root `CLAUDE.md` + the relevant
+  `apps/<name>/CLAUDE.md` before it starts.
+- **The state of play lives in each app's `CLAUDE.md` → `Current state` / `Next`.** Keep
+  them live — update them in the **same commit** as the code change, not just at session end.
+- **Handing off:** put a one-line **`Handoff:`** note at the top of that app's `Next`
+  (what's in flight · what's next · any risk). The successor deletes it once picked up.
+- **Anything pushed is a valid resume point.** Commit + push frequently to the feature
+  branch (never straight to `main` without confirmation) so the last push is a clean handoff.
+- Both agents push to the same feature branch and update the same `CLAUDE.md` files.
+
+### Shipping gotchas (both agents)
+- **Vercel occasionally misses the production build webhook** on merge. If `main`'s HEAD has
+  no production deployment after a few minutes, trigger it manually:
+  `POST https://api.vercel.com/v13/deployments?teamId=$VERCEL_TEAM_ID&forceNew=1` with
+  `{name, project:<prj_id>, target:"production", gitSource:{type:"github", repoId:<id>, ref:"main", sha:<merge-sha>}}`,
+  then poll `/v13/deployments/<id>` to `READY`. (`icefrosst-lock-in` = `prj_tMXTbtNJpeVC7sCYhr1htC9Zuvh0`, repoId `1250114386`.)
+- **Stop-hook "Unverified commit" noise:** after a squash-merge, GitHub's own merge commit
+  (authored `noreply@github.com`) lands on `main` and the local branch tracks it. Ignore the
+  unverified flag for merge commits you didn't author; only reset-author commits **you** wrote and haven't pushed.
+
+---
+
 ## When asked to ADD A NEW APP — discovery first
 
 Do **not** start building until the app is understood. Ask one question at a time with `AskUserQuestion`, picking whichever resolves the biggest remaining ambiguity:

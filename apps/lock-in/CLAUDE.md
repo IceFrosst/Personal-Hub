@@ -130,6 +130,13 @@ for today and it returns next due day. Long-press → delete routine. **Fixed** 
 add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/duration stay neutral.
 
 ## Next
+- **Open (needs the user's call — don't just change defaults):**
+  - **Planning window vs. evening routines.** Default is `09:00–18:00` (`DEFAULT_SETTINGS` in
+    `lib/game-plan/types.ts`), but the user schedules evening routines (~20:00–22:00). Discuss:
+    raise default `work_end`, rename "work hours" → "planning window", or let fixed routines sit
+    outside the window. **Ask before changing.**
+  - **Duplicate routine names:** user has two routines both named "Prediction markets + X" (fixed
+    09:00 + fixed 20:00). Not a bug; suggest renaming one — user's call.
 - **Duration learning:** one-off task durations are Gemini-guessed from the title. Later, learn from
   actuals (planned vs. real) and/or let a one-off task carry a user-set duration.
 - **Settings depth:** per-weekday work hours; a timezone picker (currently the `plan_settings`
