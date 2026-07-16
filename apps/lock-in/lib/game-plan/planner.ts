@@ -254,6 +254,9 @@ Day-shape rules (important):
 - USE THE TAGS: 'work' and 'hustle' are focus-heavy — put them in the earlier, higher-energy hours and give them the protected deep-work treatment. 'social' and 'other' are lighter — lean them later in the day. Group same-tag items together rather than ping-ponging between kinds of work.
 - ROUTINE items must use exactly the stated duration. For tasks, estimate a sensible duration (typically 20–90 min; bigger/vaguer = longer).
 - SPLIT big tasks: if a task realistically needs more than ~90 min, break it into two sessions that reuse the SAME id, with a break or lighter work between them, rather than one marathon block. Routines are never split.
+- MEALS: add a Lunch (~30–45 min) and a Dinner (~30–45 min) block. A meal may ONLY be placed AFTER an exercise/workout block — exercise first, then eat, never a meal right before exercise. If there is no exercise/workout block in the plan, place meals at normal meal times.
+- BREAKS: after a demanding or deep-work session, add a short break block (~10–15 min). Do NOT add a break right after an exercise/workout block or right after a meal — those already serve as the break.
+- Meal and break blocks are NOT in the item list above: give them their own ids — "lunch", "dinner", "break-1", "break-2", … — and a clear title (e.g. "Lunch", "Break").
 - Leave 5–10 min between blocks. Never overlap a blocked interval or another block.
 - Prefer scheduling fewer things well over cramming an unrealistic day. Leave unscheduled items off.
 
