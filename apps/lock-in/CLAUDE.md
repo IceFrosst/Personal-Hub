@@ -57,12 +57,13 @@ nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a d
 quick win first · protect deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
-durations are exact. **Replanning freezes the past:** on today, `run.ts` keeps every block that has
-already *started* (`start_local <= now`) — done or in progress — exactly where it is (event + row
-untouched), drops its task/routine from the replan pool, and treats it as busy. New blocks start
-after the latest kept block's end (`earliestStart` clears it), so a completed/in-progress block is
-never moved, overwritten, or overlapped, and a finished item never reappears at the current time.
-Only the hours from now forward are re-laid-out. (Future days replan in full.) `sanitize()` now
+durations are exact. **Replanning freezes the past and cuts at now:** on today, the cutoff is now
+(rounded to the 5-min grid, never before `work_start`). `run.ts` keeps every block that started
+before the cutoff — a block wholly in the past stays as-is; the block you're in / just finished
+(which runs past the cutoff) is **truncated to end at the cutoff** (its row + calendar event patched),
+so a task finished at 13:20 reads 13:00–13:20. New work starts at the cutoff, flush against it. Each
+kept block's task/routine is dropped from the replan pool, so a finished item never reappears later
+in the day. (Future days replan in full.) `sanitize()` now
 **repairs** a mis-placed model block (shifts it to the nearest free slot) instead of dropping it;
 the prompt may **split** tasks >90 min into two sessions (same id); and the deterministic fallback
 applies the day-shape strategy too (quick win first · heavy work early · light item last).
