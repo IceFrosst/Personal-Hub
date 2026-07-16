@@ -253,6 +253,7 @@ Day-shape rules (important):
 - END ON A HIGH: don't finish the day on the most draining task; leave something lighter or satisfying last.
 - USE THE TAGS: 'work' and 'hustle' are focus-heavy — put them in the earlier, higher-energy hours and give them the protected deep-work treatment. 'social' and 'other' are lighter — lean them later in the day. Group same-tag items together rather than ping-ponging between kinds of work.
 - ROUTINE items must use exactly the stated duration. For tasks, estimate a sensible duration (typically 20–90 min; bigger/vaguer = longer).
+- SPLIT big tasks: if a task realistically needs more than ~90 min, break it into two sessions that reuse the SAME id, with a break or lighter work between them, rather than one marathon block. Routines are never split.
 - Leave 5–10 min between blocks. Never overlap a blocked interval or another block.
 - Prefer scheduling fewer things well over cramming an unrealistic day. Leave unscheduled items off.
 
@@ -277,7 +278,12 @@ Return ONLY JSON: {"blocks":[{"id":"<id>","title":"<title>","start":"HH:MM","end
   })) as unknown as ProposedBlock[]
 }
 
-/** Drop blocks outside the window / overlapping, and resolve ids → task/recurring. */
+/**
+ * Resolve ids → task/recurring and keep the model's placement when valid. When a
+ * block overlaps something or falls outside the window, REPAIR it by shifting to
+ * the nearest free slot that fits (instead of dropping it), so the AI's intent
+ * survives. Only dropped when nothing fits at all.
+ */
 function sanitize(
   blocks: ProposedBlock[],
   items: FlexItem[],
@@ -295,22 +301,31 @@ function sanitize(
     .sort((a, b) => hmToMinutes(a.start) - hmToMinutes(b.start))
 
   for (const b of sorted) {
-    const s = hmToMinutes(b.start)
-    let e = hmToMinutes(b.end)
-    if (Number.isNaN(s) || Number.isNaN(e) || e <= s) continue
+    const s0 = hmToMinutes(b.start)
+    let e0 = hmToMinutes(b.end)
+    if (Number.isNaN(s0) || Number.isNaN(e0) || e0 <= s0) continue
     const item = b._id ? byId.get(b._id) : undefined
     // Routines must keep their exact duration.
-    if (item?.kind === 'recurring' && item.fixedDuration) e = s + item.fixedDuration
-    if (s < winStart || e > winEnd) continue
-    if (taken.some(([ts, te]) => s < te && e > ts)) continue
-    taken.push([s, e])
+    if (item?.kind === 'recurring' && item.fixedDuration) e0 = s0 + item.fixedDuration
+    const dur = e0 - s0
+
+    let start = s0
+    const fitsAsIs =
+      s0 >= winStart && e0 <= winEnd && !taken.some(([ts, te]) => s0 < te && e0 > ts)
+    if (!fitsAsIs) {
+      const slot = findNearestSlot(s0, dur, taken, winStart, winEnd)
+      if (slot == null) continue // genuinely no room left → drop
+      start = slot
+    }
+    const end = start + dur
+    taken.push([start, end])
     out.push({
       task_id: item?.kind === 'task' ? item.id : null,
       recurring_id: item?.kind === 'recurring' ? item.id : null,
       title: (item?.title ?? b.title ?? 'Task').slice(0, 200),
-      start: b.start,
-      end: toHM(e),
-      estimated_minutes: e - s,
+      start: toHM(start),
+      end: toHM(end),
+      estimated_minutes: dur,
       category: item?.category ?? null,
       priority: item?.priority ?? null,
     })
@@ -325,7 +340,11 @@ const DEFAULT_MINUTES: Record<'low' | 'medium' | 'high', number> = {
 }
 const GAP = 5
 
-/** Deterministic fallback: pack items into free gaps, deadlines/priority first. */
+/**
+ * Deterministic fallback (used when the model is unavailable). Applies the same
+ * day-shape strategy as the prompt: a short QUICK WIN opens the day, the heaviest
+ * work sits in the first half, and a light item is saved for LAST (end on a high).
+ */
 function naiveSchedule(
   items: FlexItem[],
   occupied: Array<[number, number]>,
@@ -335,17 +354,38 @@ function naiveSchedule(
 ): ProposedBlock[] {
   const free = freeGaps(occupied, winStart, winEnd)
   const rank = { high: 3, medium: 2, low: 1 }
-  const ordered = [...items].sort((a, b) => {
-    // routines before tasks (they're committed), then by priority/due
-    if (a.kind !== b.kind) return a.kind === 'recurring' ? -1 : 1
-    const pa = a.priority ? rank[a.priority] : 2
-    const pb = b.priority ? rank[b.priority] : 2
-    const overdueA = a.due && a.due <= today ? 1 : 0
-    const overdueB = b.due && b.due <= today ? 1 : 0
-    if (overdueA !== overdueB) return overdueB - overdueA
-    if (pa !== pb) return pb - pa
-    return 0
-  })
+  const durOf = (it: FlexItem) => it.fixedDuration ?? DEFAULT_MINUTES[it.priority ?? 'medium']
+  const isLight = (it: FlexItem) =>
+    it.priority === 'low' || it.category === 'social' || it.category === 'other'
+
+  const used = new Set<string>()
+
+  // Quick win: the shortest task, to open with momentum.
+  const opener = [...items]
+    .filter((it) => it.kind === 'task')
+    .sort((a, b) => durOf(a) - durOf(b))[0]
+  if (opener) used.add(opener.id)
+
+  // End on a high: a light item saved for last (not the opener).
+  const ender = [...items]
+    .filter((it) => !used.has(it.id) && isLight(it))
+    .sort((a, b) => durOf(a) - durOf(b))[0]
+  if (ender) used.add(ender.id)
+
+  // Middle: everything else, heaviest first (overdue → priority → duration).
+  const middle = items
+    .filter((it) => !used.has(it.id))
+    .sort((a, b) => {
+      const overdueA = a.due && a.due <= today ? 1 : 0
+      const overdueB = b.due && b.due <= today ? 1 : 0
+      if (overdueA !== overdueB) return overdueB - overdueA
+      const pa = a.priority ? rank[a.priority] : 2
+      const pb = b.priority ? rank[b.priority] : 2
+      if (pa !== pb) return pb - pa
+      return durOf(b) - durOf(a)
+    })
+
+  const ordered = [opener, ...middle, ender].filter((it): it is FlexItem => Boolean(it))
 
   const out: ProposedBlock[] = []
   let fi = 0

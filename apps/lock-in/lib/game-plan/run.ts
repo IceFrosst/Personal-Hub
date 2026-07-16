@@ -61,7 +61,39 @@ export async function runPlanForUser(args: {
 
   const tasks: PlannableTask[] = (taskRows ?? []) as PlannableTask[]
 
-  // 1b. Recurring routines due today, minus any already completed today.
+  // 1a. Existing plan for the day → keep the blocks that are DONE or (today)
+  // in progress. Replan only around them, so replanning mid-day never erases
+  // your morning or yanks the block you're currently in.
+  const nowMin = hmToMinutes(nowLocalHM(tz))
+  const { data: existingRows } = await db
+    .schema('lock_in')
+    .from('plan_blocks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('plan_date', today)
+  const existing = (existingRows ?? []) as PlanBlock[]
+  const kept = existing.filter(
+    (b) =>
+      !b.locked &&
+      (b.status === 'done' ||
+        (isToday &&
+          hmToMinutes(b.start_local) <= nowMin &&
+          hmToMinutes(b.end_local) > nowMin))
+  )
+  const keptIds = kept.map((b) => b.id)
+  const keptEventIds = new Set(
+    kept.map((b) => b.gcal_event_id).filter((id): id is string => Boolean(id))
+  )
+  const keptTaskIds = new Set(
+    kept.map((b) => b.task_id).filter((id): id is string => Boolean(id))
+  )
+  const keptRecurringIds = new Set(
+    kept.map((b) => b.recurring_id).filter((id): id is string => Boolean(id))
+  )
+  const keptBusy = kept.map((b) => ({ start: b.start_local, end: b.end_local }))
+
+  // 1b. Recurring routines due today, minus any already completed today or
+  // already kept from an earlier plan.
   const todayWeekday = isoWeekdayFromDate(today)
   const [{ data: recRows }, { data: doneRows }] = await Promise.all([
     db
@@ -89,7 +121,13 @@ export async function runPlanForUser(args: {
       fixed_time: string | null
       duration_minutes: number
     }[]
-  ).filter((r) => r.weekdays?.includes(todayWeekday) && !doneToday.has(r.id))
+  ).filter(
+    (r) =>
+      r.weekdays?.includes(todayWeekday) && !doneToday.has(r.id) && !keptRecurringIds.has(r.id)
+  )
+
+  // Tasks still to schedule (drop the ones already kept from an earlier plan).
+  const plannableTasks = tasks.filter((t) => !keptTaskIds.has(t.id))
 
   const recurringFixed: FixedRecurringInput[] = dueRecurring
     .filter((r) => r.time_mode === 'fixed' && r.fixed_time)
@@ -122,13 +160,16 @@ export async function runPlanForUser(args: {
       .map((r) => r.gcal_event_id)
       .filter((id): id is string => Boolean(id))
   }
-  await Promise.all(priorEventIds.map((id) => deleteEvent(accessToken, id).catch(() => {})))
-  await db
-    .schema('lock_in')
-    .from('plan_blocks')
-    .delete()
-    .eq('user_id', userId)
-    .eq('plan_date', today)
+  // Delete our tagged events EXCEPT the kept blocks' events, and the rows EXCEPT
+  // the kept ones.
+  await Promise.all(
+    priorEventIds
+      .filter((id) => !keptEventIds.has(id))
+      .map((id) => deleteEvent(accessToken, id).catch(() => {}))
+  )
+  let del = db.schema('lock_in').from('plan_blocks').delete().eq('user_id', userId).eq('plan_date', today)
+  if (keptIds.length > 0) del = del.not('id', 'in', `(${keptIds.join(',')})`)
+  await del
 
   // 3. The user's real calendar events → busy (for the planner) + locked blocks.
   let dayEvents: DayEvent[] = []
@@ -137,10 +178,11 @@ export async function runPlanForUser(args: {
   } catch {
     dayEvents = []
   }
-  const busy = dayEvents.map((e) => ({
-    start: isoToLocalHM(e.start, tz),
-    end: isoToLocalHM(e.end, tz),
-  }))
+  // Busy = real calendar events + the kept blocks (so nothing lands on them).
+  const busy = [
+    ...dayEvents.map((e) => ({ start: isoToLocalHM(e.start, tz), end: isoToLocalHM(e.end, tz) })),
+    ...keptBusy,
+  ]
 
   // 4. Don't schedule in the past on today; future days use the full window.
   const now = nowLocalHM(tz)
@@ -150,7 +192,7 @@ export async function runPlanForUser(args: {
       : settings.work_start
 
   const { blocks: proposed, ai } = await planDay({
-    tasks,
+    tasks: plannableTasks,
     recurringFixed,
     recurringFlex,
     busy,
@@ -215,22 +257,24 @@ export async function runPlanForUser(args: {
   }))
 
   const toInsert = [...plannedRows, ...lockedRows]
-
-  let blocks: PlanBlock[] = []
   if (toInsert.length > 0) {
-    const { data: inserted } = await db
-      .schema('lock_in')
-      .from('plan_blocks')
-      .insert(toInsert)
-      .select('*')
-    blocks = (inserted ?? []) as PlanBlock[]
+    await db.schema('lock_in').from('plan_blocks').insert(toInsert)
   }
+
+  // Re-read the whole day so the result includes the kept blocks + the new ones.
+  const { data: allRows } = await db
+    .schema('lock_in')
+    .from('plan_blocks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('plan_date', today)
+    .order('start_local', { ascending: true })
 
   return {
     date: today,
-    blocks: blocks.sort((a, b) => hmToMinutes(a.start_local) - hmToMinutes(b.start_local)),
-    scheduledCount: plannedRows.length, // planned blocks only, not locked events
-    totalTasks: tasks.length + dueRecurring.length,
+    blocks: (allRows ?? []) as PlanBlock[],
+    scheduledCount: plannedRows.length, // newly planned blocks only
+    totalTasks: plannableTasks.length + dueRecurring.length,
     ai,
   }
 }

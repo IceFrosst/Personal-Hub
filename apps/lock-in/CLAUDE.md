@@ -57,7 +57,13 @@ nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a d
 quick win first · protect deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
-durations are exact. Model: `process.env.GEMINI_MODEL || 'gemini-flash-latest'` (rolling free alias;
+durations are exact. **Replanning preserves progress:** `run.ts` keeps blocks that are `done` or
+(today) in progress, drops their task/routine from the replan pool, treats them as busy, and only
+re-plans the remaining hours — so replanning mid-day never erases your morning. `sanitize()` now
+**repairs** a mis-placed model block (shifts it to the nearest free slot) instead of dropping it;
+the prompt may **split** tasks >90 min into two sessions (same id); and the deterministic fallback
+applies the day-shape strategy too (quick win first · heavy work early · light item last).
+Model: `process.env.GEMINI_MODEL || 'gemini-flash-latest'` (rolling free alias;
 pinned names lose free quota). **`gemini-2.5-pro` has no free tier — it 429s on every call**, so it's
 opt-in via `GEMINI_MODEL`, not the default. `planDay` returns an `ai` status (`ok` / `fallback` /
 `rate_limited`); the client shows a note when the model didn't actually plan (this is the safety net
