@@ -20,6 +20,7 @@ import {
   insertEvent,
   listDayEvents,
   listGamePlanEventIds,
+  patchEvent,
   type DayEvent,
 } from '@/lib/google/calendar'
 
@@ -61,15 +62,23 @@ export async function runPlanForUser(args: {
 
   const tasks: PlannableTask[] = (taskRows ?? []) as PlannableTask[]
 
-  // 1a. Existing plan for the day → on TODAY, FREEZE THE PAST. Keep every block
-  // that has already STARTED (start_local <= now), whether it's done or still in
-  // progress, exactly where it is: its calendar event and row stay untouched.
-  // Replanning only lays out the hours from now forward, so nothing that already
-  // happened (a task you finished at 13:00, the block you're mid-way through) is
-  // ever moved or overwritten. Each kept block's task/routine is dropped from the
-  // replan pool, so a completed item is never re-scheduled into a new slot — it
-  // stays as its real, past block instead of reappearing at the current time.
-  const nowMin = hmToMinutes(nowLocalHM(tz))
+  // 1a. Existing plan for the day → on TODAY, FREEZE THE PAST and CUT AT NOW. The
+  // cutoff is now (rounded to the 5-min grid, never before work_start). Every
+  // block that started before the cutoff is kept:
+  //   • a block wholly before the cutoff stays exactly as-is (history);
+  //   • the block you're in / just finished, which runs past the cutoff, is
+  //     TRUNCATED to end at the cutoff — you stopped there, so that's its real end.
+  // New work then starts at the cutoff, flush against the trimmed block, so a
+  // finished-at-13:20 block reads 13:00–13:20 and the next block begins at 13:20.
+  // Each kept block's task/routine is dropped from the replan pool, so a finished
+  // item never reappears later in the day.
+  const now = nowLocalHM(tz)
+  const cutoff =
+    isToday && hmToMinutes(now) > hmToMinutes(settings.work_start)
+      ? roundUp5(now)
+      : settings.work_start
+  const cutoffMin = hmToMinutes(cutoff)
+
   const { data: existingRows } = await db
     .schema('lock_in')
     .from('plan_blocks')
@@ -77,9 +86,17 @@ export async function runPlanForUser(args: {
     .eq('user_id', userId)
     .eq('plan_date', today)
   const existing = (existingRows ?? []) as PlanBlock[]
-  const kept = existing.filter(
-    (b) => !b.locked && isToday && hmToMinutes(b.start_local) <= nowMin
-  )
+  const truncated: PlanBlock[] = []
+  const kept = existing
+    .filter((b) => !b.locked && isToday && hmToMinutes(b.start_local) < cutoffMin)
+    .map((b) => {
+      if (hmToMinutes(b.end_local) > cutoffMin) {
+        const t = { ...b, end_local: cutoff }
+        truncated.push(t)
+        return t
+      }
+      return b
+    })
   const keptIds = kept.map((b) => b.id)
   const keptEventIds = new Set(
     kept.map((b) => b.gcal_event_id).filter((id): id is string => Boolean(id))
@@ -171,6 +188,31 @@ export async function runPlanForUser(args: {
   if (keptIds.length > 0) del = del.not('id', 'in', `(${keptIds.join(',')})`)
   await del
 
+  // Trim the block(s) that cross the cutoff so they end at now — both our row and
+  // the calendar event (you stopped there, so that's the real end).
+  await Promise.all(
+    truncated.flatMap((b) => {
+      const ops: PromiseLike<unknown>[] = [
+        db
+          .schema('lock_in')
+          .from('plan_blocks')
+          .update({ end_local: b.end_local })
+          .eq('id', b.id),
+      ]
+      if (b.gcal_event_id) {
+        ops.push(
+          patchEvent(accessToken, b.gcal_event_id, {
+            date: today,
+            startLocal: b.start_local,
+            endLocal: b.end_local,
+            timeZone: tz,
+          }).catch(() => {})
+        )
+      }
+      return ops
+    })
+  )
+
   // 3. The user's real calendar events → busy (for the planner) + locked blocks.
   let dayEvents: DayEvent[] = []
   try {
@@ -184,21 +226,9 @@ export async function runPlanForUser(args: {
     ...keptBusy,
   ]
 
-  // 4. Don't schedule in the past on today; future days use the full window.
-  // And never start before the end of a kept block that runs past now — so a new
-  // block can't overlap the one you just finished / are finishing (e.g. a block
-  // kept at 13:00–13:30 when it's 13:20 pushes the next block to 13:30, not now).
-  const now = nowLocalHM(tz)
-  const latestKeptEnd = kept.reduce(
-    (max, b) => Math.max(max, hmToMinutes(b.end_local)),
-    0
-  )
-  const baseStart =
-    isToday && hmToMinutes(now) > hmToMinutes(settings.work_start)
-      ? roundUp5(now)
-      : settings.work_start
-  const earliestStart =
-    latestKeptEnd > hmToMinutes(baseStart) ? roundUp5(minutesToHm(latestKeptEnd)) : baseStart
+  // 4. New work starts at the cutoff (now on today, work_start earlier / future
+  // days). Kept blocks are all trimmed to end at or before it, so nothing overlaps.
+  const earliestStart = cutoff
 
   const { blocks: proposed, ai } = await planDay({
     tasks: plannableTasks,
