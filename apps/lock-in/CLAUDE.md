@@ -57,9 +57,12 @@ nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a d
 quick win first · protect deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
-durations are exact. **Replanning preserves progress:** `run.ts` keeps blocks that are `done` or
-(today) in progress, drops their task/routine from the replan pool, treats them as busy, and only
-re-plans the remaining hours — so replanning mid-day never erases your morning. `sanitize()` now
+durations are exact. **Replanning freezes the past:** on today, `run.ts` keeps every block that has
+already *started* (`start_local <= now`) — done or in progress — exactly where it is (event + row
+untouched), drops its task/routine from the replan pool, and treats it as busy. New blocks start
+after the latest kept block's end (`earliestStart` clears it), so a completed/in-progress block is
+never moved, overwritten, or overlapped, and a finished item never reappears at the current time.
+Only the hours from now forward are re-laid-out. (Future days replan in full.) `sanitize()` now
 **repairs** a mis-placed model block (shifts it to the nearest free slot) instead of dropping it;
 the prompt may **split** tasks >90 min into two sessions (same id); and the deterministic fallback
 applies the day-shape strategy too (quick win first · heavy work early · light item last).

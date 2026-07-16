@@ -61,11 +61,14 @@ export async function runPlanForUser(args: {
 
   const tasks: PlannableTask[] = (taskRows ?? []) as PlannableTask[]
 
-  // 1a. Existing plan for the day → keep only the block you're CURRENTLY IN (an
-  // undone, in-progress block today), so replanning doesn't yank it out from
-  // under you. DONE blocks are intentionally NOT kept: their calendar events get
-  // cleaned up and the completed task/routine isn't rescheduled — a completed
-  // item disappears from the plan instead of lingering at the current time.
+  // 1a. Existing plan for the day → on TODAY, FREEZE THE PAST. Keep every block
+  // that has already STARTED (start_local <= now), whether it's done or still in
+  // progress, exactly where it is: its calendar event and row stay untouched.
+  // Replanning only lays out the hours from now forward, so nothing that already
+  // happened (a task you finished at 13:00, the block you're mid-way through) is
+  // ever moved or overwritten. Each kept block's task/routine is dropped from the
+  // replan pool, so a completed item is never re-scheduled into a new slot — it
+  // stays as its real, past block instead of reappearing at the current time.
   const nowMin = hmToMinutes(nowLocalHM(tz))
   const { data: existingRows } = await db
     .schema('lock_in')
@@ -75,12 +78,7 @@ export async function runPlanForUser(args: {
     .eq('plan_date', today)
   const existing = (existingRows ?? []) as PlanBlock[]
   const kept = existing.filter(
-    (b) =>
-      !b.locked &&
-      b.status !== 'done' &&
-      isToday &&
-      hmToMinutes(b.start_local) <= nowMin &&
-      hmToMinutes(b.end_local) > nowMin
+    (b) => !b.locked && isToday && hmToMinutes(b.start_local) <= nowMin
   )
   const keptIds = kept.map((b) => b.id)
   const keptEventIds = new Set(
@@ -187,11 +185,20 @@ export async function runPlanForUser(args: {
   ]
 
   // 4. Don't schedule in the past on today; future days use the full window.
+  // And never start before the end of a kept block that runs past now — so a new
+  // block can't overlap the one you just finished / are finishing (e.g. a block
+  // kept at 13:00–13:30 when it's 13:20 pushes the next block to 13:30, not now).
   const now = nowLocalHM(tz)
-  const earliestStart =
+  const latestKeptEnd = kept.reduce(
+    (max, b) => Math.max(max, hmToMinutes(b.end_local)),
+    0
+  )
+  const baseStart =
     isToday && hmToMinutes(now) > hmToMinutes(settings.work_start)
       ? roundUp5(now)
       : settings.work_start
+  const earliestStart =
+    latestKeptEnd > hmToMinutes(baseStart) ? roundUp5(minutesToHm(latestKeptEnd)) : baseStart
 
   const { blocks: proposed, ai } = await planDay({
     tasks: plannableTasks,
@@ -283,6 +290,10 @@ export async function runPlanForUser(args: {
 
 function roundUp5(hm: string): string {
   const total = Math.ceil(hmToMinutes(hm) / 5) * 5
+  return minutesToHm(total)
+}
+
+function minutesToHm(total: number): string {
   const h = Math.floor(total / 60)
   const m = total % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
