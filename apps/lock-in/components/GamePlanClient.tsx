@@ -228,6 +228,13 @@ export default function GamePlanClient() {
         const data = await res.json()
         if (res.ok && data.blocks) {
           setBlocks(data.blocks as PlanBlock[])
+          if (data.droppedCount > 0) {
+            setMessage(
+              `Day's overbooked — ${data.droppedCount} block${
+                data.droppedCount === 1 ? '' : 's'
+              } past your work hours dropped off. Replan or extend your hours in settings.`
+            )
+          }
         } else {
           setError('Could not save the new order — try again.')
         }
