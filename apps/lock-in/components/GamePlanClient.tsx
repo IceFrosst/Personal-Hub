@@ -16,7 +16,15 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { DEFAULT_SETTINGS, type PlanBlock, type PlanSettings } from '@/lib/game-plan/types'
 import { addDays, todayInTz } from '@/lib/game-plan/time'
-import { TASK_CATEGORIES } from '@/lib/types'
+import {
+  TASK_CATEGORIES,
+  type Priority,
+  type RecurringTask,
+  type Task,
+  type TaskCategory,
+} from '@/lib/types'
+import EditTaskSheet from '@/components/EditTaskSheet'
+import EditRecurringSheet, { type RecurringUpdate } from '@/components/EditRecurringSheet'
 
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 
@@ -37,6 +45,10 @@ export default function GamePlanClient() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  // Long-press on a block opens an action sheet; Edit opens the shared editor.
+  const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
+  const [editTask, setEditTask] = useState<Task | null>(null)
+  const [editRecurring, setEditRecurring] = useState<RecurringTask | null>(null)
 
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
   const todayStr = useMemo(() => todayInTz(tz), [tz])
@@ -284,6 +296,134 @@ export default function GamePlanClient() {
     [supabase, userId]
   )
 
+  // Long-press → action sheet. Only task/routine blocks are editable (locked
+  // calendar events aren't ours to change).
+  const onBlockLongPress = useCallback((b: PlanBlock) => {
+    if (b.locked || (!b.task_id && !b.recurring_id)) return
+    setSheetBlock(b)
+  }, [])
+
+  // Open the shared editor for the block's underlying task / routine (fetch the
+  // full row — the block only carries the denormalised display fields).
+  const openEditForBlock = useCallback(
+    async (b: PlanBlock) => {
+      setSheetBlock(null)
+      if (b.task_id) {
+        const { data } = await supabase
+          .schema('focus_gate')
+          .from('tasks')
+          .select('*')
+          .eq('id', b.task_id)
+          .maybeSingle()
+        if (data) setEditTask(data as Task)
+      } else if (b.recurring_id) {
+        const { data } = await supabase
+          .schema('lock_in')
+          .from('recurring_tasks')
+          .select('*')
+          .eq('id', b.recurring_id)
+          .maybeSingle()
+        if (data) setEditRecurring(data as RecurringTask)
+      }
+    },
+    [supabase]
+  )
+
+  // Edit a one-off task: write the task AND mirror the denormalised fields onto
+  // every plan block for it (today onward) so the timeline and list agree.
+  const saveTaskEdit = useCallback(
+    async (
+      task: Task,
+      updates: { title: string; priority: Priority; due_date: string | null; category: TaskCategory | null }
+    ) => {
+      setEditTask(null)
+      setBlocks((prev) =>
+        prev.map((b) =>
+          b.task_id === task.id
+            ? { ...b, title: updates.title, priority: updates.priority, category: updates.category }
+            : b
+        )
+      )
+      const { error: taskErr } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .update(updates)
+        .eq('id', task.id)
+      if (taskErr) {
+        setError('Could not save — try again.')
+        return
+      }
+      if (userId) {
+        await supabase
+          .schema('lock_in')
+          .from('plan_blocks')
+          .update({ title: updates.title, priority: updates.priority, category: updates.category })
+          .eq('user_id', userId)
+          .eq('task_id', task.id)
+          .gte('plan_date', todayStr)
+      }
+    },
+    [supabase, userId, todayStr]
+  )
+
+  // Edit a routine: write the template and sync the title onto its blocks. Time /
+  // duration changes reshape the day, so those apply on the next replan.
+  const saveRecurringEdit = useCallback(
+    async (task: RecurringTask, updates: RecurringUpdate) => {
+      setEditRecurring(null)
+      setBlocks((prev) =>
+        prev.map((b) => (b.recurring_id === task.id ? { ...b, title: updates.title } : b))
+      )
+      const { error: recErr } = await supabase
+        .schema('lock_in')
+        .from('recurring_tasks')
+        .update(updates)
+        .eq('id', task.id)
+      if (recErr) {
+        setError('Could not save — try again.')
+        return
+      }
+      if (userId) {
+        await supabase
+          .schema('lock_in')
+          .from('plan_blocks')
+          .update({ title: updates.title })
+          .eq('user_id', userId)
+          .eq('recurring_id', task.id)
+          .gte('plan_date', todayStr)
+      }
+    },
+    [supabase, userId, todayStr]
+  )
+
+  // Delete the block's task / routine (same as the list) and clean up its blocks
+  // and calendar events from today onward.
+  const deleteForBlock = useCallback(
+    async (b: PlanBlock) => {
+      setSheetBlock(null)
+      setBlocks((prev) =>
+        prev.filter((x) =>
+          b.task_id ? x.task_id !== b.task_id : x.recurring_id !== b.recurring_id
+        )
+      )
+      if (b.task_id) {
+        await supabase.schema('focus_gate').from('tasks').delete().eq('id', b.task_id)
+      } else if (b.recurring_id) {
+        await supabase.schema('lock_in').from('recurring_tasks').delete().eq('id', b.recurring_id)
+      }
+      await fetch('/api/game-plan/cleanup-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: b.task_id ?? undefined,
+          recurringId: b.recurring_id ?? undefined,
+          providerToken,
+        }),
+      }).catch(() => {})
+    },
+    [supabase, providerToken]
+  )
+
   async function saveSettings(patch: Partial<PlanSettings>) {
     if (!userId || !settings) return
     const next = { ...settings, ...patch, updated_at: new Date().toISOString() }
@@ -402,10 +542,70 @@ export default function GamePlanClient() {
             {reordering && (
               <p className="text-text-low text-xs px-1 -mt-1">Saving new order…</p>
             )}
-            <Timeline blocks={blocks} onToggleDone={toggleBlockDone} onReorder={reorderBlocks} />
+            <Timeline
+              blocks={blocks}
+              onToggleDone={toggleBlockDone}
+              onReorder={reorderBlocks}
+              onLongPress={onBlockLongPress}
+            />
           </>
         )}
       </div>
+
+      {sheetBlock && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end justify-center z-50"
+          onClick={() => setSheetBlock(null)}
+        >
+          <div
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4 pb-8"
+            style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-text text-base truncate mb-1 px-1">{sheetBlock.title}</p>
+            <p className="text-text-low text-xs mb-3 px-1">
+              {sheetBlock.recurring_id ? 'Recurring routine' : 'Task'}
+            </p>
+            <button
+              type="button"
+              onClick={() => openEditForBlock(sheetBlock)}
+              className="w-full min-h-12 rounded-xl bg-surface text-text font-medium active:bg-border/40 transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteForBlock(sheetBlock)}
+              className="mt-2 w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
+            >
+              {sheetBlock.recurring_id ? 'Delete routine' : 'Delete task'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSheetBlock(null)}
+              className="mt-2 w-full min-h-12 rounded-xl text-text-muted active:text-text transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editTask && (
+        <EditTaskSheet
+          task={editTask}
+          onSave={(updates) => saveTaskEdit(editTask, updates)}
+          onClose={() => setEditTask(null)}
+        />
+      )}
+
+      {editRecurring && (
+        <EditRecurringSheet
+          task={editRecurring}
+          onSave={(updates) => saveRecurringEdit(editRecurring, updates)}
+          onClose={() => setEditRecurring(null)}
+        />
+      )}
     </main>
   )
 }
@@ -483,14 +683,21 @@ function swap<T>(arr: T[], i: number, j: number): T[] {
   return next
 }
 
+// Press-and-hold this long (ms) to pick a block up. A finger that moves more
+// than SCROLL_CANCEL px before then is scrolling, so we let go of the press.
+const LONG_PRESS_MS = 300
+const SCROLL_CANCEL = 10
+
 function Timeline({
   blocks,
   onToggleDone,
   onReorder,
+  onLongPress,
 }: {
   blocks: PlanBlock[]
   onToggleDone: (b: PlanBlock) => void
   onReorder: (orderedMovableIds: string[]) => void
+  onLongPress: (b: PlanBlock) => void
 }) {
   const [order, setOrder] = useState<string[]>(() => blocks.map((b) => b.id))
   const [dragId, setDragId] = useState<string | null>(null)
@@ -501,6 +708,17 @@ function Timeline({
   const anchorY = useRef(0)
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map())
   const initialOrder = useRef<string[]>([])
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The live press: which block, where it started, and whether it has armed
+  // (become a drag) or moved since arming (so release can tell drag from tap).
+  const press = useRef<{
+    id: string
+    startY: number
+    pointerId: number
+    el: HTMLElement
+    armed: boolean
+    moved: boolean
+  } | null>(null)
 
   const byId = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
 
@@ -509,20 +727,67 @@ function Timeline({
     if (!dragId) setOrder(blocks.map((b) => b.id))
   }, [blocks, dragId])
 
-  function startDrag(e: React.PointerEvent, id: string) {
-    e.preventDefault()
-    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
-    initialOrder.current = order
-    anchorY.current = e.clientY
-    setDragOffset(0)
-    setDragId(id)
+  // While a block is picked up, block native page scroll (React's touchmove is
+  // passive, so prevent it on a non-passive document listener instead).
+  useEffect(() => {
+    if (!dragId) return
+    const prevent = (e: TouchEvent) => e.preventDefault()
+    document.addEventListener('touchmove', prevent, { passive: false })
+    return () => document.removeEventListener('touchmove', prevent)
+  }, [dragId])
+
+  function clearPressTimer() {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current)
+      pressTimer.current = null
+    }
+  }
+
+  function onDown(e: React.PointerEvent, b: PlanBlock) {
+    if (b.locked) return
+    // Don't start a press on the checkbox — it has its own tap.
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return
+    const el = e.currentTarget as HTMLElement
+    press.current = {
+      id: b.id,
+      startY: e.clientY,
+      pointerId: e.pointerId,
+      el,
+      armed: false,
+      moved: false,
+    }
+    clearPressTimer()
+    pressTimer.current = setTimeout(() => {
+      const p = press.current
+      if (!p) return
+      // Pick the block up: capture the pointer and enter drag mode.
+      p.armed = true
+      p.el.setPointerCapture?.(p.pointerId)
+      initialOrder.current = order
+      anchorY.current = p.startY
+      setDragOffset(0)
+      setDragId(p.id)
+      if (navigator.vibrate) navigator.vibrate(12)
+    }, LONG_PRESS_MS)
   }
 
   function onMove(e: React.PointerEvent) {
-    if (!dragId) return
+    const p = press.current
+    if (!p) return
+    if (!p.armed) {
+      // Still waiting to arm — a real move means the user is scrolling, so drop
+      // the press and let the page scroll.
+      if (Math.abs(e.clientY - p.startY) > SCROLL_CANCEL) {
+        clearPressTimer()
+        press.current = null
+      }
+      return
+    }
+    p.moved = true
+    e.preventDefault()
     const y = e.clientY
     let nextOrder = order
-    const idx = order.indexOf(dragId)
+    const idx = order.indexOf(p.id)
 
     if (idx > 0) {
       const el = rowRefs.current.get(order[idx - 1])
@@ -551,17 +816,26 @@ function Timeline({
     setDragOffset(y - anchorY.current)
   }
 
-  function endDrag() {
-    if (!dragId) return
-    const changed = order.join() !== initialOrder.current.join()
+  function onUp() {
+    const p = press.current
+    press.current = null
+    clearPressTimer()
+    if (!p || !p.armed) return
     setDragId(null)
     setDragOffset(0) // snaps the card into its slot (animated by the transition)
-    if (changed) {
-      const movableIds = order.filter((id) => {
-        const b = byId.get(id)
-        return b && !b.locked
-      })
-      onReorder(movableIds)
+    if (p.moved) {
+      // A real drag → persist the new order if it changed.
+      if (order.join() !== initialOrder.current.join()) {
+        const movableIds = order.filter((id) => {
+          const b = byId.get(id)
+          return b && !b.locked
+        })
+        onReorder(movableIds)
+      }
+    } else {
+      // Picked up but not moved → treat as a long-press: open the action sheet.
+      const b = byId.get(p.id)
+      if (b) onLongPress(b)
     }
   }
 
@@ -612,12 +886,17 @@ function Timeline({
             </div>
             <div className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
               <div
+                onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}
+                onPointerMove={b.locked ? undefined : onMove}
+                onPointerUp={b.locked ? undefined : onUp}
+                onPointerCancel={b.locked ? undefined : onUp}
+                onContextMenu={(e) => e.preventDefault()}
                 className={`relative flex items-start gap-2 pl-5 pr-2 py-2.5 rounded-xl border overflow-hidden transition-[background-color,border-color,box-shadow] duration-150 ${
                   b.locked
                     ? 'bg-surface/60 border-border/70'
                     : dragging
-                      ? 'bg-surface-elevated border-border-focus shadow-[0_8px_24px_rgba(0,0,0,0.5)] scale-[1.02]'
-                      : 'bg-surface border-border'
+                      ? 'bg-surface-elevated border-border-focus shadow-[0_8px_24px_rgba(0,0,0,0.5)] scale-[1.02] select-none'
+                      : 'bg-surface border-border select-none cursor-grab'
                 }`}
               >
                 <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} />
@@ -627,6 +906,7 @@ function Timeline({
                 ) : (
                   <button
                     type="button"
+                    data-no-drag
                     onClick={() => onToggleDone(b)}
                     aria-label={done ? 'Mark not done' : 'Mark done'}
                     className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
@@ -668,17 +948,12 @@ function Timeline({
                 </div>
 
                 {!b.locked && (
-                  <button
-                    type="button"
-                    aria-label="Drag to reorder"
-                    onPointerDown={(e) => startDrag(e, b.id)}
-                    onPointerMove={onMove}
-                    onPointerUp={endDrag}
-                    onPointerCancel={endDrag}
-                    className="mt-0.5 shrink-0 h-8 w-8 -mr-1 flex items-center justify-center text-text-low active:text-text touch-none cursor-grab"
+                  <span
+                    aria-hidden
+                    className="mt-0.5 shrink-0 h-8 w-6 -mr-1 flex items-center justify-center text-text-low pointer-events-none"
                   >
                     <IconGripVertical size={18} />
-                  </button>
+                  </span>
                 )}
               </div>
             </div>
