@@ -87,10 +87,21 @@ border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link,
 **The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;
 `listDayEvents` reads real timed events excluding our tagged ones — `run.ts` now cleans up *before*
 reading so old GP events aren't re-read). Locked blocks have a lock icon, aren't draggable, and no
-calendar event is written for them (they already exist). **Drag** a movable block by its grip handle
-to reorder (`Timeline` neighbour-swap on pointer events); on drop, `POST /api/game-plan/reorder`
-reflows the movable blocks in the new order around the locked ones (never overlapping them), updates
-`plan_blocks` start/end, and `patchEvent`s each moved Google Calendar event.
+calendar event is written for them (they already exist). **Press-and-hold anywhere on a movable
+block to pick it up** (`Timeline`: a ~300 ms long-press arms the drag from any position, not just a
+handle; a pre-arm finger move >10 px is treated as a page scroll and lets go). Once armed, drag to
+reorder (neighbour-swap, follows the finger; a non-passive `touchmove` listener blocks page scroll
+while held); on drop, `POST /api/game-plan/reorder` reflows the movable blocks around the locked ones
+(never overlapping), updates `plan_blocks` start/end, and `patchEvent`s each moved calendar event.
+**Release without moving = a long-press:** it opens an action sheet (Edit / Delete), same as the
+task list. **Edit** reuses `EditTaskSheet` / `EditRecurringSheet` (fetching the full task/routine
+row); saving writes the task/routine **and** mirrors the denormalised fields (title, priority,
+category) onto its `plan_blocks` so the timeline and list stay in lockstep — and editing a task in
+the **list** likewise syncs its blocks (`page.tsx` `updateTask`/`updateRecurring`). Time/duration
+changes on a routine reshape the day, so those land on the next replan. **Delete** removes the
+underlying task/routine (like the list) and calls `POST /api/game-plan/cleanup-blocks`, which drops
+its `plan_blocks` from today onward and deletes their Google Calendar events (durable token, so the
+list's delete — which has no `provider_token` — cleans up too).
 
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
 Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);
@@ -112,7 +123,6 @@ add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/du
 ## Next
 - **Duration learning:** one-off task durations are Gemini-guessed from the title. Later, learn from
   actuals (planned vs. real) and/or let a one-off task carry a user-set duration.
-- **Edit recurring routines:** currently delete-and-recreate; add a routine variant of `EditTaskSheet`.
 - **Settings depth:** per-weekday work hours; a timezone picker (currently the `plan_settings`
   default `Europe/Vilnius`).
 - **Surface AI-vs-fallback:** the plan silently uses the deterministic packer when Gemini fails

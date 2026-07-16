@@ -229,7 +229,14 @@ export default function HomePage() {
       if (deleteError) {
         setTasks((prev) => [...prev, task])
         setError(deleteError.message)
+        return
       }
+      // Remove its Game Plan blocks + calendar events (today onward).
+      fetch('/api/game-plan/cleanup-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id }),
+      }).catch(() => {})
     },
     [supabase]
   )
@@ -256,9 +263,20 @@ export default function HomePage() {
       if (updateError) {
         setTasks((prev) => prev.map((t) => (t.id === task.id ? prevState : t)))
         setError(updateError.message)
+        return
+      }
+      // Keep any Game Plan blocks for this task (today onward) in sync.
+      if (userId) {
+        await supabase
+          .schema('lock_in')
+          .from('plan_blocks')
+          .update({ title: updates.title, priority: updates.priority, category: updates.category })
+          .eq('user_id', userId)
+          .eq('task_id', task.id)
+          .gte('plan_date', localDateKey())
       }
     },
-    [supabase]
+    [supabase, userId]
   )
 
   const toggleRecurring = useCallback(
@@ -321,9 +339,20 @@ export default function HomePage() {
       if (updateError) {
         setRecurring((prev) => prev.map((t) => (t.id === task.id ? prevState : t)))
         setError(updateError.message)
+        return
+      }
+      // Sync the title onto any Game Plan blocks (time/duration apply on replan).
+      if (userId) {
+        await supabase
+          .schema('lock_in')
+          .from('plan_blocks')
+          .update({ title: updates.title })
+          .eq('user_id', userId)
+          .eq('recurring_id', task.id)
+          .gte('plan_date', localDateKey())
       }
     },
-    [supabase]
+    [supabase, userId]
   )
 
   const deleteRecurring = useCallback(
@@ -338,7 +367,14 @@ export default function HomePage() {
       if (deleteError) {
         setRecurring((prev) => [...prev, task])
         setError(deleteError.message)
+        return
       }
+      // Remove its Game Plan blocks + calendar events (today onward).
+      fetch('/api/game-plan/cleanup-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recurringId: task.id }),
+      }).catch(() => {})
     },
     [supabase]
   )
