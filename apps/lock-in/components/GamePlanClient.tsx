@@ -7,8 +7,8 @@ import {
   IconBrandGoogle,
   IconCalendarBolt,
   IconCheck,
-  IconGripVertical,
   IconLock,
+  IconPencil,
   IconRefresh,
   IconRepeat,
   IconSettings,
@@ -316,6 +316,7 @@ export default function GamePlanClient() {
           .eq('id', b.task_id)
           .maybeSingle()
         if (data) setEditTask(data as Task)
+        else setError('Could not open the editor — this task may have been removed.')
       } else if (b.recurring_id) {
         const { data } = await supabase
           .schema('lock_in')
@@ -324,6 +325,7 @@ export default function GamePlanClient() {
           .eq('id', b.recurring_id)
           .maybeSingle()
         if (data) setEditRecurring(data as RecurringTask)
+        else setError('Could not open the editor — this routine may have been removed.')
       }
     },
     [supabase]
@@ -723,14 +725,13 @@ function Timeline({
   const initialOrder = useRef<string[]>([])
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // The live press: which block, where it started, and whether it has armed
-  // (become a drag) or moved since arming (so release can tell drag from tap).
+  // (a hold long enough to become a drag).
   const press = useRef<{
     id: string
     startY: number
     pointerId: number
     el: HTMLElement
     armed: boolean
-    moved: boolean
   } | null>(null)
 
   const byId = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
@@ -767,7 +768,6 @@ function Timeline({
       pointerId: e.pointerId,
       el,
       armed: false,
-      moved: false,
     }
     clearPressTimer()
     pressTimer.current = setTimeout(() => {
@@ -796,7 +796,6 @@ function Timeline({
       }
       return
     }
-    p.moved = true
     e.preventDefault()
     const y = e.clientY
     let nextOrder = order
@@ -836,19 +835,13 @@ function Timeline({
     if (!p || !p.armed) return
     setDragId(null)
     setDragOffset(0) // snaps the card into its slot (animated by the transition)
-    if (p.moved) {
-      // A real drag → persist the new order if it changed.
-      if (order.join() !== initialOrder.current.join()) {
-        const movableIds = order.filter((id) => {
-          const b = byId.get(id)
-          return b && !b.locked
-        })
-        onReorder(movableIds)
-      }
-    } else {
-      // Picked up but not moved → treat as a long-press: open the action sheet.
-      const b = byId.get(p.id)
-      if (b) onLongPress(b)
+    // A drag → persist the new order if it changed. (Editing is the pencil.)
+    if (order.join() !== initialOrder.current.join()) {
+      const movableIds = order.filter((id) => {
+        const b = byId.get(id)
+        return b && !b.locked
+      })
+      onReorder(movableIds)
     }
   }
 
@@ -887,17 +880,14 @@ function Timeline({
               if (el) rowRefs.current.set(b.id, el)
               else rowRefs.current.delete(b.id)
             }}
-            className={`flex gap-3 items-stretch ${
+            className={
               dragging
                 ? 'relative z-10 transition-none'
                 : 'transition-transform duration-150 ease-out'
-            }`}
+            }
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
-            <div className="w-12 shrink-0 pt-3 text-right">
-              <span className="text-text-muted text-xs tabular-nums">{b.start_local}</span>
-            </div>
-            <div className={`flex-1 min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
+            <div className={`min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
               <div
                 onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}
                 onPointerMove={b.locked ? undefined : onMove}
@@ -961,12 +951,15 @@ function Timeline({
                 </div>
 
                 {!b.locked && (
-                  <span
-                    aria-hidden
-                    className="mt-0.5 shrink-0 h-8 w-6 -mr-1 flex items-center justify-center text-text-low pointer-events-none"
+                  <button
+                    type="button"
+                    data-no-drag
+                    onClick={() => onLongPress(b)}
+                    aria-label="Edit block"
+                    className="mt-0.5 shrink-0 h-8 w-8 -mr-1 flex items-center justify-center rounded-md text-text-low active:text-text active:bg-border/40 transition-colors"
                   >
-                    <IconGripVertical size={18} />
-                  </span>
+                    <IconPencil size={17} />
+                  </button>
                 )}
               </div>
             </div>
