@@ -54,7 +54,9 @@ A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automa
 
 The planner (`lib/game-plan/planner.ts`) schedules **recurring routines** (fixed-time pinned +
 nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a day-shape strategy:
-quick win first · protect deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
+quick win first (**only on a fresh start-of-day / future-day plan** — a mid-day replan skips the
+quick-win opener since the day's already underway; gated on `earliestStart <= work_start`) · protect
+deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
 durations are exact. **Replanning freezes the past and cuts at now:** on today, the cutoff is now

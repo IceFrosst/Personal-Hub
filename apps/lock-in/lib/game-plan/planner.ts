@@ -95,6 +95,10 @@ interface FlexItem {
 export async function planDay(input: PlanInput): Promise<PlanResult> {
   const winStart = hmToMinutes(input.earliestStart)
   const winEnd = hmToMinutes(input.workEnd)
+  // A "fresh" plan opens at the top of the work window (start of day / a future
+  // day). A mid-day replan starts later (earliestStart pushed to now) — there the
+  // day is already underway, so we skip the "open with a quick win" shaping.
+  const fresh = winStart <= hmToMinutes(input.workStart)
 
   const occupied: Array<[number, number]> = input.busy
     .map((b) => [hmToMinutes(b.start), hmToMinutes(b.end)] as [number, number])
@@ -146,14 +150,14 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const key = process.env.GEMINI_API_KEY
     if (!key) {
       ai = 'fallback'
-      rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
+      rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today, fresh)
     } else {
       try {
-        const raw = await geminiSchedule(flexItems, occupied, winStart, winEnd, input.today, key)
+        const raw = await geminiSchedule(flexItems, occupied, winStart, winEnd, input.today, key, fresh)
         rest = sanitize(raw, flexItems, occupied, winStart, winEnd)
         // Model returned nothing usable → pack deterministically and flag it.
         if (rest.length === 0) {
-          const packed = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
+          const packed = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today, fresh)
           if (packed.length > 0) {
             rest = packed
             ai = 'fallback'
@@ -161,7 +165,7 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
         }
       } catch (err) {
         ai = String(err).includes('429') ? 'rate_limited' : 'fallback'
-        rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today)
+        rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today, fresh)
       }
     }
   }
@@ -220,7 +224,8 @@ async function geminiSchedule(
   winStart: number,
   winEnd: number,
   today: string,
-  key: string
+  key: string,
+  fresh: boolean
 ): Promise<ProposedBlock[]> {
   const busyLines = occupied.length
     ? occupied
@@ -248,7 +253,11 @@ Schedule these into the free time:
 ${itemLines}
 
 Day-shape rules (important):
-- Start with a QUICK WIN: put one short, easy item first so the day opens with momentum.
+${
+  fresh
+    ? '- Start with a QUICK WIN: put one short, easy item first so the day opens with momentum.'
+    : '- This is a MID-DAY REPLAN of a day already in progress — do NOT open with a quick win or an easy warm-up. The morning already happened; just place the remaining items efficiently by priority and energy.'
+}
 - Protect DEEP WORK: any long/focus task or routine gets one uninterrupted block — never split it or sandwich it between tiny tasks.
 - END ON A HIGH: don't finish the day on the most draining task; leave something lighter or satisfying last.
 - USE THE TAGS: 'work' and 'hustle' are focus-heavy — put them in the earlier, higher-energy hours and give them the protected deep-work treatment. 'social' and 'other' are lighter — lean them later in the day. Group same-tag items together rather than ping-ponging between kinds of work.
@@ -352,7 +361,8 @@ function naiveSchedule(
   occupied: Array<[number, number]>,
   winStart: number,
   winEnd: number,
-  today: string
+  today: string,
+  fresh: boolean
 ): ProposedBlock[] {
   const free = freeGaps(occupied, winStart, winEnd)
   const rank = { high: 3, medium: 2, low: 1 }
@@ -362,10 +372,11 @@ function naiveSchedule(
 
   const used = new Set<string>()
 
-  // Quick win: the shortest task, to open with momentum.
-  const opener = [...items]
-    .filter((it) => it.kind === 'task')
-    .sort((a, b) => durOf(a) - durOf(b))[0]
+  // Quick win: the shortest task, to open with momentum — only on a fresh day. A
+  // mid-day replan skips the opener (the day's already going) and goes by weight.
+  const opener = fresh
+    ? [...items].filter((it) => it.kind === 'task').sort((a, b) => durOf(a) - durOf(b))[0]
+    : undefined
   if (opener) used.add(opener.id)
 
   // End on a high: a light item saved for last (not the opener).
