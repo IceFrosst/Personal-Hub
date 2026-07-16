@@ -341,7 +341,7 @@ export default function HomePage() {
         setError(updateError.message)
         return
       }
-      // Sync the title onto any Game Plan blocks (time/duration apply on replan).
+      // Sync the title onto any Game Plan blocks.
       if (userId) {
         await supabase
           .schema('lock_in')
@@ -350,6 +350,18 @@ export default function HomePage() {
           .eq('user_id', userId)
           .eq('recurring_id', task.id)
           .gte('plan_date', localDateKey())
+      }
+      // Time / duration change → re-place the existing block(s) right away.
+      const timeChanged =
+        updates.time_mode !== task.time_mode ||
+        updates.fixed_time !== task.fixed_time ||
+        updates.duration_minutes !== task.duration_minutes
+      if (timeChanged) {
+        fetch('/api/game-plan/adjust-routine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recurringId: task.id }),
+        }).catch(() => {})
       }
     },
     [supabase, userId]

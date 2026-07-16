@@ -392,8 +392,21 @@ export default function GamePlanClient() {
           .eq('recurring_id', task.id)
           .gte('plan_date', todayStr)
       }
+      // Time / duration change → re-place the existing block(s) right away.
+      const timeChanged =
+        updates.time_mode !== task.time_mode ||
+        updates.fixed_time !== task.fixed_time ||
+        updates.duration_minutes !== task.duration_minutes
+      if (timeChanged) {
+        await fetch('/api/game-plan/adjust-routine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recurringId: task.id, providerToken }),
+        }).catch(() => {})
+        if (userId) await loadBlocks(userId, activeDate)
+      }
     },
-    [supabase, userId, todayStr]
+    [supabase, userId, todayStr, providerToken, activeDate, loadBlocks]
   )
 
   // Delete the block's task / routine (same as the list) and clean up its blocks

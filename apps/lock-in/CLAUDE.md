@@ -97,8 +97,11 @@ while held); on drop, `POST /api/game-plan/reorder` reflows the movable blocks a
 task list. **Edit** reuses `EditTaskSheet` / `EditRecurringSheet` (fetching the full task/routine
 row); saving writes the task/routine **and** mirrors the denormalised fields (title, priority,
 category) onto its `plan_blocks` so the timeline and list stay in lockstep — and editing a task in
-the **list** likewise syncs its blocks (`page.tsx` `updateTask`/`updateRecurring`). Time/duration
-changes on a routine reshape the day, so those land on the next replan. **Delete** removes the
+the **list** likewise syncs its blocks (`page.tsx` `updateTask`/`updateRecurring`). Changing a
+routine's **time or duration adjusts the existing block instantly** (no replan): `POST
+/api/game-plan/adjust-routine` re-places its block(s) from today onward into the nearest free slot
+around the day's other blocks (fixed → its clock time, flexible → keeps its start; both take the new
+duration) and `patchEvent`s the calendar event. **Delete** removes the
 underlying task/routine (like the list) and calls `POST /api/game-plan/cleanup-blocks`, which drops
 its `plan_blocks` from today onward and deletes their Google Calendar events (durable token, so the
 list's delete — which has no `provider_token` — cleans up too).
