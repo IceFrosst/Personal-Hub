@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateSettings } from '@/lib/game-plan/settings'
-import { hasOfflineCredentials, patchEvent, refreshAccessToken } from '@/lib/google/calendar'
+import {
+  deleteEvent,
+  hasOfflineCredentials,
+  patchEvent,
+  refreshAccessToken,
+} from '@/lib/google/calendar'
 import { hmToMinutes, nowLocalHM, todayInTz } from '@/lib/game-plan/time'
 import type { PlanBlock } from '@/lib/game-plan/types'
 
@@ -93,10 +98,12 @@ export async function POST(request: Request) {
 
   const isToday = date === todayInTz(tz)
   const workStart = hmToMinutes(settings.work_start)
+  const workEnd = hmToMinutes(settings.work_end)
   const nowMin = Math.ceil(hmToMinutes(nowLocalHM(tz)) / 5) * 5
   let cursor = isToday && nowMin > workStart ? nowMin : workStart
 
   const changed: { block: PlanBlock; start: string; end: string }[] = []
+  const dropped: PlanBlock[] = []
   for (const b of ordered) {
     const dur = b.estimated_minutes ?? hmToMinutes(b.end_local) - hmToMinutes(b.start_local)
     let start = cursor
@@ -106,6 +113,13 @@ export async function POST(request: Request) {
       if (!conflict) break
       start = conflict[1] + GAP
     }
+    // Past the end of the working day → the day is overbooked; this block falls
+    // off (never schedule past work_end / midnight). Don't advance the cursor, so
+    // a shorter later block can still slot into the remaining time.
+    if (start + dur > workEnd) {
+      dropped.push(b)
+      continue
+    }
     const startHM = toHM(start)
     const endHM = toHM(start + dur)
     if (startHM !== b.start_local || endHM !== b.end_local) {
@@ -114,9 +128,10 @@ export async function POST(request: Request) {
     cursor = start + dur + GAP
   }
 
-  // Apply: update rows + patch calendar events in parallel.
-  await Promise.all(
-    changed.flatMap(({ block, start, end }) => {
+  // Apply: update rows + patch calendar events, and delete any dropped blocks
+  // (row + calendar event) — all in parallel.
+  await Promise.all([
+    ...changed.flatMap(({ block, start, end }) => {
       const ops: PromiseLike<unknown>[] = [
         supabase
           .schema('lock_in')
@@ -135,8 +150,17 @@ export async function POST(request: Request) {
         )
       }
       return ops
-    })
-  )
+    }),
+    ...dropped.flatMap((block) => {
+      const ops: PromiseLike<unknown>[] = [
+        supabase.schema('lock_in').from('plan_blocks').delete().eq('id', block.id),
+      ]
+      if (block.gcal_event_id) {
+        ops.push(deleteEvent(accessToken as string, block.gcal_event_id).catch(() => {}))
+      }
+      return ops
+    }),
+  ])
 
   const { data: refreshed } = await supabase
     .schema('lock_in')
@@ -146,5 +170,8 @@ export async function POST(request: Request) {
     .eq('plan_date', date)
     .order('start_local', { ascending: true })
 
-  return NextResponse.json({ blocks: (refreshed ?? []) as PlanBlock[] })
+  return NextResponse.json({
+    blocks: (refreshed ?? []) as PlanBlock[],
+    droppedCount: dropped.length,
+  })
 }

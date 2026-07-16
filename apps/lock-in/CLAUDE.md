@@ -93,7 +93,10 @@ it up** (`Timeline`: a ~300 ms long-press arms the drag from any position; a pre
 >10 px is treated as a page scroll and lets go). Once armed, drag to reorder (neighbour-swap, follows
 the finger; a non-passive `touchmove` listener blocks page scroll while held); on drop, `POST
 /api/game-plan/reorder` reflows the movable blocks around the locked ones (never overlapping), updates
-`plan_blocks` start/end, and `patchEvent`s each moved calendar event. Each movable block has a
+`plan_blocks` start/end, and `patchEvent`s each moved calendar event. **Reflow is bounded by
+`work_end`:** a block that would land past the end of the working day (an overbooked day) is dropped
+(row + calendar event deleted) rather than cascading past midnight into invalid `24:00+` times; the
+route returns `droppedCount` and the client shows a note. Each movable block has a
 **pencil button on the right** that opens an action sheet (Edit / Delete), same as the task list.
 **Edit** reuses `EditTaskSheet` / `EditRecurringSheet` (fetching the full task/routine
 row); saving writes the task/routine **and** mirrors the denormalised fields (title, priority,
