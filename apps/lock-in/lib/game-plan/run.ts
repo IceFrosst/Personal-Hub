@@ -62,16 +62,16 @@ export async function runPlanForUser(args: {
 
   const tasks: PlannableTask[] = (taskRows ?? []) as PlannableTask[]
 
-  // 1a. Existing plan for the day → on TODAY, FREEZE THE PAST and CUT AT NOW. The
-  // cutoff is now (rounded to the 5-min grid, never before work_start). Every
-  // block that started before the cutoff is kept:
-  //   • a block wholly before the cutoff stays exactly as-is (history);
-  //   • the block you're in / just finished, which runs past the cutoff, is
-  //     TRUNCATED to end at the cutoff — you stopped there, so that's its real end.
-  // New work then starts at the cutoff, flush against the trimmed block, so a
-  // finished-at-13:20 block reads 13:00–13:20 and the next block begins at 13:20.
-  // Each kept block's task/routine is dropped from the replan pool, so a finished
-  // item never reappears later in the day.
+  // 1a. Existing plan for the day → on TODAY, KEEP ONLY WHAT YOU FINISHED, CUT AT
+  // NOW. The cutoff is now (rounded to the 5-min grid, never before work_start).
+  // The day effectively (re)starts when you replan:
+  //   • a block you marked DONE before the cutoff stays as history (a done block
+  //     that runs past the cutoff — finished early — is trimmed to end at now);
+  //   • a block that was NOT done and sits before the cutoff is DROPPED, and its
+  //     task/routine goes back into the pool to be re-planned from now — so if you
+  //     wake up and replan at 10:00, the untouched 09:00 blocks don't linger as
+  //     "missed"; they just get rescheduled into your real day.
+  // New work starts at the cutoff. (Marking a block done is what preserves it.)
   const now = nowLocalHM(tz)
   const cutoff =
     isToday && hmToMinutes(now) > hmToMinutes(settings.work_start)
@@ -88,7 +88,9 @@ export async function runPlanForUser(args: {
   const existing = (existingRows ?? []) as PlanBlock[]
   const truncated: PlanBlock[] = []
   const kept = existing
-    .filter((b) => !b.locked && isToday && hmToMinutes(b.start_local) < cutoffMin)
+    .filter(
+      (b) => !b.locked && isToday && b.status === 'done' && hmToMinutes(b.start_local) < cutoffMin
+    )
     .map((b) => {
       if (hmToMinutes(b.end_local) > cutoffMin) {
         const t = { ...b, end_local: cutoff }

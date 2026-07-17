@@ -864,8 +864,8 @@ function Timeline({
             : PRIO_ACCENT[b.priority ?? 'medium']
         const checkbox = b.locked
           ? done
-            ? 'bg-text-low/20 border-text-low text-text-low'
-            : 'border-border-focus text-transparent active:border-text-low'
+            ? 'bg-text-muted border-text-muted text-black'
+            : 'border-border-focus text-transparent active:border-text-muted'
           : done
             ? isRecurring
               ? 'bg-white/10 border-white text-white'
@@ -916,10 +916,10 @@ function Timeline({
                   <div className="flex items-center gap-1.5">
                     <p
                       className={`text-base leading-snug break-words ${
-                        b.locked
-                          ? 'text-text-muted'
-                          : done
-                            ? 'line-through text-text-low'
+                        done
+                          ? 'line-through text-text-low'
+                          : b.locked
+                            ? 'text-text-muted'
                             : 'text-text'
                       }`}
                     >
