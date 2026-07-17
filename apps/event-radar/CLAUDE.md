@@ -50,12 +50,16 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   can't be live-tested in-session (403 from the egress proxy). Production Vercel has open
   egress. To test locally in a session, ask Ignas to allowlist those domains.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
-  HTML. MLH is a regex parse of static HTML — when it drifts, `parseMlhHtml` returns `[]`
-  and the cron's `sources.mlh` reports it. Fix the regexes, don't add a headless browser.
-  `fetchMlh` refuses to return an empty result silently: no season page fetching OK
-  throws with per-season HTTP statuses, and pages that fetch OK but parse to zero cards
-  throw with a markup fingerprint (page size, anchor count, `event`-ish class names) so
-  the cron report itself says what the new markup looks like.
+  HTML. Don't add a headless browser for either source.
+- MLH's site is an Inertia.js app (Vite build): the events live as HTML-escaped JSON in
+  the root element's `data-page` attribute, not in semantic markup. `parseMlhInertia`
+  scans that payload for the largest array of event-shaped objects (no hard-coded props
+  path) and maps field-name variants defensively; the legacy card-regex parser
+  (`parseMlhHtml`) still runs first in case they ever server-render cards again.
+- `fetchMlh` refuses to return an empty result silently: no season page fetching OK
+  throws with per-season HTTP statuses, and a page that fetches OK but yields zero
+  events throws with a structural fingerprint (page size, anchors, Inertia component +
+  props keys) so the cron report itself says where the data moved.
 - Exposing the `hackathon` schema to the Data API needs the platform config **and** the
   `authenticator` role's `pgrst.db_schemas` + both `notify pgrst` reloads — see the
   "Data API exposure" section in root `SCHEMA_RULES.md` (this bit Event Radar's first
@@ -86,10 +90,9 @@ swallowed (now surfaced in `sources.mlh`).
 
 ## Next
 
-- Fix the MLH parser: production fetches the season pages fine (HTTP 200) but the
-  `event-link` card regexes match nothing — markup drift, confirmed via the cron's
-  per-source report. The drift error now includes the page's `event`-ish class names;
-  use those to rewrite the regexes in `parseMlhHtml`.
+- Confirm the MLH Inertia parser returns rows on the next cron run; if it errors
+  instead, the fingerprint now carries the Inertia component + props keys — adjust
+  `looksLikeEvent`/`mapInertiaEvent` field variants to match.
 - Ignas: install the PWA on the Pixel, log in, and test push notifications end-to-end.
 - Roadmap (per EVENT_RADAR_PLAN.md): more sources (the EU travel-reimbursing circuit),
   Apply Kit, approval-gated auto-fill via Claude Code cloud sessions, night search agents.

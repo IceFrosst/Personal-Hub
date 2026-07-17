@@ -75,26 +75,122 @@ export function parseMlhHtml(html: string, seasonYear: number): IngestRow[] {
   return rows
 }
 
+// ---- Inertia.js path ----
+// MLH rebuilt their site on Inertia (Vite assets, no semantic classes): the
+// whole page state is HTML-escaped JSON in a root element's data-page
+// attribute. We don't hard-code the props path to the events — Inertia prop
+// shapes move — instead we scan the payload for the largest array of objects
+// that look like events and map field-name variants defensively.
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+type JsonObject = Record<string, unknown>
+
+const str = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() !== '' ? v.trim() : null
+
+function looksLikeEvent(o: unknown): o is JsonObject {
+  if (typeof o !== 'object' || o === null || Array.isArray(o)) return false
+  const r = o as JsonObject
+  return (
+    (str(r.name) ?? str(r.title)) !== null &&
+    (str(r.website) ?? str(r.url) ?? str(r.event_url)) !== null &&
+    (str(r.start_date) ?? str(r.starts_at) ?? str(r.startDate) ?? str(r.start)) !== null
+  )
+}
+
+function findEventArrays(node: unknown, out: JsonObject[][]): void {
+  if (Array.isArray(node)) {
+    if (node.length > 0 && node.every(looksLikeEvent)) out.push(node as JsonObject[])
+    else node.forEach((n) => findEventArrays(n, out))
+  } else if (typeof node === 'object' && node !== null) {
+    Object.values(node).forEach((v) => findEventArrays(v, out))
+  }
+}
+
+function toISO(v: unknown): string | null {
+  const s = str(v)
+  if (!s) return null
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+function mapInertiaEvent(e: JsonObject): IngestRow | null {
+  const title = str(e.name) ?? str(e.title)
+  const url = str(e.website) ?? str(e.url) ?? str(e.event_url)
+  if (!title || !url) return null
+  const typeRaw =
+    str(e.event_type) ?? str(e.format) ?? str(e.type) ?? str(e.event_format) ?? str(e.modality)
+  const format = !typeRaw
+    ? null
+    : /digital|online|virtual/i.test(typeRaw)
+      ? 'online'
+      : /hybrid/i.test(typeRaw)
+        ? 'hybrid'
+        : /in[- ]?person/i.test(typeRaw)
+          ? 'in_person'
+          : null
+  const city = str(e.city)
+  const region = str(e.state) ?? str(e.country)
+  return {
+    source: 'mlh',
+    source_id: e.id !== undefined && e.id !== null ? String(e.id) : null,
+    title,
+    url: url.startsWith('http') ? url : `https://mlh.io${url}`,
+    starts_at: toISO(e.start_date ?? e.starts_at ?? e.startDate ?? e.start),
+    ends_at: toISO(e.end_date ?? e.ends_at ?? e.endDate ?? e.end),
+    location_raw: str(e.location) ?? ([city, region].filter(Boolean).join(', ') || null),
+    format,
+    prize_pool: null,
+    themes: [],
+  }
+}
+
+export function parseMlhInertia(html: string): IngestRow[] {
+  const m = html.match(/data-page="([^"]+)"/)
+  if (!m) return []
+  let page: unknown
+  try {
+    page = JSON.parse(decodeEntities(m[1]))
+  } catch {
+    return []
+  }
+  const arrays: JsonObject[][] = []
+  findEventArrays(page, arrays)
+  if (arrays.length === 0) return []
+  const best = arrays.reduce((a, b) => (b.length > a.length ? b : a))
+  return best.map(mapInertiaEvent).filter((r): r is IngestRow => r !== null)
+}
+
 // When the parser stops matching, the error should describe the page we did
 // get, in enough detail to relocate the event data without pulling the full
 // HTML out of production (mlh.io is unreachable from Claude Code sessions).
-// The current MLH rebuild is Tailwind/React, so the interesting question is
-// where the data lives: server-rendered cards, embedded JSON, or client fetch.
 function describeDrift(html: string): string {
   const anchors = (html.match(/<a[\s>]/gi) ?? []).length
-  const nextData = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)
-  const rscChunks = (html.match(/__next_f/g) ?? []).length
-  const itemprops = (html.match(/itemprop=/g) ?? []).length
   const hackathons = (html.match(/hackathon/gi) ?? []).length
-  const hrefs = [
-    ...new Set([...html.matchAll(/href="([^"]{1,80})"/g)].map((m) => m[1])),
-  ].filter((h) => !/^(#|mailto:)/.test(h))
-  return (
-    `page ${html.length}b, ${anchors} anchors, __NEXT_DATA__ ${
-      nextData ? `${nextData[1].length}b` : 'absent'
-    }, __next_f x${rscChunks}, itemprop x${itemprops}, "hackathon" x${hackathons}, ` +
-    `hrefs: ${hrefs.slice(0, 12).join(' | ')}`
-  )
+  const pageAttr = html.match(/data-page="([^"]+)"/)
+  let inertia = 'data-page absent'
+  if (pageAttr) {
+    try {
+      const page = JSON.parse(decodeEntities(pageAttr[1])) as JsonObject
+      const props = (page.props ?? {}) as JsonObject
+      inertia = `inertia component=${String(page.component)}, props keys: ${Object.keys(props)
+        .slice(0, 15)
+        .join(',')}`
+    } catch {
+      inertia = `data-page present but unparseable (${pageAttr[1].length}b)`
+    }
+  }
+  return `page ${html.length}b, ${anchors} anchors, "hackathon" x${hackathons}, ${inertia}`
 }
 
 export async function fetchMlh(): Promise<IngestRow[]> {
@@ -122,7 +218,8 @@ export async function fetchMlh(): Promise<IngestRow[]> {
       }
       const html = await res.text()
       lastHtml = html
-      rows.push(...parseMlhHtml(html, season))
+      const parsed = parseMlhHtml(html, season)
+      rows.push(...(parsed.length > 0 ? parsed : parseMlhInertia(html)))
     } catch (err) {
       failures.push(`${season}: ${err instanceof Error ? err.message : String(err)}`)
     }
