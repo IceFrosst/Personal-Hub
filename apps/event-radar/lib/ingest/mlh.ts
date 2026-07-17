@@ -77,12 +77,15 @@ export function parseMlhHtml(html: string, seasonYear: number): IngestRow[] {
 
 export async function fetchMlh(): Promise<IngestRow[]> {
   // Mid-season the current year still has upcoming events and the next season
-  // is already published — fetch both, tolerating a 404 on either.
+  // is already published — fetch both, tolerating a failure on either. But if
+  // NO season yields a page, the failure must reach the cron's per-source
+  // report: a silent [] is indistinguishable from "no events listed", which
+  // hides bot-blocking (403s) behind what looks like regex drift.
   const year = new Date().getUTCFullYear()
   const seasons = [year, year + 1]
   const rows: IngestRow[] = []
   let anySuccess = false
-  let lastError: unknown = null
+  const failures: string[] = []
 
   for (const season of seasons) {
     try {
@@ -90,14 +93,17 @@ export async function fetchMlh(): Promise<IngestRow[]> {
         headers: { 'User-Agent': UA },
         signal: AbortSignal.timeout(8000),
       })
-      if (!res.ok) continue
+      if (!res.ok) {
+        failures.push(`${season}: HTTP ${res.status}`)
+        continue
+      }
       rows.push(...parseMlhHtml(await res.text(), season))
       anySuccess = true
     } catch (err) {
-      lastError = err
+      failures.push(`${season}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
-  if (!anySuccess && lastError) throw lastError
+  if (!anySuccess && failures.length > 0) throw new Error(failures.join('; '))
   return rows
 }

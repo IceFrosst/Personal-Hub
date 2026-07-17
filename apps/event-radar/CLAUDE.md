@@ -52,6 +52,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
   HTML. MLH is a regex parse of static HTML — when it drifts, `parseMlhHtml` returns `[]`
   and the cron's `sources.mlh` reports it. Fix the regexes, don't add a headless browser.
+  When *no* MLH season page fetches OK, `fetchMlh` throws with per-season HTTP statuses —
+  so `sources.mlh: 0` (no error) = drift, `sources.mlh: "error: …"` = fetch/blocking.
+- Exposing the `hackathon` schema to the Data API needs the platform config **and** the
+  `authenticator` role's `pgrst.db_schemas` + both `notify pgrst` reloads — see the
+  "Data API exposure" section in root `SCHEMA_RULES.md` (this bit Event Radar's first
+  cron run with `Invalid schema: hackathon`).
 - Vercel Hobby cron = once per day max, ±59min jitter, `maxDuration` 60s. The route
   self-budgets to 45s and enriches at most 10 rows per run — the backlog drains over
   days. Don't raise the batch without checking function duration limits.
@@ -69,11 +75,19 @@ Vercel project fully provisioned: root dir + turbo-ignore + all env vars
 (`NEXT_PUBLIC_SUPABASE_*`, VAPID key pair, `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
 `GROQ_API_KEY`, `GEMINI_API_KEY`). Auth redirect URLs added.
 
+First cron run verified in production (triggered manually with the `CRON_SECRET` bearer
+token): Devpost 27 gathered → 27 inserted, first enrichment batch of 10 processed with
+sane values (`format`, `prize_pool`, `registration_deadline`; nulls where unknown), 0
+pushes (no subscribers yet). Fixed en route: the `hackathon` schema wasn't actually
+exposed (authenticator-role gotcha, see Gotchas) and MLH HTTP failures were silently
+swallowed (now surfaced in `sources.mlh`).
+
 ## Next
 
-- Verify the first cron run (trigger `GET /api/cron/ingest` manually with the
-  `CRON_SECRET` bearer token, or wait for ~05:00 UTC): response JSON reports per-source
-  counts/errors, enrichment count, and pushes sent.
+- Diagnose MLH returning 0: after the error-surfacing fix deploys, the cron response
+  says whether it's bot-blocking (`error: … HTTP 403`) or regex drift (plain `0`).
+  If MLH is blocking plain fetches, decide with Ignas whether to drop or rework the
+  source — don't quietly disguise the scraper as a browser.
 - Ignas: install the PWA on the Pixel, log in, and test push notifications end-to-end.
 - Roadmap (per EVENT_RADAR_PLAN.md): more sources (the EU travel-reimbursing circuit),
   Apply Kit, approval-gated auto-fill via Claude Code cloud sessions, night search agents.
