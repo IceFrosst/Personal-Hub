@@ -862,11 +862,15 @@ function Timeline({
           : isRecurring
             ? 'bg-white/70'
             : PRIO_ACCENT[b.priority ?? 'medium']
-        const checkbox = done
-          ? isRecurring
-            ? 'bg-white/10 border-white text-white'
-            : 'bg-gold/10 border-gold text-gold'
-          : `border-border-focus text-transparent ${isRecurring ? 'active:border-white' : 'active:border-gold'}`
+        const checkbox = b.locked
+          ? done
+            ? 'bg-text-low/20 border-text-low text-text-low'
+            : 'border-border-focus text-transparent active:border-text-low'
+          : done
+            ? isRecurring
+              ? 'bg-white/10 border-white text-white'
+              : 'bg-gold/10 border-gold text-gold'
+            : `border-border-focus text-transparent ${isRecurring ? 'active:border-white' : 'active:border-gold'}`
         return (
           <div
             key={b.id}
@@ -898,19 +902,15 @@ function Timeline({
               >
                 <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} />
 
-                {b.locked ? (
-                  <IconLock size={18} className="mt-0.5 shrink-0 text-text-low" />
-                ) : (
-                  <button
-                    type="button"
-                    data-no-drag
-                    onClick={() => onToggleDone(b)}
-                    aria-label={done ? 'Mark not done' : 'Mark done'}
-                    className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
-                  >
-                    <IconCheck size={14} stroke={3} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  data-no-drag
+                  onClick={() => onToggleDone(b)}
+                  aria-label={done ? 'Mark not done' : 'Mark done'}
+                  className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
+                >
+                  <IconCheck size={14} stroke={3} />
+                </button>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -926,6 +926,7 @@ function Timeline({
                       {b.title}
                     </p>
                     {isRecurring && <IconRepeat size={13} className="text-text-low shrink-0" />}
+                    {b.locked && <IconLock size={12} className="text-text-low shrink-0" />}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-text-low text-xs tabular-nums">
