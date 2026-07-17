@@ -672,7 +672,7 @@ export default function GamePlanClient() {
                 No unscheduled tasks. Add one in Lock In first.
               </p>
             ) : (
-              <div className="flex flex-col gap-2 overflow-y-auto -mx-1 px-1">
+              <div className="flex flex-col gap-2 overflow-y-auto min-h-0 -mx-1 px-1">
                 {replaceOptions.map((t) => {
                   const c = t.category
                     ? TASK_CATEGORIES.find((x) => x.value === t.category)
@@ -683,7 +683,7 @@ export default function GamePlanClient() {
                       key={t.id}
                       type="button"
                       onClick={() => replaceWithTask(replaceBlock, t.id)}
-                      className="relative flex items-start gap-3 py-3 pl-5 pr-3 rounded-xl overflow-hidden bg-surface active:bg-surface-elevated transition-colors text-left"
+                      className="relative shrink-0 flex items-start gap-3 py-3 pl-5 pr-3 rounded-xl overflow-hidden bg-surface active:bg-surface-elevated transition-colors text-left"
                     >
                       <span
                         aria-hidden
