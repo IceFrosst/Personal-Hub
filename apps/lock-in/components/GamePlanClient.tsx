@@ -9,6 +9,7 @@ import {
   IconCheck,
   IconLock,
   IconPencil,
+  IconPlus,
   IconRefresh,
   IconRepeat,
   IconSettings,
@@ -51,7 +52,7 @@ export default function GamePlanClient() {
   const [editRecurring, setEditRecurring] = useState<RecurringTask | null>(null)
   // "Replace" flow: the block whose slot we're filling + the pickable tasks.
   const [replaceBlock, setReplaceBlock] = useState<PlanBlock | null>(null)
-  const [replaceOptions, setReplaceOptions] = useState<{ id: string; title: string }[]>([])
+  const [replaceOptions, setReplaceOptions] = useState<Task[]>([])
 
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
   const todayStr = useMemo(() => todayInTz(tz), [tz])
@@ -432,12 +433,10 @@ export default function GamePlanClient() {
       const { data } = await supabase
         .schema('focus_gate')
         .from('tasks')
-        .select('id, title')
+        .select('*')
         .eq('user_id', userId)
         .eq('is_completed', false)
-      const opts = ((data ?? []) as { id: string; title: string }[]).filter(
-        (t) => !scheduled.has(t.id)
-      )
+      const opts = ((data ?? []) as Task[]).filter((t) => !scheduled.has(t.id))
       setReplaceOptions(opts)
       setReplaceBlock(b)
     },
@@ -673,17 +672,49 @@ export default function GamePlanClient() {
                 No unscheduled tasks. Add one in Lock In first.
               </p>
             ) : (
-              <div className="flex flex-col gap-2 overflow-y-auto">
-                {replaceOptions.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => replaceWithTask(replaceBlock, t.id)}
-                    className="w-full text-left min-h-12 px-3 py-2.5 rounded-xl bg-surface text-text active:bg-border/40 transition-colors break-words"
-                  >
-                    {t.title}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-2 overflow-y-auto -mx-1 px-1">
+                {replaceOptions.map((t) => {
+                  const c = t.category
+                    ? TASK_CATEGORIES.find((x) => x.value === t.category)
+                    : null
+                  const due = formatDueChip(t.due_date)
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => replaceWithTask(replaceBlock, t.id)}
+                      className="relative flex items-start gap-3 py-3 pl-5 pr-3 rounded-xl overflow-hidden bg-surface active:bg-surface-elevated transition-colors text-left"
+                    >
+                      <span
+                        aria-hidden
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${PRIO_ACCENT[t.priority]}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base leading-snug break-words text-text">{t.title}</p>
+                        {(c || due) && (
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            {c && (
+                              <span
+                                className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
+                                style={{ color: c.color, backgroundColor: `${c.color}1f` }}
+                              >
+                                {c.label}
+                              </span>
+                            )}
+                            {due && (
+                              <span
+                                className={`text-xs ${due.overdue ? 'text-priority-high' : 'text-text-muted'}`}
+                              >
+                                {due.text}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <IconPlus size={18} className="mt-0.5 shrink-0 text-text-low" />
+                    </button>
+                  )
+                })}
               </div>
             )}
             <button
@@ -781,6 +812,23 @@ const PRIO_ACCENT: Record<'low' | 'medium' | 'high', string> = {
   low: 'bg-prio-low',
   medium: 'bg-prio-medium',
   high: 'bg-prio-high',
+}
+
+// Mirror of TaskRow's due-date chip, so the Replace picker matches the task list.
+function formatDueChip(due: string | null): { text: string; overdue: boolean } | null {
+  if (!due) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const [y, m, d] = due.split('-').map(Number)
+  const target = new Date(y, m - 1, d)
+  const diff = Math.round((target.getTime() - today.getTime()) / 86_400_000)
+  const overdue = diff < 0
+  let text: string
+  if (diff === 0) text = 'Today'
+  else if (diff === 1) text = 'Tomorrow'
+  else if (diff > 1 && diff < 7) text = target.toLocaleDateString(undefined, { weekday: 'short' })
+  else text = target.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return { text: overdue ? `Overdue · ${text}` : text, overdue }
 }
 
 function swap<T>(arr: T[], i: number, j: number): T[] {

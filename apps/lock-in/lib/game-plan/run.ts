@@ -280,6 +280,14 @@ export async function runPlanForUser(args: {
   )
 
   // Locked rows mirror the user's real events (no calendar write — they exist).
+  // A calendar event you'd ticked off keeps its checkmark across replans: locked
+  // blocks are re-created each replan, so we carry `done` over by the stable
+  // Google event id.
+  const lockedDoneEventIds = new Set(
+    existing
+      .filter((b) => b.locked && b.status === 'done' && b.gcal_event_id)
+      .map((b) => b.gcal_event_id as string)
+  )
   const lockedRows = dayEvents.map((e) => ({
     user_id: userId,
     task_id: null,
@@ -294,7 +302,7 @@ export async function runPlanForUser(args: {
     priority: null,
     gcal_event_id: e.id,
     locked: true,
-    status: 'scheduled' as const,
+    status: (lockedDoneEventIds.has(e.id) ? 'done' : 'scheduled') as 'done' | 'scheduled',
   }))
 
   const toInsert = [...plannedRows, ...lockedRows]
