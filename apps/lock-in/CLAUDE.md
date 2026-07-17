@@ -116,7 +116,11 @@ the **list** likewise syncs its blocks (`page.tsx` `updateTask`/`updateRecurring
 routine's **time or duration adjusts the existing block instantly** (no replan): `POST
 /api/game-plan/adjust-routine` re-places its block(s) from today onward into the nearest free slot
 around the day's other blocks (fixed → its clock time, flexible → keeps its start; both take the new
-duration) and `patchEvent`s the calendar event. **Remove from plan** deletes only *that* block
+duration) and `patchEvent`s the calendar event. **Replace with another task** swaps a different
+unscheduled task into the block's slot (`POST /api/game-plan/swap-block`): the picker lists open tasks
+not already in the plan; choosing one keeps the slot's start/end, deletes the old calendar event and
+writes a new one for the chosen task, and the old item just leaves the plan (stays on the list).
+**Remove from plan** deletes only *that* block
 (`POST /api/game-plan/cleanup-blocks` with `blockId`) + its calendar event — the underlying
 task/routine **stays on the list**, so a replan can re-add it. (Deleting the task/routine outright is
 done from the **list**, which calls the same route with `taskId`/`recurringId` to drop all its blocks

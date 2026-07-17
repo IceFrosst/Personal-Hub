@@ -49,6 +49,9 @@ export default function GamePlanClient() {
   const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [editRecurring, setEditRecurring] = useState<RecurringTask | null>(null)
+  // "Replace" flow: the block whose slot we're filling + the pickable tasks.
+  const [replaceBlock, setReplaceBlock] = useState<PlanBlock | null>(null)
+  const [replaceOptions, setReplaceOptions] = useState<{ id: string; title: string }[]>([])
 
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
   const todayStr = useMemo(() => todayInTz(tz), [tz])
@@ -418,6 +421,48 @@ export default function GamePlanClient() {
     [supabase, userId, todayStr, providerToken, activeDate, loadBlocks]
   )
 
+  // Open the "Replace" picker: the open tasks that aren't already in the plan.
+  const openReplaceForBlock = useCallback(
+    async (b: PlanBlock) => {
+      setSheetBlock(null)
+      if (!userId) return
+      const scheduled = new Set(
+        blocks.map((x) => x.task_id).filter((id): id is string => Boolean(id))
+      )
+      const { data } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .select('id, title')
+        .eq('user_id', userId)
+        .eq('is_completed', false)
+      const opts = ((data ?? []) as { id: string; title: string }[]).filter(
+        (t) => !scheduled.has(t.id)
+      )
+      setReplaceOptions(opts)
+      setReplaceBlock(b)
+    },
+    [supabase, userId, blocks]
+  )
+
+  // Swap the chosen task into this block's time slot (old item leaves the plan,
+  // its task/routine stays on the list).
+  const replaceWithTask = useCallback(
+    async (b: PlanBlock, taskId: string) => {
+      setReplaceBlock(null)
+      const res = await fetch('/api/game-plan/swap-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockId: b.id, newTaskId: taskId, providerToken }),
+      }).catch(() => null)
+      if (res && res.ok && userId) {
+        await loadBlocks(userId, activeDate)
+      } else {
+        setError('Could not replace the block — try again.')
+      }
+    },
+    [providerToken, userId, activeDate, loadBlocks]
+  )
+
   // Remove just this block from today's plan (and its calendar event). The
   // underlying task / routine stays on the list — a replan can re-add it.
   const removeBlockFromPlan = useCallback(
@@ -584,6 +629,13 @@ export default function GamePlanClient() {
             </button>
             <button
               type="button"
+              onClick={() => openReplaceForBlock(sheetBlock)}
+              className="mt-2 w-full min-h-12 rounded-xl bg-surface text-text font-medium active:bg-border/40 transition-colors"
+            >
+              Replace with another task
+            </button>
+            <button
+              type="button"
               onClick={() => removeBlockFromPlan(sheetBlock)}
               className="mt-2 w-full min-h-12 rounded-xl bg-priority-high/15 text-priority-high font-medium active:bg-priority-high/25 transition-colors"
             >
@@ -593,6 +645,51 @@ export default function GamePlanClient() {
               type="button"
               onClick={() => setSheetBlock(null)}
               className="mt-2 w-full min-h-12 rounded-xl text-text-muted active:text-text transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {replaceBlock && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end justify-center z-50"
+          onClick={() => setReplaceBlock(null)}
+        >
+          <div
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4 pb-8 max-h-[70dvh] flex flex-col"
+            style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-xs uppercase tracking-wide text-text-low mb-1 px-1">
+              Replace in this slot
+            </p>
+            <p className="text-text-low text-xs mb-3 px-1">
+              {replaceBlock.start_local}–{replaceBlock.end_local} · pick a task to put here
+            </p>
+            {replaceOptions.length === 0 ? (
+              <p className="text-text-low text-sm py-6 text-center">
+                No unscheduled tasks. Add one in Lock In first.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 overflow-y-auto">
+                {replaceOptions.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => replaceWithTask(replaceBlock, t.id)}
+                    className="w-full text-left min-h-12 px-3 py-2.5 rounded-xl bg-surface text-text active:bg-border/40 transition-colors break-words"
+                  >
+                    {t.title}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setReplaceBlock(null)}
+              className="mt-3 w-full min-h-12 rounded-xl text-text-muted active:text-text transition-colors"
             >
               Cancel
             </button>
