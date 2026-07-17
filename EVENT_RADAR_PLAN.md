@@ -1,7 +1,11 @@
 # Event Radar — Locked v1 Plan (ready for scaffold)
 
 > **Status**: Decisions locked by Ignas (2026-07-17). Pure discovery version.
-> Claude can now scaffold. No Apply Kit in v1.
+> **Built 2026-07-17** — scaffolded, migrated, and provisioned on branch
+> `claude/hackathon-auto-apply-tool-hg8cwv`; ships on merge to `main`. Technical
+> decisions Claude made: service-role key as server-only Vercel env var behind a
+> CRON_SECRET route (same pattern as lock-in's cron), daily Vercel cron cadence.
+> Live state now tracked in `apps/event-radar/CLAUDE.md`.
 
 ## Problem
 

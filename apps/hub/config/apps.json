@@ -35,6 +35,18 @@
         "stable": "https://icefrosst-cookie-jar.vercel.app"
       },
       "added_at": "2026-06-02"
+    },
+    {
+      "slug": "event-radar",
+      "name": "Event Radar",
+      "description": "Hackathons worth traveling to, ranked.",
+      "icon": "radar",
+      "iconImage": "/app-icons/event-radar.png",
+      "color": "purple",
+      "versions": {
+        "stable": "https://icefrosst-event-radar.vercel.app"
+      },
+      "added_at": "2026-07-17"
     }
   ]
 }
