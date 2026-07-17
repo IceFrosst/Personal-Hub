@@ -207,7 +207,16 @@ function describeDrift(html: string): string {
   } else {
     inertia += 'none parseable'
   }
-  return `page ${html.length}b, ${anchors} anchors, "hackathon" x${hackathons}, ${inertia}`
+  // Raw-markup slices around "hackathon" occurrences — when neither parser
+  // matches, seeing the actual surrounding HTML beats any further guessing.
+  const sliceAt = (idx: number) =>
+    idx < 0 ? '' : html.slice(Math.max(0, idx - 150), idx + 500).replace(/\s+/g, ' ')
+  const first = html.search(/hackathon/i)
+  const later = html.slice(first + 500).search(/hackathon/i)
+  const slices = [sliceAt(first), later < 0 ? '' : sliceAt(first + 500 + later)]
+    .filter(Boolean)
+    .join(' ⋯ ')
+  return `page ${html.length}b, ${anchors} anchors, "hackathon" x${hackathons}, ${inertia}; markup: ${slices}`
 }
 
 export async function fetchMlh(): Promise<IngestRow[]> {
