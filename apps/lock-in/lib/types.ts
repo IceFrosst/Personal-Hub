@@ -23,6 +23,8 @@ export interface Task {
   priority: Priority
   due_date: string | null
   category: TaskCategory | null
+  /** Excluded from Game Plan scheduling before this date ("continue tomorrow"). */
+  snoozed_until: string | null
 }
 
 export const PRIORITY_RANK: Record<Priority, number> = {
