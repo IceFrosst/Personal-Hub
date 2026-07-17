@@ -65,13 +65,14 @@ quick-win opener since the day's already underway; gated on `earliestStart <= wo
 deep-work blocks · end on a high · meals after exercise · breaks after hard work · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
-durations are exact. **Replanning freezes the past and cuts at now:** on today, the cutoff is now
-(rounded to the 5-min grid, never before `work_start`). `run.ts` keeps every block that started
-before the cutoff — a block wholly in the past stays as-is; the block you're in / just finished
-(which runs past the cutoff) is **truncated to end at the cutoff** (its row + calendar event patched),
-so a task finished at 13:20 reads 13:00–13:20. New work starts at the cutoff, flush against it. Each
-kept block's task/routine is dropped from the replan pool, so a finished item never reappears later
-in the day. (Future days replan in full.) `sanitize()` now
+durations are exact. **Replanning keeps only what you finished, then restarts the day at now:** on
+today, the cutoff is now (rounded to the 5-min grid, never before `work_start`). `run.ts` keeps a
+block **only if its status is `done`** and it started before the cutoff (a done block that runs past
+the cutoff — finished early — is **truncated to end at now**, row + calendar event patched). Blocks
+that are **not done** and sit before the cutoff are **dropped**, and their task/routine goes back into
+the pool to be re-planned from now — so if you wake up and replan at 10:00, the untouched 09:00 blocks
+don't linger as "missed"; they get rescheduled into your real day. New work starts at the cutoff.
+(Marking a block done is what preserves it; future days replan in full.) `sanitize()` now
 **repairs** a mis-placed model block (shifts it to the nearest free slot) instead of dropping it;
 the prompt may **split** tasks >90 min into two sessions (same id); and the deterministic fallback
 applies the day-shape strategy too (quick win first · heavy work early · light item last).
