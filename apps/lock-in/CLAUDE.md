@@ -98,7 +98,8 @@ border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link,
 `listDayEvents` reads real timed events excluding our tagged ones — `run.ts` now cleans up *before*
 reading so old GP events aren't re-read). Locked blocks show a small lock glyph, aren't draggable
 or editable, and no calendar event is written for them (they already exist) — but they **can** be
-checked off (cosmetic, see above). Rows have **no left time gutter** (the
+checked off (cosmetic, see above) — and that checkmark **persists across replans**: `run.ts` carries
+a locked block's `done` status over by its stable `gcal_event_id` when it re-creates locked rows. Rows have **no left time gutter** (the
 start–end time lives in the card's meta line). **Press-and-hold anywhere on a movable block to pick
 it up** (`Timeline`: a ~300 ms long-press arms the drag from any position; a pre-arm finger move
 >10 px is treated as a page scroll and lets go). Once armed, drag to reorder (neighbour-swap, follows
@@ -118,8 +119,9 @@ routine's **time or duration adjusts the existing block instantly** (no replan):
 around the day's other blocks (fixed → its clock time, flexible → keeps its start; both take the new
 duration) and `patchEvent`s the calendar event. **Replace with another task** swaps a different
 unscheduled task into the block's slot (`POST /api/game-plan/swap-block`): the picker lists open tasks
-not already in the plan; choosing one keeps the slot's start/end, deletes the old calendar event and
-writes a new one for the chosen task, and the old item just leaves the plan (stays on the list).
+not already in the plan (rendered **task-list style** — priority accent bar + category/due chips);
+choosing one keeps the slot's start/end, deletes the old calendar event and writes a new one for the
+chosen task, and the old item just leaves the plan (stays on the list).
 **Remove from plan** deletes only *that* block
 (`POST /api/game-plan/cleanup-blocks` with `blockId`) + its calendar event — the underlying
 task/routine **stays on the list**, so a replan can re-add it. (Deleting the task/routine outright is
