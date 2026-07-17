@@ -76,18 +76,25 @@ export function parseMlhHtml(html: string, seasonYear: number): IngestRow[] {
 }
 
 // When the parser stops matching, the error should describe the page we did
-// get — the class vocabulary is usually enough to rewrite the regexes without
-// pulling the full HTML out of production.
+// get, in enough detail to relocate the event data without pulling the full
+// HTML out of production (mlh.io is unreachable from Claude Code sessions).
+// The current MLH rebuild is Tailwind/React, so the interesting question is
+// where the data lives: server-rendered cards, embedded JSON, or client fetch.
 function describeDrift(html: string): string {
-  const classes = [
-    ...new Set(
-      [...html.matchAll(/class="([^"]*event[^"]*)"/gi)].map((m) => m[1].trim()),
-    ),
-  ]
   const anchors = (html.match(/<a[\s>]/gi) ?? []).length
-  return `page ${html.length}b, ${anchors} anchors, event-ish classes: ${
-    classes.slice(0, 8).join(' | ') || 'none'
-  }`
+  const nextData = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)
+  const rscChunks = (html.match(/__next_f/g) ?? []).length
+  const itemprops = (html.match(/itemprop=/g) ?? []).length
+  const hackathons = (html.match(/hackathon/gi) ?? []).length
+  const hrefs = [
+    ...new Set([...html.matchAll(/href="([^"]{1,80})"/g)].map((m) => m[1])),
+  ].filter((h) => !/^(#|mailto:)/.test(h))
+  return (
+    `page ${html.length}b, ${anchors} anchors, __NEXT_DATA__ ${
+      nextData ? `${nextData[1].length}b` : 'absent'
+    }, __next_f x${rscChunks}, itemprop x${itemprops}, "hackathon" x${hackathons}, ` +
+    `hrefs: ${hrefs.slice(0, 12).join(' | ')}`
+  )
 }
 
 export async function fetchMlh(): Promise<IngestRow[]> {
