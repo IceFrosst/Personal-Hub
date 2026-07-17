@@ -155,15 +155,32 @@ function mapInertiaEvent(e: JsonObject): IngestRow | null {
   }
 }
 
-export function parseMlhInertia(html: string): IngestRow[] {
-  const m = html.match(/data-page="([^"]+)"/)
-  if (!m) return []
-  let page: unknown
-  try {
-    page = JSON.parse(decodeEntities(m[1]))
-  } catch {
-    return []
+// Several elements can carry a data-page attribute (pagination controls do),
+// and the quote style isn't guaranteed — collect every candidate in both
+// styles and take the largest one that decodes to a JSON object.
+function inertiaCandidates(html: string): string[] {
+  return [
+    ...html.matchAll(/data-page="([^"]+)"/g),
+    ...html.matchAll(/data-page='([^']+)'/g),
+  ].map((m) => m[1])
+}
+
+function extractInertiaPayload(html: string): unknown {
+  const byLength = inertiaCandidates(html).sort((a, b) => b.length - a.length)
+  for (const candidate of byLength) {
+    try {
+      const parsed: unknown = JSON.parse(decodeEntities(candidate))
+      if (typeof parsed === 'object' && parsed !== null) return parsed
+    } catch {
+      // decoy or truncated attribute — try the next candidate
+    }
   }
+  return null
+}
+
+export function parseMlhInertia(html: string): IngestRow[] {
+  const page = extractInertiaPayload(html)
+  if (page === null) return []
   const arrays: JsonObject[][] = []
   findEventArrays(page, arrays)
   if (arrays.length === 0) return []
@@ -177,18 +194,18 @@ export function parseMlhInertia(html: string): IngestRow[] {
 function describeDrift(html: string): string {
   const anchors = (html.match(/<a[\s>]/gi) ?? []).length
   const hackathons = (html.match(/hackathon/gi) ?? []).length
-  const pageAttr = html.match(/data-page="([^"]+)"/)
-  let inertia = 'data-page absent'
-  if (pageAttr) {
-    try {
-      const page = JSON.parse(decodeEntities(pageAttr[1])) as JsonObject
-      const props = (page.props ?? {}) as JsonObject
-      inertia = `inertia component=${String(page.component)}, props keys: ${Object.keys(props)
-        .slice(0, 15)
-        .join(',')}`
-    } catch {
-      inertia = `data-page present but unparseable (${pageAttr[1].length}b)`
-    }
+  const candidates = inertiaCandidates(html)
+  const maxLen = candidates.reduce((a, c) => Math.max(a, c.length), 0)
+  const page = extractInertiaPayload(html)
+  let inertia = `data-page candidates x${candidates.length} (max ${maxLen}b): `
+  if (page !== null) {
+    const p = page as JsonObject
+    const props = (p.props ?? {}) as JsonObject
+    inertia += `component=${String(p.component)}, props keys: ${Object.keys(props)
+      .slice(0, 15)
+      .join(',')}`
+  } else {
+    inertia += 'none parseable'
   }
   return `page ${html.length}b, ${anchors} anchors, "hackathon" x${hackathons}, ${inertia}`
 }
