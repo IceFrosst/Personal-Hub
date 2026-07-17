@@ -1,93 +1,121 @@
-# Event Radar — v1 Plan
+# Event Radar — Locked v1 Plan (ready for scaffold)
 
-> **Status**: Locked discovery summary. No code, folder, or schema has been created yet.
-> Written by Grok for dual-agent review (Claude + Grok). Do not start scaffolding until both agents and Ignas agree.
+> **Status**: Decisions locked by Ignas (2026-07-17). Pure discovery version.
+> **Built 2026-07-17** — scaffolded, migrated, and provisioned on branch
+> `claude/hackathon-auto-apply-tool-hg8cwv`; ships on merge to `main`. Technical
+> decisions Claude made: service-role key as server-only Vercel env var behind a
+> CRON_SECRET route (same pattern as lock-in's cron), daily Vercel cron cadence.
+> Live state now tracked in `apps/event-radar/CLAUDE.md`.
 
 ## Problem
 
-I miss good technology hackathons (any tech, not only AI/health) because they are scattered across Devpost, MLH, etc., and applying takes too much time. An agent should find matches for me and either prepare or (later) semi-auto apply so I only spend minutes instead of hours.
+I miss good technology hackathons (any tech) because they are scattered across many sites,
+and applying takes too much time. The goal is an agent that finds high-match opportunities
+so I only spend minutes instead of hours.
 
-## v1 Scope (Minimum Useful Version)
+## v1 Scope (final)
 
-Discovery + ranking + status tracking + notifications.  
-**You still apply yourself.** Full auto-apply / form-filling is later (v2+).
+**Pure discovery + ranking + status tracking + notifications.**
+You still apply yourself. Apply Kit and auto-apply come later once the core works.
 
 ### Core actions
 - Browse a ranked feed of matching open tech hackathons
-- Mark one as “I’m applying” or “already applied”
-- Get notified (phone web-push preferred) when a new high-match one appears
+- Mark status: interested / applying / applied / hidden
+- Get phone web-push when a new high-match one appears
 
-### Key ranking / filters (highest priority first)
-1. Travel expenses covered by sponsor (especially important — user is in Lithuania)
+### Ranking priorities (highest first)
+1. Travel expenses covered by sponsor (critical — based in Lithuania)
 2. Accommodation provided
-3. Open to business / non-engineering students (not pure dev-only)
-4. Location nuance: if the event is in a neighboring country (Latvia, Poland, etc.), travel coverage becomes less critical
+3. Open to business / non-engineering students
+4. Neighbor-country discount (Latvia, Poland, Estonia, etc. → travel coverage matters less)
 5. Online events automatically satisfy the travel filter
 
+Tiebreaks: prize pool, registration deadline proximity.
+Score is computed at read time (not stored).
+
 ### Sources
-- Start with the highest-quality **free** sources only: Devpost + MLH + 2–3 solid others
-- Expand later (explicit roadmap item)
-- Background agent / routine that regularly checks those sources (can later call Grok/Claude-style agents)
+Maximize opportunities. Do **not** limit to a small curated European list.
+Prefer any source (free) that can surface events with possible travel reimbursement.
+Start with the highest-quality free sources (Devpost public API + MLH + others that are reliable).
+Expand later. Background agent/routine keeps checking them.
 
-### Audience
-You + friends you invite (private multi-user ready).
+### Pipeline notes
+- Enrichment: use free models (Gemini Flash preferred for quality, Groq for speed).
+  See root `CLAUDE.md` for `GEMINI_API_KEY` + `GROQ_API_KEY` guidance.
+- Notifications: Web Push (VAPID, free).
+- Global `hackathons` table writes need elevated privileges (service-role or restricted role).
+  **Claude decides the cleanest technical route.**
+- Scrape cadence: Claude decides (daily Vercel cron is probably enough; night deeper search
+  with Claude usage is interesting later).
 
-### Offline
-Online-first. Live feed and notifications need a connection. Offline can be basic or none.
+### Audience / offline / cost
+- You + friends you invite (private multi-user, RLS)
+- Online-first
+- 100% free to run (Vercel + Supabase free tiers only)
 
-### Hard constraint
-100% free to run (Vercel free tier + Supabase free tier only). No paid scrapers, no paid APIs.
-
-## Data model (v1)
+## Data model (v1 — pure)
 
 New Postgres schema: `hackathon`
 
 ### `hackathons` (global)
-- id, title, url, source (devpost / mlh / …)
+- id, title, url, source
 - starts_at, ends_at, registration_deadline
 - location / format (online / city / country)
-- prize_pool (number or text)
-- travel_covered (bool / unknown)
-- accommodation_covered (bool / unknown)
-- open_to_business_students (bool / unknown)
-- themes (text[] or json)
-- raw_description, last_seen_at, created_at
+- prize_pool
+- travel_covered, accommodation_covered, open_to_business_students (bool / unknown)
+- themes, raw_description, last_seen_at, created_at
 
-### `user_hackathon_status` (per user)
+### `user_hackathon_status` (per user, RLS)
 - user_id, hackathon_id
 - status (`interested` | `applying` | `applied` | `hidden`)
-- notes (optional text)
-- updated_at
+- notes, updated_at
 
-### `user_preferences` (per user)
+### `user_preferences` (per user, RLS)
 - user_id
 - filters (json — travel / accommodation / student / neighbor rules)
 - notification_settings (json)
 
-Schema is additive-only forever (see root `SCHEMA_RULES.md`).
+### `push_subscriptions` (per user, RLS)
+- user_id, subscription (json — Web Push endpoint + keys), created_at
 
-## Identity
+No application_profiles or application_drafts tables in v1.
+
+## Identity (locked)
 
 - **Display name**: Event Radar
-- **Slug** (folder + technical id): `event-radar`
-- **Accent**: purple + blue (works with the dark mauve base; white used for text/highlights)
-- **Icon direction**: radar with a trophy element somewhere in its radius (custom tile icon)
+- **Slug**: `event-radar`
+- **Accent**: purple (+ blue highlights)
+- **Icon**: radar with a trophy element (custom tile); Tabler `radar-2` as fallback
 
-## What is explicitly out of v1
+## Explicitly out of v1
 
-- Full browser auto-apply / form filling
-- Paid data sources or scrapers
-- Covering every possible hackathon site from day one
-- Complex team-matching or idea generation
+- Apply Kit / AI-drafted answers
+- Browser auto-fill or auto-submit
+- Paid sources
+- CAPTCHA workarounds
 
-## Roadmap notes (post-v1)
+## Roadmap (post-v1)
 
-- Expand sources beyond the initial free set
-- Background agent that can call external LLMs (Grok / Claude) for deeper evaluation
-- Semi-auto apply (prepare materials → fill forms with human approval)
-- Better phone notification reliability
+- Apply Kit (profile + drafted answers)
+- Approval-gated browser auto-fill (Claude Code cloud sessions + Playwright)
+- Broader source coverage + night search agents
+- Opt-in auto-submit on trusted platforms
 
-## Next step
+## Technical decisions left to Claude
 
-Claude reviews this plan.  
-Once both agents and Ignas are aligned, follow the normal Personal-Hub new-app checklist in root `CLAUDE.md` (scaffold `apps/event-radar/`, register in hub, migrations, etc.).
+1. Exact mechanism for writing to the global `hackathons` table (service-role key on Vercel vs restricted Postgres role).
+2. Scrape cadence (daily Vercel cron vs more frequent).
+
+Ignas will do any required manual steps (env vars, allowlist, etc.).
+
+## Next step for Claude
+
+Follow the normal Personal-Hub new-app checklist in root `CLAUDE.md`:
+1. Scaffold `apps/event-radar/` (README + CLAUDE.md)
+2. Register in `apps/hub/config/apps.json` + icon map
+3. Vercel project
+4. SQL migration for the `hackathon` schema
+5. Auth redirect
+6. Implement ranked feed + status + basic notifications + daily ingest
+
+Ship the pure discovery version first.
