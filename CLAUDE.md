@@ -244,12 +244,26 @@ All set in the Claude Code cloud env vars panel. Available every session.
 - Renew: aistudio.google.com → Get API key
 - **Must be added manually to each Vercel project that uses AI** — setup script only injects Supabase vars
 - Call server-side only. Always write a graceful fallback. Use `generationConfig: { responseMimeType: 'application/json' }` for structured output.
+- **Best for:** higher-quality drafting, nuanced instruction following, longer context.
+
+### `GROQ_API_KEY`
+- Groq free-tier key (no credit card required)
+- Preferred models (all free):
+  - `llama-3.3-70b-versatile` — balanced default
+  - `openai/gpt-oss-120b` — highest quality open model on Groq
+  - `deepseek-r1-distill-llama-70b` — stronger reasoning
+- OpenAI-compatible endpoint: `https://api.groq.com/openai/v1`
+- **Must be added manually to each Vercel project that uses it**
+- Call server-side only. Always write a graceful fallback (e.g. to Gemini).
+- **Best for:** speed-critical work, high-volume structured extraction, daily cron jobs, when latency matters more than the last bit of quality.
+- Free tier is generous enough for personal apps (roughly 30 RPM / ~1k RPD on the larger models).
 
 ### Network allowlist
 
 Add these to the outbound allowlist in Claude Code environment settings:
 - `api.vercel.com` — needed for Vercel project creation
 - `api.supabase.com` — needed for SQL migrations and auth config
+- `api.groq.com` — needed if testing Groq from Claude Code sessions
 
 ---
 
@@ -264,7 +278,7 @@ With all tokens set and both domains allowlisted, a new app goes from idea to li
 5. ✅ **Auth redirect URL** — `PATCH https://api.supabase.com/v1/projects/qcsyihymmaktkbqfxlkl/config/auth`
 6. ✅ **Commit & push to `main`** — Vercel deploys the new project
 
-**Still manual:** add `GEMINI_API_KEY` in Vercel dashboard (if the app uses AI) + test on phone.
+**Still manual:** add `GEMINI_API_KEY` and/or `GROQ_API_KEY` in Vercel dashboard (if the app uses AI) + test on phone.
 
 ---
 
