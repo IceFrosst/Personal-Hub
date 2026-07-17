@@ -85,12 +85,18 @@ interface FlexItem {
 }
 
 /**
- * Build the day:
- *   1. Pin fixed-time routines to their time, sliding to the nearest free slot
- *      when that time is already busy.
- *   2. Ask Gemini to lay out one-off tasks + flexible routines in the remaining
- *      free time, following the day-shape strategy (quick win first, protect
- *      deep-work blocks, end on a high). Falls back to a deterministic packer.
+ * Build the day in the order a person actually plans, so **routines always win a
+ * slot before one-off tasks are considered**:
+ *   1. **Fixed-time routines** — pinned to their clock time (slide to the nearest
+ *      free slot only if that exact time is busy).
+ *   2. **Flexible routines** — reserved next, before any task, longest first, so a
+ *      big routine (e.g. a 2 h workout) is guaranteed room and can't be crowded
+ *      out by smaller tasks.
+ *   3. **One-off tasks** — Gemini estimates durations + fills the *remaining* free
+ *      time (deterministic packer as fallback).
+ *   4. **AI reorder pass** — one more Gemini call reorders the whole movable day
+ *      (flexible routines + tasks) into a logical flow around the fixed anchors.
+ *      Best-effort: if the model is unavailable, the phase 1–3 layout stands.
  */
 export async function planDay(input: PlanInput): Promise<PlanResult> {
   const winStart = hmToMinutes(input.earliestStart)
@@ -99,20 +105,22 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
   // day). A mid-day replan starts later (earliestStart pushed to now) — there the
   // day is already underway, so we skip the "open with a quick win" shaping.
   const fresh = winStart <= hmToMinutes(input.workStart)
+  const key = process.env.GEMINI_API_KEY
 
-  const occupied: Array<[number, number]> = input.busy
+  // Locked calendar events + kept blocks — immovable anchors everything works around.
+  const lockedIntervals: Array<[number, number]> = input.busy
     .map((b) => [hmToMinutes(b.start), hmToMinutes(b.end)] as [number, number])
     .filter(([s, e]) => e > s)
+  const occupied: Array<[number, number]> = [...lockedIntervals]
 
-  // 1. Fixed-time routines (deterministic).
+  // Phase 1 — fixed-time routines, pinned (deterministic).
   const fixedBlocks: ProposedBlock[] = []
-  const fixedSorted = [...input.recurringFixed].sort(
+  for (const r of [...input.recurringFixed].sort(
     (a, b) => hmToMinutes(a.fixedTime) - hmToMinutes(b.fixedTime)
-  )
-  for (const r of fixedSorted) {
+  )) {
     const dur = Math.max(5, r.durationMinutes)
     const start = findNearestSlot(hmToMinutes(r.fixedTime), dur, occupied, winStart, winEnd)
-    if (start == null) continue // no room today
+    if (start == null) continue
     occupied.push([start, start + dur])
     fixedBlocks.push({
       recurring_id: r.id,
@@ -126,51 +134,79 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     })
   }
 
-  // 2. Flexible items: one-off tasks (estimate) + flexible routines (known dur).
-  const flexItems: FlexItem[] = [
-    ...input.tasks.map<FlexItem>((t) => ({
+  // Phase 2 — reserve flexible routines BEFORE tasks (longest first → guaranteed a
+  // slot). This is the key rule: routines are non-negotiable; tasks fill the rest.
+  const flexRoutineBlocks: ProposedBlock[] = []
+  for (const r of [...input.recurringFlex].sort((a, b) => b.durationMinutes - a.durationMinutes)) {
+    const dur = Math.max(5, r.durationMinutes)
+    const start = findNearestSlot(winStart, dur, occupied, winStart, winEnd)
+    if (start == null) continue // truly no room even before tasks
+    occupied.push([start, start + dur])
+    flexRoutineBlocks.push({
+      recurring_id: r.id,
+      task_id: null,
+      title: r.title,
+      start: toHM(start),
+      end: toHM(start + dur),
+      estimated_minutes: dur,
+      category: null,
+      priority: null,
+    })
+  }
+
+  // Phase 3 — one-off tasks into the remaining free time (routines already placed).
+  let taskBlocks: ProposedBlock[] = []
+  let ai: AiStatus = 'ok'
+  if (input.tasks.length > 0) {
+    const taskItems: FlexItem[] = input.tasks.map<FlexItem>((t) => ({
       id: t.id,
       kind: 'task',
       title: t.title,
       priority: t.priority,
       due: t.due_date,
       category: t.category,
-    })),
-    ...input.recurringFlex.map<FlexItem>((r) => ({
-      id: r.id,
-      kind: 'recurring',
-      title: r.title,
-      fixedDuration: Math.max(5, r.durationMinutes),
-    })),
-  ]
-
-  let rest: ProposedBlock[] = []
-  let ai: AiStatus = 'ok'
-  if (flexItems.length > 0) {
-    const key = process.env.GEMINI_API_KEY
+    }))
     if (!key) {
       ai = 'fallback'
-      rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today, fresh)
+      taskBlocks = naiveSchedule(taskItems, occupied, winStart, winEnd, input.today, fresh)
     } else {
       try {
-        const raw = await geminiSchedule(flexItems, occupied, winStart, winEnd, input.today, key, fresh)
-        rest = sanitize(raw, flexItems, occupied, winStart, winEnd)
-        // Model returned nothing usable → pack deterministically and flag it.
-        if (rest.length === 0) {
-          const packed = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today, fresh)
+        const raw = await geminiSchedule(taskItems, occupied, winStart, winEnd, input.today, key, fresh)
+        taskBlocks = sanitize(raw, taskItems, occupied, winStart, winEnd)
+        if (taskBlocks.length === 0) {
+          const packed = naiveSchedule(taskItems, occupied, winStart, winEnd, input.today, fresh)
           if (packed.length > 0) {
-            rest = packed
+            taskBlocks = packed
             ai = 'fallback'
           }
         }
       } catch (err) {
         ai = String(err).includes('429') ? 'rate_limited' : 'fallback'
-        rest = naiveSchedule(flexItems, occupied, winStart, winEnd, input.today, fresh)
+        taskBlocks = naiveSchedule(taskItems, occupied, winStart, winEnd, input.today, fresh)
       }
     }
   }
 
-  const blocks = [...fixedBlocks, ...rest].sort(
+  // Phase 4 — AI reorders the whole movable day (flex routines + tasks) into a
+  // logical flow around the fixed routines + locked events. Best-effort; only when
+  // phase 3's model call actually worked (don't hammer a failing/limited model).
+  const anchors: Array<[number, number]> = [
+    ...lockedIntervals,
+    ...fixedBlocks.map(
+      (b) => [hmToMinutes(b.start), hmToMinutes(b.end)] as [number, number]
+    ),
+  ]
+  let movable = [...flexRoutineBlocks, ...taskBlocks]
+  if (key && movable.length > 1 && ai === 'ok') {
+    try {
+      const order = await geminiOrder(movable, anchors, winStart, winEnd, input.today, fresh, key)
+      if (order) movable = reflowByOrder(movable, order, anchors, winStart, winEnd)
+    } catch {
+      // Keep the phase 1–3 layout.
+    }
+  }
+
+  const blocks = [...fixedBlocks, ...movable].sort(
     (a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)
   )
   return { blocks, ai }
@@ -429,6 +465,117 @@ function naiveSchedule(
       if (fi < free.length) at = free[fi][0]
     }
     if (fi >= free.length) break
+  }
+  return out
+}
+
+const blockId = (b: ProposedBlock): string => b.task_id ?? b.recurring_id ?? ''
+
+/**
+ * Phase 4: ask the model to REORDER the already-placed movable blocks (flexible
+ * routines + tasks) into a logical daily flow, working around the fixed anchors.
+ * Returns the ids in the chosen order (or null if unusable). It only decides
+ * ORDER — `reflowByOrder` does the actual time placement — so it can't drop or
+ * overlap anything.
+ */
+async function geminiOrder(
+  movable: ProposedBlock[],
+  anchors: Array<[number, number]>,
+  winStart: number,
+  winEnd: number,
+  today: string,
+  fresh: boolean,
+  key: string
+): Promise<string[] | null> {
+  const anchorLines = anchors.length
+    ? [...anchors]
+        .sort((a, b) => a[0] - b[0])
+        .map(([s, e]) => `- ${toHM(s)}–${toHM(e)} (fixed — don't move)`)
+        .join('\n')
+    : '- (none)'
+  const itemLines = movable
+    .map((b) => {
+      const dur = hmToMinutes(b.end) - hmToMinutes(b.start)
+      const kind = b.recurring_id ? 'ROUTINE' : 'task'
+      return `- id=${blockId(b)} | ${kind} | ${dur} min | tag=${b.category ?? 'none'} | ${b.title.replace(/\s+/g, ' ').trim()}`
+    })
+    .join('\n')
+
+  const prompt = `Reorder the movable blocks below into a logical daily flow for TODAY (${today}).
+
+Working window: ${toHM(winStart)} to ${toHM(winEnd)}. These are FIXED anchors already placed — do NOT reorder them, just arrange the movable blocks sensibly around them:
+${anchorLines}
+
+Movable blocks (routines AND tasks — each must appear exactly once in your output):
+${itemLines}
+
+Ordering rules:
+${
+  fresh
+    ? '- Open with a QUICK WIN (a short, easy item) for momentum.'
+    : '- The day is already underway (mid-day replan) — do NOT open with a quick win; continue sensibly.'
+}
+- Focus-heavy work ('work'/'hustle' tags, long deep-work tasks) in the earlier / higher-energy hours.
+- A MEAL (lunch/dinner) comes AFTER an exercise/workout, never right before it.
+- A BREAK follows a demanding session — not right after a meal and not right after exercise.
+- Put EXERCISE at a sensible hour — not first thing, not sandwiched between tiny tasks.
+- END ON A HIGH: leave something lighter/satisfying last; don't finish on the most draining item.
+- Group same-tag items together rather than ping-ponging.
+
+Return ONLY JSON, every movable id exactly once, in your chosen order:
+{"order":["<id>","<id>", ...]}`
+
+  const text = await generateJson(prompt, key)
+  const parsed = JSON.parse(text) as { order?: unknown }
+  if (!Array.isArray(parsed.order)) return null
+  const order = parsed.order.map((x) => String(x))
+  return order.length ? order : null
+}
+
+/**
+ * Re-lay the movable blocks in `order` (task/recurring ids) into the free time
+ * around the immovable `anchors`, bounded by the window. Keeps each block's
+ * duration; any id the model dropped is appended in its original position so
+ * nothing is lost. Never overflows `winEnd`.
+ */
+function reflowByOrder(
+  movable: ProposedBlock[],
+  order: string[],
+  anchors: Array<[number, number]>,
+  winStart: number,
+  winEnd: number
+): ProposedBlock[] {
+  const byId = new Map(movable.map((b) => [blockId(b), b]))
+  const seen = new Set<string>()
+  const seq: ProposedBlock[] = []
+  for (const id of order) {
+    const b = byId.get(id)
+    if (b && !seen.has(id)) {
+      seq.push(b)
+      seen.add(id)
+    }
+  }
+  for (const b of movable) if (!seen.has(blockId(b))) seq.push(b)
+
+  const sortedAnchors = [...anchors].sort((a, b) => a[0] - b[0])
+  const out: ProposedBlock[] = []
+  let cursor = winStart
+  for (const b of seq) {
+    const dur = hmToMinutes(b.end) - hmToMinutes(b.start)
+    let start = cursor
+    for (let guard = 0; guard < 200; guard++) {
+      const clash = sortedAnchors.find(([as, ae]) => start < ae && start + dur > as)
+      if (!clash) break
+      start = clash[1] + GAP
+    }
+    if (start + dur > winEnd) {
+      // The set already fit before reordering, so this is only a safety net —
+      // keep the block's existing placement rather than overflow the day.
+      out.push(b)
+      continue
+    }
+    out.push({ ...b, start: toHM(start), end: toHM(start + dur) })
+    cursor = start + dur + GAP
   }
   return out
 }

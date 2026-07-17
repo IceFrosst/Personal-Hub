@@ -52,11 +52,17 @@ durations and time-blocks a realistic day around existing events, and the blocks
 real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggle in settings.
 A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
 
-The planner (`lib/game-plan/planner.ts`) schedules **recurring routines** (fixed-time pinned +
-nearest-free-slot fallback; flexible auto-placed) **and one-off tasks** with a day-shape strategy:
+The planner (`lib/game-plan/planner.ts`) runs in **four phases so routines always win a slot before
+one-off tasks**: (1) **fixed-time routines** pinned to their clock time (slide to nearest free slot
+if busy); (2) **flexible routines reserved next, before any task, longest first** — so a big routine
+(e.g. a 2 h workout) is guaranteed room and can't be crowded out by smaller tasks; (3) **one-off
+tasks** fill the *remaining* free time (Gemini estimates durations; deterministic packer fallback);
+(4) an **AI reorder pass** (`geminiOrder` → `reflowByOrder`) reorders the whole movable day (flex
+routines + tasks) into a logical flow around the fixed anchors — best-effort, only when phase-3's
+model call worked; on failure the phase 1–3 layout stands. Day-shape strategy applied throughout:
 quick win first (**only on a fresh start-of-day / future-day plan** — a mid-day replan skips the
 quick-win opener since the day's already underway; gated on `earliestStart <= work_start`) · protect
-deep-work blocks · end on a high · **tag-aware** (work/hustle in peak
+deep-work blocks · end on a high · meals after exercise · breaks after hard work · **tag-aware** (work/hustle in peak
 hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
 durations are exact. **Replanning freezes the past and cuts at now:** on today, the cutoff is now
@@ -77,17 +83,21 @@ for silent model-death). Blocks are coloured by **priority** (`plan_blocks.prior
 prio-low/medium/high like the task list); **recurring blocks are white**. Timeline uses the same
 square checkbox as `TaskRow`/`RecurringRow` (gold for tasks, white for routines).
 
-**Timeline is interactive:** tap a block to mark it done → the underlying task is completed
+**Timeline is interactive:** tap a block's checkbox to mark it done → the underlying task is completed
 (`focus_gate.tasks.is_completed`) or the routine checked (`recurring_completions` for that date),
-and `plan_blocks.status` flips — plan and list stay in sync. **Today / Tomorrow** toggle plans and
+and `plan_blocks.status` flips — plan and list stay in sync. **Locked (calendar) blocks can also be
+checked off** now, but it's **cosmetic only** (just `plan_blocks.status` — they have no task/routine
+to complete, and the status resets on the next replan since locked blocks are re-read from the
+calendar). **Today / Tomorrow** toggle plans and
 views either day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
 window, today starts from now). Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
 
 **The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;
 `listDayEvents` reads real timed events excluding our tagged ones — `run.ts` now cleans up *before*
-reading so old GP events aren't re-read). Locked blocks have a lock icon, aren't draggable, and no
-calendar event is written for them (they already exist). Rows have **no left time gutter** (the
+reading so old GP events aren't re-read). Locked blocks show a small lock glyph, aren't draggable
+or editable, and no calendar event is written for them (they already exist) — but they **can** be
+checked off (cosmetic, see above). Rows have **no left time gutter** (the
 start–end time lives in the card's meta line). **Press-and-hold anywhere on a movable block to pick
 it up** (`Timeline`: a ~300 ms long-press arms the drag from any position; a pre-arm finger move
 >10 px is treated as a page scroll and lets go). Once armed, drag to reorder (neighbour-swap, follows
