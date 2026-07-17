@@ -75,16 +75,32 @@ export function parseMlhHtml(html: string, seasonYear: number): IngestRow[] {
   return rows
 }
 
+// When the parser stops matching, the error should describe the page we did
+// get — the class vocabulary is usually enough to rewrite the regexes without
+// pulling the full HTML out of production.
+function describeDrift(html: string): string {
+  const classes = [
+    ...new Set(
+      [...html.matchAll(/class="([^"]*event[^"]*)"/gi)].map((m) => m[1].trim()),
+    ),
+  ]
+  const anchors = (html.match(/<a[\s>]/gi) ?? []).length
+  return `page ${html.length}b, ${anchors} anchors, event-ish classes: ${
+    classes.slice(0, 8).join(' | ') || 'none'
+  }`
+}
+
 export async function fetchMlh(): Promise<IngestRow[]> {
   // Mid-season the current year still has upcoming events and the next season
-  // is already published — fetch both, tolerating a failure on either. But if
-  // NO season yields a page, the failure must reach the cron's per-source
-  // report: a silent [] is indistinguishable from "no events listed", which
-  // hides bot-blocking (403s) behind what looks like regex drift.
+  // is already published — fetch both, tolerating a failure on either. But
+  // "nothing ingested" must never be silent: if NO season yields a page the
+  // error carries the HTTP statuses (fetch/blocking problem), and if pages
+  // arrive but zero cards parse the error carries a markup fingerprint
+  // (regex drift). A plain [] here would look like "no events listed".
   const year = new Date().getUTCFullYear()
   const seasons = [year, year + 1]
   const rows: IngestRow[] = []
-  let anySuccess = false
+  let lastHtml: string | null = null
   const failures: string[] = []
 
   for (const season of seasons) {
@@ -97,13 +113,17 @@ export async function fetchMlh(): Promise<IngestRow[]> {
         failures.push(`${season}: HTTP ${res.status}`)
         continue
       }
-      rows.push(...parseMlhHtml(await res.text(), season))
-      anySuccess = true
+      const html = await res.text()
+      lastHtml = html
+      rows.push(...parseMlhHtml(html, season))
     } catch (err) {
       failures.push(`${season}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
-  if (!anySuccess && failures.length > 0) throw new Error(failures.join('; '))
+  if (lastHtml === null && failures.length > 0) throw new Error(failures.join('; '))
+  if (lastHtml !== null && rows.length === 0) {
+    throw new Error(`parsed 0 events — ${describeDrift(lastHtml)}`)
+  }
   return rows
 }

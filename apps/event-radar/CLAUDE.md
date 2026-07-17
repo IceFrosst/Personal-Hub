@@ -52,8 +52,10 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
   HTML. MLH is a regex parse of static HTML — when it drifts, `parseMlhHtml` returns `[]`
   and the cron's `sources.mlh` reports it. Fix the regexes, don't add a headless browser.
-  When *no* MLH season page fetches OK, `fetchMlh` throws with per-season HTTP statuses —
-  so `sources.mlh: 0` (no error) = drift, `sources.mlh: "error: …"` = fetch/blocking.
+  `fetchMlh` refuses to return an empty result silently: no season page fetching OK
+  throws with per-season HTTP statuses, and pages that fetch OK but parse to zero cards
+  throw with a markup fingerprint (page size, anchor count, `event`-ish class names) so
+  the cron report itself says what the new markup looks like.
 - Exposing the `hackathon` schema to the Data API needs the platform config **and** the
   `authenticator` role's `pgrst.db_schemas` + both `notify pgrst` reloads — see the
   "Data API exposure" section in root `SCHEMA_RULES.md` (this bit Event Radar's first
@@ -84,10 +86,10 @@ swallowed (now surfaced in `sources.mlh`).
 
 ## Next
 
-- Diagnose MLH returning 0: after the error-surfacing fix deploys, the cron response
-  says whether it's bot-blocking (`error: … HTTP 403`) or regex drift (plain `0`).
-  If MLH is blocking plain fetches, decide with Ignas whether to drop or rework the
-  source — don't quietly disguise the scraper as a browser.
+- Fix the MLH parser: production fetches the season pages fine (HTTP 200) but the
+  `event-link` card regexes match nothing — markup drift, confirmed via the cron's
+  per-source report. The drift error now includes the page's `event`-ish class names;
+  use those to rewrite the regexes in `parseMlhHtml`.
 - Ignas: install the PWA on the Pixel, log in, and test push notifications end-to-end.
 - Roadmap (per EVENT_RADAR_PLAN.md): more sources (the EU travel-reimbursing circuit),
   Apply Kit, approval-gated auto-fill via Claude Code cloud sessions, night search agents.
