@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS: Omit<PlanSettings, 'user_id' | 'updated_at'> = {
   auto_plan: true,
 }
 
-export type PlanBlockStatus = 'scheduled' | 'done' | 'skipped'
+export type PlanBlockStatus = 'scheduled' | 'done' | 'skipped' | 'continued'
 
 export interface PlanBlock {
   id: string

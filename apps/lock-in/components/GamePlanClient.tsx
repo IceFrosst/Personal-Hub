@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   IconArrowLeft,
+  IconArrowRight,
   IconBrandGoogle,
   IconCalendarBolt,
   IconCheck,
@@ -462,6 +463,28 @@ export default function GamePlanClient() {
     [providerToken, userId, activeDate, loadBlocks]
   )
 
+  // "Continue tomorrow": snooze the task to the next day; today's started block
+  // stays as progress (trimmed to now), an unstarted block just leaves the plan.
+  const continueTomorrow = useCallback(
+    async (b: PlanBlock) => {
+      setSheetBlock(null)
+      const res = await fetch('/api/game-plan/continue-tomorrow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockId: b.id, providerToken }),
+      }).catch(() => null)
+      if (res && res.ok && userId) {
+        await loadBlocks(userId, activeDate)
+        setMessage(
+          `"${b.title}" moved to tomorrow — it'll get a slot when tomorrow is planned.`
+        )
+      } else {
+        setError('Could not move the task to tomorrow — try again.')
+      }
+    },
+    [providerToken, userId, activeDate, loadBlocks]
+  )
+
   // Remove just this block from today's plan (and its calendar event). The
   // underlying task / routine stays on the list — a replan can re-add it.
   const removeBlockFromPlan = useCallback(
@@ -633,6 +656,16 @@ export default function GamePlanClient() {
             >
               Replace with another task
             </button>
+            {sheetBlock.task_id && (
+              <button
+                type="button"
+                onClick={() => continueTomorrow(sheetBlock)}
+                className="mt-2 w-full min-h-12 rounded-xl bg-surface text-text font-medium active:bg-border/40 transition-colors flex items-center justify-center gap-1.5"
+              >
+                Continue tomorrow
+                <IconArrowRight size={16} className="text-text-muted" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => removeBlockFromPlan(sheetBlock)}
@@ -998,6 +1031,7 @@ function Timeline({
         const b = byId.get(id)
         if (!b) return null
         const done = b.status === 'done'
+        const continued = b.status === 'continued'
         const isRecurring = !!b.recurring_id
         const cat = b.category ? TASK_CATEGORIES.find((c) => c.value === b.category) : null
         const dragging = dragId === b.id
@@ -1011,7 +1045,7 @@ function Timeline({
           ? done
             ? 'bg-text-muted border-text-muted text-black'
             : 'border-border-focus text-transparent active:border-text-muted'
-          : done
+          : done || continued
             ? isRecurring
               ? 'bg-white/10 border-white text-white'
               : 'bg-gold/10 border-gold text-gold'
@@ -1030,7 +1064,7 @@ function Timeline({
             }
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
-            <div className={`min-w-0 py-1.5 ${done ? 'opacity-60' : ''}`}>
+            <div className={`min-w-0 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
               <div
                 onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}
                 onPointerMove={b.locked ? undefined : onMove}
@@ -1054,7 +1088,11 @@ function Timeline({
                   aria-label={done ? 'Mark not done' : 'Mark done'}
                   className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${checkbox}`}
                 >
-                  <IconCheck size={14} stroke={3} />
+                  {continued ? (
+                    <IconArrowRight size={14} stroke={3} />
+                  ) : (
+                    <IconCheck size={14} stroke={3} />
+                  )}
                 </button>
 
                 <div className="flex-1 min-w-0">
@@ -1079,6 +1117,7 @@ function Timeline({
                       {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
                     </span>
                     {b.locked && <span className="text-text-low text-[11px]">calendar</span>}
+                    {continued && <span className="text-gold/80 text-[11px]">→ tomorrow</span>}
                     {cat && (
                       <span
                         className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"

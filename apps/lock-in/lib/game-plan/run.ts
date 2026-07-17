@@ -52,13 +52,16 @@ export async function runPlanForUser(args: {
   const today = args.targetDate ?? todayInTz(tz)
   const isToday = today === todayInTz(tz)
 
-  // 1. Open tasks.
+  // 1. Open tasks — excluding ones snoozed past this plan's date ("continue
+  // tomorrow" sets snoozed_until to the next day, so today's replans skip the
+  // task while tomorrow's plan picks it up).
   const { data: taskRows } = await db
     .schema('focus_gate')
     .from('tasks')
     .select('id, title, priority, due_date, category')
     .eq('user_id', userId)
     .eq('is_completed', false)
+    .or(`snoozed_until.is.null,snoozed_until.lte.${today}`)
 
   const tasks: PlannableTask[] = (taskRows ?? []) as PlannableTask[]
 
@@ -89,7 +92,11 @@ export async function runPlanForUser(args: {
   const truncated: PlanBlock[] = []
   const kept = existing
     .filter(
-      (b) => !b.locked && isToday && b.status === 'done' && hmToMinutes(b.start_local) < cutoffMin
+      (b) =>
+        !b.locked &&
+        isToday &&
+        (b.status === 'done' || b.status === 'continued') &&
+        hmToMinutes(b.start_local) < cutoffMin
     )
     .map((b) => {
       if (hmToMinutes(b.end_local) > cutoffMin) {

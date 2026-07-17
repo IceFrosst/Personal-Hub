@@ -21,7 +21,7 @@ button lands here. Pure-black theme with a gold accent.
 - Recurring-task types (`RecurringTask`, `RecurringCompletion`, `TimeMode`, weekday helpers) in `lib/types.ts`; recurrence date logic (ISO weekday, streaks, due-today) in `lib/recurring.ts`.
 
 ## Data model
-- **Shares** `focus_gate.tasks` with Focus Gate (Focus Gate owns/creates it). Lock In **added** `priority text` (`'low'|'medium'|'high'`, default `'medium'`) and `due_date date` (`0001`), and `category text` (`'work'|'hustle'|'social'|'other'`, nullable — the one-off task tag; `0005_task_category.sql`).
+- **Shares** `focus_gate.tasks` with Focus Gate (Focus Gate owns/creates it). Lock In **added** `priority text` (`'low'|'medium'|'high'`, default `'medium'`) and `due_date date` (`0001`), `category text` (`'work'|'hustle'|'social'|'other'`, nullable — the one-off task tag; `0005_task_category.sql`), and `snoozed_until date` (nullable — Game Plan skips the task on days before this date; set by "Continue tomorrow"; `0010_continue_tomorrow.sql`, which also widens `plan_blocks.status` with `'continued'`).
 - `supabase/migrations/0002_grant_focus_gate_api_access.sql` exposes the `focus_gate` schema to PostgREST (grants + exposed-schema list) so both apps can read the table over the API.
 - **`lock_in` schema (Lock In's own)** — `supabase/migrations/0003_game_plan.sql`, exposed to PostgREST (`db_schema` now includes `lock_in`). Three tables, all RLS by `user_id`:
   - `calendar_connections (user_id pk, google_refresh_token, google_email, connected_at, updated_at)` — the Google offline refresh token for Game Plan. The cron reads it with the **service_role** key; the browser only ever selects the non-token columns.
@@ -67,7 +67,7 @@ hours, social/other later; group same-tag). `run.ts` loads routines due for the 
 (skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
 durations are exact. **Replanning keeps only what you finished, then restarts the day at now:** on
 today, the cutoff is now (rounded to the 5-min grid, never before `work_start`). `run.ts` keeps a
-block **only if its status is `done`** and it started before the cutoff (a done block that runs past
+block **only if its status is `done` or `'continued'`** and it started before the cutoff (a done block that runs past
 the cutoff — finished early — is **truncated to end at now**, row + calendar event patched). Blocks
 that are **not done** and sit before the cutoff are **dropped**, and their task/routine goes back into
 the pool to be re-planned from now — so if you wake up and replan at 10:00, the untouched 09:00 blocks
@@ -122,7 +122,12 @@ unscheduled task into the block's slot (`POST /api/game-plan/swap-block`): the p
 not already in the plan (rendered **task-list style** — priority accent bar + category/due chips);
 choosing one keeps the slot's start/end, deletes the old calendar event and writes a new one for the
 chosen task, and the old item just leaves the plan (stays on the list).
-**Remove from plan** deletes only *that* block
+**Continue tomorrow** (task blocks only, `POST
+/api/game-plan/continue-tomorrow`) snoozes the task to the next day (`snoozed_until` + `due_date`),
+so today's replans skip it and the next day's plan schedules it with a **fresh AI duration
+estimate**; a block you'd already started stays on today's timeline as progress (status
+`'continued'` — gold arrow checkbox, "→ tomorrow" chip, trimmed to end at now, event patched), while
+an unstarted block is removed. **Remove from plan** deletes only *that* block
 (`POST /api/game-plan/cleanup-blocks` with `blockId`) + its calendar event — the underlying
 task/routine **stays on the list**, so a replan can re-add it. (Deleting the task/routine outright is
 done from the **list**, which calls the same route with `taskId`/`recurringId` to drop all its blocks
