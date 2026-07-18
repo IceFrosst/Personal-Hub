@@ -25,9 +25,11 @@
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
-  Five sources: devpost, mlh, ethglobal, hackerearth, hackclub (`lib/ingest/*.ts`).
-  `IngestRow.registration_deadline` is optional — only ETHGlobal provides it; enrichment
-  fills it elsewhere and never overwrites a source-provided value.
+  Eight sources: devpost, mlh, ethglobal, hackerearth, hackclub, unstop, devfolio, dorahacks
+  (`lib/ingest/*.ts`). `IngestRow.registration_deadline` is optional — ETHGlobal and Unstop
+  provide it up front; enrichment fills it elsewhere and never overwrites a source-provided value.
+  The three JSON-API sources expose testable pure parsers (`parseUnstop`/`parseDevfolio`/
+  `parseDoraHacks`, like `parseEthGlobal`); `test/new-sources.test.ts` covers the field mapping.
 - The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. The scheduled
   cron calls it with notifications enabled; the owner-only manual route
   (`POST /api/ingest/refresh`) calls it with notifications disabled. Never send
@@ -108,6 +110,19 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   MLH approach; meetups/cafes/summits and finished/cancelled events are filtered out.
 - Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
   shell, not JSON.
+- Three JSON-API sources added (all WAF-gated: 403 to interactive-session egress AND to
+  WebFetch, so they can only be verified via the per-source production cron report):
+  - **Unstop** (`unstop.ts`): `GET /api/public/opportunity/search-result?opportunity=hackathons
+    &oppstatus=open&page=N`. Payload nests as `data.data.data[]` with `data.data.next_page_url`;
+    `seo_url` is the full event URL, `regnRequirements.end_regn_dt` is the real registration
+    deadline, `region` is online/offline. Capped at 3 pages.
+  - **Devfolio** (`devfolio.ts`): `GET https://api.devfolio.co/api/hackathons?filter=
+    application_open&page=N`, flat `result[]`, event site `https://<slug>.devfolio.co/`.
+    We skip the per-event `/prizes` call (one request per row) — enrichment fills prize/format.
+  - **DoraHacks** (`dorahacks.ts`): `GET /api/hackathon/?page=1&page_size=24&status=<upcoming|
+    ongoing>`, `results[]` + `next`. `start_time`/`end_time` are **unix epoch seconds**;
+    event page `https://dorahacks.io/hackathon/<uname>/detail`. Both statuses pulled, 3 pages each.
+  Each `fetch*` throws with a shape fingerprint on 0 mapped rows so drift shows in the cron report.
 - The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
   dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
 - Exposing the `hackathon` schema to the Data API needs the platform config **and** the
@@ -164,18 +179,29 @@ Throughput/cadence session (2026-07-18):
   added. **Not yet on `main`** — on branch `claude/hackathon-auto-apply-tool-hg8cwv`,
   pending Ignas's merge.
 
+Sources-expansion session (branch `claude/hackathon-sources-allowlist-ldf02w`):
+- **Three new JSON-API sources: Unstop, Devfolio, DoraHacks** (`lib/ingest/{unstop,devfolio,
+  dorahacks}.ts`), wired into `run.ts` (now 8 sources). Field mappings were reverse-
+  engineered from each platform's public endpoint and covered by `test/new-sources.test.ts`
+  (5 tests, all green; typecheck + lint clean).
+- **Not live-verified** — every candidate domain 403s to interactive-session egress and to
+  WebFetch, so counts can only be confirmed via the per-source production cron report after
+  merge. Each `fetch*` throws a shape fingerprint on 0 rows, so drift is self-reporting.
+
 ## Next
 
 - **Ignas, before the GH cron works:** add repo secret `EVENT_RADAR_CRON_SECRET` (=
   project `CRON_SECRET`) at repo Settings → Secrets → Actions. Until then the workflow
   fails fast with a clear message; the daily Vercel cron is unaffected.
-- **More sources (global + niche) — requested, blocked on egress.** New scrapers can't be
-  written+tested from an interactive session (all candidate domains 403 through the proxy
-  here). Path: Ignas allowlists the target domains (devfolio.co, dorahacks.io, unstop.com,
-  taikai.network, …) so a session can live-test like the overnight one did, OR add them
-  blind and verify via the per-source cron report. Candidates in priority order:
-  Devfolio (global/India, huge), DoraHacks (web3/global), Unstop (India/global),
-  Taikai (EU/global), Hackathon.com (aggregator).
+- **Verify the three new sources (Unstop/Devfolio/DoraHacks) in production.** They were
+  added blind (all candidate domains still 403 interactive-session egress + WebFetch, even
+  after the allowlist change — that allowlist only reaches the cloud/cron egress). After
+  this branch merges, read the per-source cron report (`/api/cron/ingest` JSON or the
+  owner-only Settings refresh) and confirm each returns a count, not an `error:`/`0 events
+  mapped` fingerprint. If a shape drifted, the throw message names which field to fix.
+- **Remaining source candidates (still blocked on egress):** Taikai (EU/global, GraphQL),
+  Hackathon.com (aggregator). Same path — reverse-engineer the shape, add blind, verify via
+  cron report.
 - The strict eligibility rule can produce an empty feed when sources have no row with
   both a future start and future registration deadline. Use the manual Settings refresh
   to inspect source counts before relaxing the fail-closed rule.
