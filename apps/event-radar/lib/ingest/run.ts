@@ -11,6 +11,7 @@ import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
 import { fetchUnstop } from './unstop'
 import { enrich, fetchPageText } from './enrich'
+import { circuitTravelCovered } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
@@ -155,9 +156,19 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (!source) return false
 
     const extracted = await enrich(source)
+    // Layer-1 travel prior: known travel-funding circuits (ETHGlobal, CASSINI, …)
+    // fund travel by documented policy, but their JS-only pages give the enricher
+    // nothing — so fill an *unknown* travel result from circuit knowledge. An
+    // explicit page finding (true or false) always wins over the prior.
+    const effectiveFormat = extracted.format ?? row.format
+    const circuitTravel = circuitTravelCovered({
+      source: row.source,
+      title: row.title,
+      format: effectiveFormat,
+    })
     const patch: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
-      travel_covered: extracted.travel_covered,
+      travel_covered: extracted.travel_covered ?? circuitTravel,
       accommodation_covered: extracted.accommodation_covered,
       open_to_business_students: extracted.open_to_business_students,
     }

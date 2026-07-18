@@ -185,21 +185,22 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   GitHub Actions workflow (`.github/workflows/event-radar-ingest.yml`) adds 3 more runs
   (every 6h ≈ 4x/day) by calling the same `/api/cron/ingest` endpoint. It needs the repo
   secret `EVENT_RADAR_CRON_SECRET` = the project's `CRON_SECRET`.
-- **Finding travel-sponsoring hackathons (Ignas's top priority).** Two levers: (1) the
-  travel-funding *circuits* are already sources — ETHGlobal (travel stipends/scholarships
-  for accepted hackers), the EU circuit on Taikai (CASSINI/EUDIS/Copernicus reimburse EU
-  travel), some MLH; (2) *detection* is the bottleneck, handled by the focusText/prompt
-  recall work above. Feed filters split the intent three ways: **`Travel ✓`** = confirmed
-  `travel_covered === true` (online is deliberately excluded — it's the opposite of "go get
-  reimbursed"); **`Travel?`** = in-person events with `travel_covered === null`, the
-  manual-check candidates detection couldn't confirm (ETHGlobal's SPA pages land here — the
-  scraper can't read their perks); **`Online`** = its own thing. Don't fold online back
-  into `Travel ✓`.
-- **ETHGlobal travel is real but unreadable by the scraper** — its event pages are an RSC
-  SPA, so `fetchPageText` gets nothing and enrichment falls back to title+location, leaving
-  `travel_covered = null`. Those events surface under `Travel?`, not `Travel ✓`. A
-  source-level travel prior would need care (not everyone gets a stipend) — left out to
-  honor "never guess".
+- **Finding travel-sponsoring hackathons (Ignas's top priority).** Two layers:
+  - **Layer 1 — circuits (`lib/ingest/travel-circuits.ts`).** A curated registry of
+    circuits with a documented, standing travel-funding policy: ETHGlobal (global — US/EU/
+    Asia), CASSINI, EUDIS, Copernicus (EU). `circuitTravelCovered` matches by source and/or
+    a tight title pattern and raises `travel_covered` unknown → true for non-online events.
+    `run.ts` applies it as a **prior only** — `extracted.travel_covered ?? circuitTravel` —
+    so an explicit page finding (true *or* false) always wins; the circuit only fills the
+    nulls the scraper can't. This is how ETHGlobal-class events (JS-only pages the enricher
+    can't read) reach `Travel ✓` at all. **Extending it is the main way to add "big global
+    travel-funder" coverage** — add an entry with a cited policy and a tight matcher; keep
+    it honest (documented program, not a hunch).
+  - **Layer 2 — page detection** (focusText/prompt recall, above) for everything else.
+  - Feed filters split the intent three ways: **`Travel ✓`** = confirmed
+    `travel_covered === true` (online excluded — opposite of "go get reimbursed");
+    **`Travel?`** = in-person with `travel_covered === null`, the manual-check candidates;
+    **`Online`** = its own thing. Don't fold online back into `Travel ✓`.
 - Push payload URLs must stay relative (`'/'`) — iron rule #1, no hardcoded app URLs.
 - `sendPush` returns `'gone'` for 404/410 → the cron deletes those subscription rows.
 - iOS requires the PWA to be installed to home screen before push permission can be asked.
@@ -262,6 +263,10 @@ Travel-detection session (2026-07-18, same branch):
   `travel_covered: true`). Feed filter fixed: **`Travel ✓`** no longer includes online, and
   a new **`Travel?`** filter surfaces in-person candidates with unknown coverage.
 - `test/enrich.test.ts` guards the hoisting; 41 tests / typecheck / lint green.
+- **Layer-1 circuit registry added** (`lib/ingest/travel-circuits.ts`) so big global
+  travel-funders whose pages can't be scraped still reach `Travel ✓`: ETHGlobal (US/EU/
+  Asia) + CASSINI/EUDIS/Copernicus (EU). Applied as a prior in `run.ts` (page findings
+  win). 46 tests / typecheck / lint green.
 
 ## Next
 
@@ -279,6 +284,12 @@ Travel-detection session (2026-07-18, same branch):
 - **Watch enrichment keep up** with the bigger intake — if the pending backlog grows
   faster than 120/day, that's the ceiling to revisit (batch/concurrency vs. LLM RPM), not
   the source list.
+- **Broaden Layer 1 to more regions.** The circuit registry covers ETHGlobal (global) +
+  EU programmes; the honest way to add big US/Asia travel-funders is more entries (as their
+  events flow through existing sources by title) or new sources. Sources worth allowlisting
+  for this: lu.ma (crypto hackathons worldwide, travel-heavy), encode.club, angelhack.com,
+  akindo.io / superteam (Asia web3). Each needs a domain on the allowlist before a session
+  can build+test its scraper — ask Ignas, then add like the others.
 - **Post-merge: re-enrich existing rows so the better travel detection applies to them.**
   The focusText/prompt gains only touch rows enriched *after* this ships. To backfill,
   clear `enriched_at` on already-enriched in-person rows (`update hackathon.hackathons set
