@@ -103,8 +103,9 @@ function looksLikeEvent(o: unknown): o is JsonObject {
   const r = o as JsonObject
   return (
     (str(r.name) ?? str(r.title)) !== null &&
-    (str(r.website) ?? str(r.url) ?? str(r.event_url)) !== null &&
-    (str(r.start_date) ?? str(r.starts_at) ?? str(r.startDate) ?? str(r.start)) !== null
+    (str(r.website) ?? str(r.websiteUrl) ?? str(r.url) ?? str(r.event_url)) !== null &&
+    (str(r.start_date) ?? str(r.starts_at) ?? str(r.startDate) ?? str(r.startsAt) ?? str(r.start)) !==
+      null
   )
 }
 
@@ -126,10 +127,17 @@ function toISO(v: unknown): string | null {
 
 function mapInertiaEvent(e: JsonObject): IngestRow | null {
   const title = str(e.name) ?? str(e.title)
-  const url = str(e.website) ?? str(e.url) ?? str(e.event_url)
+  // Prefer the hackathon's own site (websiteUrl) — better page for enrichment
+  // than MLH's event stub; fall back to the MLH-relative url.
+  const url = str(e.website) ?? str(e.websiteUrl) ?? str(e.url) ?? str(e.event_url)
   if (!title || !url) return null
   const typeRaw =
-    str(e.event_type) ?? str(e.format) ?? str(e.type) ?? str(e.event_format) ?? str(e.modality)
+    str(e.event_type) ??
+    str(e.formatType) ??
+    str(e.format) ??
+    str(e.type) ??
+    str(e.event_format) ??
+    str(e.modality)
   const format = !typeRaw
     ? null
     : /digital|online|virtual/i.test(typeRaw)
@@ -139,15 +147,16 @@ function mapInertiaEvent(e: JsonObject): IngestRow | null {
         : /in[- ]?person/i.test(typeRaw)
           ? 'in_person'
           : null
-  const city = str(e.city)
-  const region = str(e.state) ?? str(e.country)
+  const venue = (e.venueAddress ?? {}) as JsonObject
+  const city = str(e.city) ?? str(venue.city)
+  const region = str(e.state) ?? str(e.country) ?? str(venue.state) ?? str(venue.country)
   return {
     source: 'mlh',
     source_id: e.id !== undefined && e.id !== null ? String(e.id) : null,
     title,
-    url: url.startsWith('http') ? url : `https://mlh.io${url}`,
-    starts_at: toISO(e.start_date ?? e.starts_at ?? e.startDate ?? e.start),
-    ends_at: toISO(e.end_date ?? e.ends_at ?? e.endDate ?? e.end),
+    url: url.startsWith('http') ? url : `https://www.mlh.com${url}`,
+    starts_at: toISO(e.start_date ?? e.starts_at ?? e.startDate ?? e.startsAt ?? e.start),
+    ends_at: toISO(e.end_date ?? e.ends_at ?? e.endDate ?? e.endsAt ?? e.end),
     location_raw: str(e.location) ?? ([city, region].filter(Boolean).join(', ') || null),
     format,
     prize_pool: null,
@@ -157,22 +166,29 @@ function mapInertiaEvent(e: JsonObject): IngestRow | null {
 
 // Several elements can carry a data-page attribute (pagination controls do),
 // and the quote style isn't guaranteed — collect every candidate in both
-// styles and take the largest one that decodes to a JSON object.
+// styles and take the largest one that decodes to a JSON object. Since the
+// mlh.com rebuild the page object is no longer an attribute at all: it's the
+// BODY of a `<script data-page="app" type="application/json">` tag (the
+// attribute itself is a 3-byte decoy), so script bodies join the candidates.
 function inertiaCandidates(html: string): string[] {
-  return [
+  const attrs = [
     ...html.matchAll(/data-page="([^"]+)"/g),
     ...html.matchAll(/data-page='([^']+)'/g),
-  ].map((m) => m[1])
+  ].map((m) => decodeEntities(m[1]))
+  const scriptBodies = [
+    ...html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi),
+  ].map((m) => m[1].trim())
+  return [...attrs, ...scriptBodies]
 }
 
 function extractInertiaPayload(html: string): unknown {
   const byLength = inertiaCandidates(html).sort((a, b) => b.length - a.length)
   for (const candidate of byLength) {
     try {
-      const parsed: unknown = JSON.parse(decodeEntities(candidate))
+      const parsed: unknown = JSON.parse(candidate)
       if (typeof parsed === 'object' && parsed !== null) return parsed
     } catch {
-      // decoy or truncated attribute — try the next candidate
+      // decoy or truncated candidate — try the next one
     }
   }
   return null
@@ -184,8 +200,23 @@ export function parseMlhInertia(html: string): IngestRow[] {
   const arrays: JsonObject[][] = []
   findEventArrays(page, arrays)
   if (arrays.length === 0) return []
-  const best = arrays.reduce((a, b) => (b.length > a.length ? b : a))
-  return best.map(mapInertiaEvent).filter((r): r is IngestRow => r !== null)
+  // Merge every event-shaped array (upcomingEvents + pastEvents both match)
+  // and dedupe by id/url — stale events are dropped by the caller, which knows
+  // "now". Taking only the largest array would pick 250+ past events and lose
+  // the upcoming ones entirely.
+  const seen = new Set<string>()
+  const rows: IngestRow[] = []
+  for (const arr of arrays) {
+    for (const e of arr) {
+      const row = mapInertiaEvent(e)
+      if (!row) continue
+      const key = row.source_id ?? row.url
+      if (seen.has(key)) continue
+      seen.add(key)
+      rows.push(row)
+    }
+  }
+  return rows
 }
 
 // When the parser stops matching, the error should describe the page we did
@@ -228,15 +259,17 @@ export async function fetchMlh(): Promise<IngestRow[]> {
   // (regex drift). A plain [] here would look like "no events listed".
   const year = new Date().getUTCFullYear()
   const seasons = [year, year + 1]
-  const rows: IngestRow[] = []
+  const parsed: IngestRow[] = []
   let lastHtml: string | null = null
   const failures: string[] = []
 
   for (const season of seasons) {
     try {
-      const res = await fetch(`https://mlh.io/seasons/${season}/events`, {
+      // mlh.io now 302s to www.mlh.com — fetch the destination directly.
+      const res = await fetch(`https://www.mlh.com/seasons/${season}/events`, {
         headers: { 'User-Agent': UA },
         signal: AbortSignal.timeout(8000),
+        redirect: 'follow',
       })
       if (!res.ok) {
         failures.push(`${season}: HTTP ${res.status}`)
@@ -244,16 +277,26 @@ export async function fetchMlh(): Promise<IngestRow[]> {
       }
       const html = await res.text()
       lastHtml = html
-      const parsed = parseMlhHtml(html, season)
-      rows.push(...(parsed.length > 0 ? parsed : parseMlhInertia(html)))
+      const cards = parseMlhHtml(html, season)
+      parsed.push(...(cards.length > 0 ? cards : parseMlhInertia(html)))
     } catch (err) {
       failures.push(`${season}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
   if (lastHtml === null && failures.length > 0) throw new Error(failures.join('; '))
-  if (lastHtml !== null && rows.length === 0) {
+  if (lastHtml !== null && parsed.length === 0) {
     throw new Error(`parsed 0 events — ${describeDrift(lastHtml)}`)
   }
-  return rows
+
+  // The season pages list finished events too (a 250+ row pastEvents array).
+  // Parsing them proves the parser works; ingesting them would flood the
+  // catalog and burn enrichment batches on dead hackathons — drop anything
+  // that already ended. Zero rows AFTER this filter is a truthful "nothing
+  // upcoming", not parser drift.
+  const cutoff = Date.now() - 86400000
+  return parsed.filter((r) => {
+    const end = r.ends_at ?? r.starts_at
+    return end === null || new Date(end).getTime() >= cutoff
+  })
 }
