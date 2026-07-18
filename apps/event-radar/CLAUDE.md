@@ -25,9 +25,13 @@
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
-  Five sources: devpost, mlh, ethglobal, hackerearth, hackclub (`lib/ingest/*.ts`).
-  `IngestRow.registration_deadline` is optional — only ETHGlobal provides it; enrichment
-  fills it elsewhere and never overwrites a source-provided value.
+  Seven sources: devpost, mlh, ethglobal, hackerearth, hackclub, devfolio, taikai
+  (`lib/ingest/*.ts`). `IngestRow.registration_deadline` is optional — ETHGlobal,
+  Devfolio, and Taikai provide it up front; enrichment fills it elsewhere and never
+  overwrites a source-provided value.
+- Each source splits a **pure parser** (exported, tested against fixtures — e.g.
+  `parseDevfolioHits`, `parseTaikaiChallenges`, `parseEthGlobal`) from its network
+  `fetch*` wrapper. Add new-source tests against the parser, not the live API.
 - The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. The scheduled
   cron calls it with notifications enabled; the owner-only manual route
   (`POST /api/ingest/refresh`) calls it with notifications disabled. Never send
@@ -108,6 +112,35 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   MLH approach; meetups/cafes/summits and finished/cancelled events are filtered out.
 - Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
   shell, not JSON.
+- **Devfolio** (`lib/ingest/devfolio.ts`): undocumented Elasticsearch proxy —
+  `POST https://api.devfolio.co/api/search/hackathons` with `{type, from, size}`.
+  Valid `type` values are `application_open`, `upcoming`, `past` (only the first two are
+  fetched; `past` is 1600+ ended events). Each hit's `_source` carries `starts_at`,
+  `ends_at`, and `hackathon_setting.reg_ends_at` (the deadline), so rows are eligible
+  without enrichment. **The hackathon URL is `https://<slug>.devfolio.co`** — the slug is
+  its own subdomain, not a path. `api.devfolio.co/hackathons` (no `/api/search`) just
+  serves the web app, and its `/v1/graphql` Hasura endpoint answers anonymously too but
+  the search proxy is simpler.
+- **Taikai** (`lib/ingest/taikai.ts`): public Prisma-style GraphQL at
+  `https://api.taikai.network/api/graphql` (anonymous; **introspection disabled** — probe
+  field/arg names via the "Cannot query field / did you mean" errors). The list field is
+  `challenges` (a hackathon is a `Challenge`), args `page`/`perPage`/`where`/`orderBy`.
+  Two traps: (1) `isClosed` is unreliable — stale 2024/2025 events still report open — so
+  filter server-side on `endParticipantRegistrationDate: { gt: now }` instead (that field
+  doubles as the deadline); (2) there's no single event-start field, a hackathon runs as
+  dated `steps`, so `parseTaikaiChallenges` takes the first step at/after the deadline as
+  `starts_at` (falling back to the deadline) and the last step as `ends_at`. URL is
+  `https://taikai.network/en/<organization.slug>/hackathons/<slug>`. This is the EU-gold
+  source (CASSINI, EUDIS, Copernicus — travel-reimbursing).
+- **Deferred sources (evaluated 2026-07-18, not added):** *Unstop* has a clean JSON API
+  (`/api/public/opportunity/search-result?opportunity=hackathons`) but every item has
+  `start_date: null` (only a submission `end_date` + `regnRequirements.end_regn_dt`), so
+  rows can't satisfy the fail-closed start-date rule without faking a start — and it's
+  ~6000 India-only entries, mostly online coding quizzes (`region` is the real
+  online/offline signal, `subtype` is always `online_coding_challenge`). Revisit only with
+  a `region==offline` filter + a defensible `starts_at` proxy. *DoraHacks* sits behind AWS
+  WAF (405 "Human Verification") — Node `fetch` from Vercel will hit the same wall.
+  *Hackathon.com* is a server-rendered HTML aggregator (no JSON API) — brittle, low signal.
 - The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
   dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
 - Exposing the `hackathon` schema to the Data API needs the platform config **and** the
@@ -164,18 +197,30 @@ Throughput/cadence session (2026-07-18):
   added. **Not yet on `main`** — on branch `claude/hackathon-auto-apply-tool-hg8cwv`,
   pending Ignas's merge.
 
+Sources session (2026-07-18, branch `claude/event-radar-hackathon-sources-soi6tf`):
+- **Two new sources, live-verified in-session** now that Ignas allowlisted their domains:
+  **devfolio** (23 open/upcoming hackathons, global/India, exact start + reg deadline) and
+  **taikai** (2 currently-open EU/web3 hackathons, the CASSINI/EUDIS circuit). Seven
+  sources total. Each ships a pure parser + fixture tests (`test/devfolio.test.ts`,
+  `test/taikai.test.ts`); `npm test`/`typecheck`/`lint` green.
+- Unstop, DoraHacks, and Hackathon.com were evaluated and deliberately **not** added —
+  see the "Deferred sources" gotcha for the exact reasons.
+
 ## Next
 
 - **Ignas, before the GH cron works:** add repo secret `EVENT_RADAR_CRON_SECRET` (=
   project `CRON_SECRET`) at repo Settings → Secrets → Actions. Until then the workflow
   fails fast with a clear message; the daily Vercel cron is unaffected.
-- **More sources (global + niche) — requested, blocked on egress.** New scrapers can't be
-  written+tested from an interactive session (all candidate domains 403 through the proxy
-  here). Path: Ignas allowlists the target domains (devfolio.co, dorahacks.io, unstop.com,
-  taikai.network, …) so a session can live-test like the overnight one did, OR add them
-  blind and verify via the per-source cron report. Candidates in priority order:
-  Devfolio (global/India, huge), DoraHacks (web3/global), Unstop (India/global),
-  Taikai (EU/global), Hackathon.com (aggregator).
+- **More sources — Devfolio + Taikai now live (2026-07-18).** Remaining candidates all
+  have caveats (see the "Deferred sources" gotcha): Unstop needs a `region==offline`
+  filter + a `starts_at` proxy before it's worth the India-online noise; DoraHacks needs a
+  way past its AWS WAF; Hackathon.com needs an HTML parser. Pick these up only if the feed
+  is thin — Devfolio already adds ~20 fresh rows a cycle.
+- **Watch the first production cron with the new sources.** Node `fetch` reached
+  devfolio/taikai fine from this session (domains allowlisted), and Vercel has open egress,
+  so both should report non-zero — but confirm `sources.devfolio` / `sources.taikai` in the
+  cron JSON aren't `error: …`. The ~23 new Devfolio rows will drain through enrichment over
+  a few cycles (30/run cap), same as any backlog.
 - The strict eligibility rule can produce an empty feed when sources have no row with
   both a future start and future registration deadline. Use the manual Settings refresh
   to inspect source counts before relaxing the fail-closed rule.

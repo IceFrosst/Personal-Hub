@@ -6,6 +6,8 @@ import { fetchMlh } from './mlh'
 import { fetchEthGlobal } from './ethglobal'
 import { fetchHackerEarth } from './hackerearth'
 import { fetchHackClub } from './hackclub'
+import { fetchDevfolio } from './devfolio'
+import { fetchTaikai } from './taikai'
 import { enrich, fetchPageText } from './enrich'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
@@ -63,8 +65,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['ethglobal', () => fetchEthGlobal()],
     ['hackerearth', () => fetchHackerEarth()],
     ['hackclub', () => fetchHackClub()],
+    ['devfolio', () => fetchDevfolio()],
+    ['taikai', () => fetchTaikai()],
   ]
-  // Five sequential source timeouts could consume the entire function budget;
+  // Seven sequential source timeouts could consume the entire function budget;
   // run them together so gather takes as long as the slowest source.
   const settled = await Promise.allSettled(sources.map(([, fetchSource]) => fetchSource()))
   settled.forEach((result, index) => {
