@@ -21,15 +21,35 @@
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
+  Five sources: devpost, mlh, ethglobal, hackerearth, hackclub (`lib/ingest/*.ts`).
+  `IngestRow.registration_deadline` is optional — only ETHGlobal provides it; enrichment
+  fills it elsewhere and never overwrites a source-provided value.
 - Global `hackathons` table is written **only** by the cron via the service-role client
   (`lib/supabase/admin.ts`). RLS has a select-only policy for authenticated users.
-- Per-user tables (`user_hackathon_status`, `user_preferences`, `push_subscriptions`) are
-  written directly from the browser client; RLS scopes rows to `auth.uid()`.
+- Per-user tables (`user_hackathon_status`, `user_preferences`, `push_subscriptions`,
+  `application_profiles`, `application_drafts`) are written from the browser client or a
+  cookie-authed route; RLS scopes rows to `auth.uid()`. No service role outside the cron.
+- Apply Kit: the profile's jsonb shape is owned by `lib/apply-kit.ts` (`coerceProfile`
+  merges older/partial documents onto the current shape — evolve it there, never with a
+  migration). Draft answers come from `POST /api/apply-kit/draft` (Groq primary, Gemini
+  fallback, same split as enrichment); the drafter must never invent facts — profile gaps
+  come back as inline `[TODO: …]` markers.
+- Notes ride on the `user_hackathon_status` row (status is NOT NULL): saving a note with
+  no status starts one at `interested`; clearing a status deletes the row, notes included.
 
 ## Data model
 
-Schema `hackathon` (migration `supabase/migrations/0001_init.sql`, applied 2026-07-17,
-additive-only forever):
+Schema `hackathon` (additive-only forever). Migration `0001_init.sql` applied 2026-07-17;
+**`0002_apply_kit.sql` is committed but NOT yet applied** (the overnight session had no
+`SUPABASE_ACCESS_TOKEN`) — apply it via the Management API before testing Apply Kit; the
+UI degrades to a "not provisioned" notice until then. 0002 adds:
+
+- `application_profiles` — PK `user_id`, `profile` jsonb (shape owned by
+  `lib/apply-kit.ts`), RLS own-rows.
+- `application_drafts` — PK `(user_id, hackathon_id)`, `questions`/`answers` jsonb,
+  `model` text, RLS own-rows.
+
+From 0001:
 
 - `hackathons` — global catalog. `unique (source, url)`; enrichment-owned columns
   (`travel_covered`, `accommodation_covered`, `open_to_business_students`, `format`,
@@ -46,20 +66,34 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 ## Gotchas
 
-- **devpost.com / mlh.io are NOT in the Claude Code session allowlist** — scraper code
-  can't be live-tested in-session (403 from the egress proxy). Production Vercel has open
-  egress. To test locally in a session, ask Ignas to allowlist those domains.
+- **Egress varies by session type.** Interactive Claude Code sessions only reach
+  allowlisted domains (devpost/mlh 403 through the egress proxy), but scheduled/cloud
+  sessions can have open egress — probe with curl before assuming scrapers are untestable.
+  Caveat: Node `fetch` does NOT use the session's HTTPS proxy, so a WAF can 403 direct
+  requests while curl (proxied) succeeds — HackerEarth does exactly this. Production
+  Vercel has open egress with different IPs again.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
-  HTML. Don't add a headless browser for either source.
-- MLH's site is an Inertia.js app (Vite build): the events live as HTML-escaped JSON in
-  the root element's `data-page` attribute, not in semantic markup. `parseMlhInertia`
-  scans that payload for the largest array of event-shaped objects (no hard-coded props
-  path) and maps field-name variants defensively; the legacy card-regex parser
-  (`parseMlhHtml`) still runs first in case they ever server-render cards again.
+  HTML. Don't add a headless browser for any source.
+- **MLH moved to www.mlh.com (2026-07):** the Inertia page object now lives as the BODY
+  of a `<script data-page="app" type="application/json">` tag — the `data-page`
+  attribute itself is a 3-byte decoy. `parseMlhInertia` scans attribute AND script-body
+  candidates for event-shaped arrays (camelCase fields: `startsAt`, `endsAt`,
+  `formatType`, `websiteUrl`, `venueAddress`), merges every event array (upcoming +
+  past), and `fetchMlh` drops events that already ended — the page carries 250+ past
+  events that would flood the catalog. The legacy card-regex parser (`parseMlhHtml`)
+  still runs first in case they server-render cards again.
 - `fetchMlh` refuses to return an empty result silently: no season page fetching OK
   throws with per-season HTTP statuses, and a page that fetches OK but yields zero
   events throws with a structural fingerprint (page size, anchors, Inertia component +
-  props keys) so the cron report itself says where the data moved.
+  props keys) so the cron report itself says where the data moved. Zero rows *after*
+  the ended-events filter is a truthful empty, not drift.
+- ETHGlobal is a Next.js App Router page: events ride the RSC flight stream
+  (`self.__next_f.push` chunks). `lib/ingest/ethglobal.ts` decodes and scans it like the
+  MLH approach; meetups/cafes/summits and finished/cancelled events are filtered out.
+- Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
+  shell, not JSON.
+- The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
+  dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
 - Exposing the `hackathon` schema to the Data API needs the platform config **and** the
   `authenticator` role's `pgrst.db_schemas` + both `notify pgrst` reloads — see the
   "Data API exposure" section in root `SCHEMA_RULES.md` (this bit Event Radar's first
@@ -75,24 +109,33 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 **Live in production** — ships from `main`, hub tile registered. Ranked feed with
 why-chips + filters, status tracking, settings with push toggle + threshold slider, daily
-ingest cron (Devpost + MLH → insert/touch → Groq/Gemini enrichment → scored web-push
-notify). Migration applied to the shared Supabase project; schema exposed via PostgREST.
-Vercel project fully provisioned: root dir + turbo-ignore + all env vars
-(`NEXT_PUBLIC_SUPABASE_*`, VAPID key pair, `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
-`GROQ_API_KEY`, `GEMINI_API_KEY`). Auth redirect URLs added.
+ingest cron (five sources → insert/touch → Groq/Gemini enrichment → scored web-push
+notify). Vercel project fully provisioned (root dir + turbo-ignore + all env vars);
+auth redirects added; migration 0001 applied and schema exposed via PostgREST.
 
-First cron run verified in production (triggered manually with the `CRON_SECRET` bearer
-token): Devpost 27 gathered → 27 inserted, first enrichment batch of 10 processed with
-sane values (`format`, `prize_pool`, `registration_deadline`; nulls where unknown), 0
-pushes (no subscribers yet). Fixed en route: the `hackathon` schema wasn't actually
-exposed (authenticator-role gotcha, see Gotchas) and MLH HTTP failures were silently
-swallowed (now surfaced in `sources.mlh`).
+Overnight session (branch `claude/stoic-volta-e8or22`, merged):
+- **MLH parser fixed for the www.mlh.com rebuild and verified live in-session: 63
+  upcoming events** (production cron had been reporting `parsed 0 events`).
+- **Three new sources**, live-tested in-session: ethglobal 4 (with exact signup
+  deadlines), hackclub 15, devpost 27; hackerearth parser validated via proxy but its
+  WAF 403s the sandbox's direct IP — watch its per-source result in production.
+- **Detail sheet** (tap a card): metadata, score breakdown, status buttons, notes UI
+  (first use of the `notes` column), enriched description, Apply Kit.
+- **Apply Kit**: autosaving profile editor at `/profile` (linked from Settings), draft
+  route `POST /api/apply-kit/draft`, drafts persisted per hackathon and restored in the
+  sheet. **Blocked on migration 0002 being applied** — UI degrades until then.
 
 ## Next
 
-- Confirm the MLH Inertia parser returns rows on the next cron run; if it errors
-  instead, the fingerprint now carries the Inertia component + props keys — adjust
-  `looksLikeEvent`/`mapInertiaEvent` field variants to match.
-- Ignas: install the PWA on the Pixel, log in, and test push notifications end-to-end.
-- Roadmap (per EVENT_RADAR_PLAN.md): more sources (the EU travel-reimbursing circuit),
-  Apply Kit, approval-gated auto-fill via Claude Code cloud sessions, night search agents.
+**Handoff:** migration 0002 (`supabase/migrations/0002_apply_kit.sql`) is NOT applied —
+run it via the Management API (`POST /v1/projects/qcsyihymmaktkbqfxlkl/database/query`),
+then test Apply Kit end-to-end. Risk: none to existing features; the new tables are
+additive and unused until then.
+
+- Read the next production cron report: expect `sources.mlh` ≈ 60+, `ethglobal`/
+  `hackclub` small counts, and see whether `hackerearth` 403s from Vercel IPs (if it
+  does, decide keep-or-drop).
+- Ignas: install the PWA on the Pixel, log in, test push end-to-end, and try Apply Kit
+  after 0002 is applied.
+- Roadmap (per EVENT_RADAR_PLAN.md): approval-gated auto-fill via Claude Code cloud
+  sessions, night search agents, more EU travel-reimbursing sources.
