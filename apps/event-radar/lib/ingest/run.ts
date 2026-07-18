@@ -11,8 +11,16 @@ import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
 
-const ENRICH_BATCH = 10
-const TIME_BUDGET_MS = 45_000
+// Enrichment throughput is bounded by two ceilings, not by choice:
+//   1. Vercel Hobby caps each function at 60s (maxDuration).
+//   2. The free LLM tiers rate-limit (~30 req/min Groq, ~15 Gemini).
+// So we parallelize up to CONCURRENCY (staying near the combined RPM ceiling)
+// and cap the batch at what fits the time budget — far more than the old
+// one-at-a-time 10, without tripping 429s. Run 4x/day (GitHub Actions cron) to
+// scale total daily throughput past a single daily Vercel run.
+const ENRICH_BATCH = 30
+const ENRICH_CONCURRENCY = 4
+const TIME_BUDGET_MS = 50_000
 
 export class IngestNotConfiguredError extends Error {
   constructor() {
@@ -126,19 +134,26 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     .order('created_at', { ascending: false })
     .limit(ENRICH_BATCH)
 
-  for (const row of (pending ?? []) as Hackathon[]) {
-    if (outOfTime()) break
+  // Enrich one row. Reads the event's own page for the model; if that page
+  // can't be fetched (JS-only SPAs like EthGlobal, WAF blocks), fall back to
+  // the metadata the source scraper already gave us so the row still gets a
+  // format/location and stops clogging every future batch. Returns whether the
+  // row was counted as newly enriched.
+  const enrichRow = async (row: Hackathon): Promise<boolean> => {
     const text = await fetchPageText(row.url)
-    // A failed fetch stays pending. Marking it complete here could beat a
-    // concurrent successful run and discard that run's useful enrichment.
-    if (!text) continue
+    // No page AND no metadata to reason over → leave it pending for a retry
+    // (a transient fetch blip shouldn't burn the row's one shot at the page).
+    const source = text ?? ([row.title, row.location_raw].filter(Boolean).join(' — ') || null)
+    if (!source) return false
 
-    const patch: Record<string, unknown> = { enriched_at: new Date().toISOString() }
-    const extracted = await enrich(text)
-    patch.travel_covered = extracted.travel_covered
-    patch.accommodation_covered = extracted.accommodation_covered
-    patch.open_to_business_students = extracted.open_to_business_students
-    patch.raw_description = text.slice(0, 4000)
+    const extracted = await enrich(source)
+    const patch: Record<string, unknown> = {
+      enriched_at: new Date().toISOString(),
+      travel_covered: extracted.travel_covered,
+      accommodation_covered: extracted.accommodation_covered,
+      open_to_business_students: extracted.open_to_business_students,
+    }
+    if (text) patch.raw_description = text.slice(0, 4000)
     if (extracted.format) patch.format = extracted.format
     if (extracted.city) patch.city = extracted.city
     if (extracted.country) patch.country = extracted.country
@@ -156,7 +171,19 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       .eq('id', row.id)
       .is('enriched_at', null)
       .select('id')
-    if (!updateError && (updated?.length ?? 0) > 0) summary.enriched++
+    return !updateError && (updated?.length ?? 0) > 0
+  }
+
+  // Process the batch in bounded-concurrency chunks. Concurrency stays near the
+  // free LLM RPM ceiling (Groq → Gemini fallback absorbs the odd 429); the time
+  // guard between chunks keeps us under the 60s function limit.
+  const batch = (pending ?? []) as Hackathon[]
+  for (let i = 0; i < batch.length; i += ENRICH_CONCURRENCY) {
+    if (outOfTime()) break
+    const results = await Promise.all(
+      batch.slice(i, i + ENRICH_CONCURRENCY).map((row) => enrichRow(row))
+    )
+    summary.enriched += results.filter(Boolean).length
   }
 
   // ---- Phase 3: notify (scheduled runs only) ----

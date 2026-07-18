@@ -55,10 +55,10 @@
 
 ## Data model
 
-Schema `hackathon` (additive-only forever). Migration `0001_init.sql` applied 2026-07-17;
-**`0002_apply_kit.sql` is committed but NOT yet applied** (the overnight session had no
-`SUPABASE_ACCESS_TOKEN`) — apply it via the Management API before testing Apply Kit; the
-UI degrades to a "not provisioned" notice until then. 0002 adds:
+Schema `hackathon` (additive-only forever). Migrations `0001_init.sql` and
+`0002_apply_kit.sql` both **applied 2026-07-18** via the Management API (0002 was applied
+by the same session that added the throughput/cadence work below; Apply Kit is now
+unblocked). 0002 adds:
 
 - `application_profiles` — PK `user_id`, `profile` jsonb (shape owned by
   `lib/apply-kit.ts`), RLS own-rows.
@@ -114,9 +114,17 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   `authenticator` role's `pgrst.db_schemas` + both `notify pgrst` reloads — see the
   "Data API exposure" section in root `SCHEMA_RULES.md` (this bit Event Radar's first
   cron run with `Invalid schema: hackathon`).
-- Vercel Hobby cron = once per day max, ±59min jitter, `maxDuration` 60s. The route
-  self-budgets to 45s and enriches at most 10 rows per run — the backlog drains over
-  days. Don't raise the batch without checking function duration limits.
+- Enrichment throughput is capped by two ceilings, not by choice: Vercel Hobby's 60s
+  `maxDuration`, and the free LLM RPM limits (~30/min Groq, ~15/min Gemini). The runner
+  self-budgets to 50s and enriches `ENRICH_BATCH` (30) rows per run in
+  `ENRICH_CONCURRENCY` (4) parallel chunks — raise those only together and only after
+  checking both ceilings, or you'll trip 429s. A row whose page can't be fetched
+  (EthGlobal SPA, WAF blocks) falls back to enriching from title+location metadata so it
+  doesn't clog every batch; a row with neither page nor metadata stays pending for a retry.
+- Cadence: Vercel Hobby cron = once/day max (the `vercel.json` daily floor). A free
+  GitHub Actions workflow (`.github/workflows/event-radar-ingest.yml`) adds 3 more runs
+  (every 6h ≈ 4x/day) by calling the same `/api/cron/ingest` endpoint. It needs the repo
+  secret `EVENT_RADAR_CRON_SECRET` = the project's `CRON_SECRET`.
 - Push payload URLs must stay relative (`'/'`) — iron rule #1, no hardcoded app URLs.
 - `sendPush` returns `'gone'` for 404/410 → the cron deletes those subscription rows.
 - iOS requires the PWA to be installed to home screen before push permission can be asked.
@@ -148,21 +156,30 @@ Codex session (PR #61):
 - Eligibility, owner authorization, and refresh-summary regression coverage runs with
   `npm test` from this app.
 
+Throughput/cadence session (2026-07-18):
+- Applied migration 0002 (Apply Kit unblocked); backlog drained to 106/113 enriched by
+  hammering the production cron (7 stuck rows were the EthGlobal SPA + 3 MLH — the
+  metadata-fallback above now handles that class).
+- Enrichment parallelized (batch 10→30, concurrency 4) and a 4x/day GitHub Actions cron
+  added. **Not yet on `main`** — on branch `claude/hackathon-auto-apply-tool-hg8cwv`,
+  pending Ignas's merge.
+
 ## Next
 
-**Handoff:** Migration 0002 (`supabase/migrations/0002_apply_kit.sql`) is NOT applied —
-run it via the Management API, then test Apply Kit end-to-end. Risk: it is additive and
-unused until applied; existing features are unaffected.
-
+- **Ignas, before the GH cron works:** add repo secret `EVENT_RADAR_CRON_SECRET` (=
+  project `CRON_SECRET`) at repo Settings → Secrets → Actions. Until then the workflow
+  fails fast with a clear message; the daily Vercel cron is unaffected.
+- **More sources (global + niche) — requested, blocked on egress.** New scrapers can't be
+  written+tested from an interactive session (all candidate domains 403 through the proxy
+  here). Path: Ignas allowlists the target domains (devfolio.co, dorahacks.io, unstop.com,
+  taikai.network, …) so a session can live-test like the overnight one did, OR add them
+  blind and verify via the per-source cron report. Candidates in priority order:
+  Devfolio (global/India, huge), DoraHacks (web3/global), Unstop (India/global),
+  Taikai (EU/global), Hackathon.com (aggregator).
 - The strict eligibility rule can produce an empty feed when sources have no row with
   both a future start and future registration deadline. Use the manual Settings refresh
-  to inspect source counts, then check the stored source date semantics before relaxing
-  the fail-closed rule.
-
-- Read the next production cron report: expect `sources.mlh` ≈ 60+, `ethglobal`/
-  `hackclub` small counts, and see whether `hackerearth` 403s from Vercel IPs (if it
-  does, decide keep-or-drop).
-- Ignas: install the PWA on the Pixel, log in, test push end-to-end, and try Apply Kit
-  after 0002 is applied.
+  to inspect source counts before relaxing the fail-closed rule.
+- Ignas: install the PWA on the Pixel, log in, test push end-to-end (say the word and the
+  next-agent can clear a couple `notified_at` flags + trigger the cron to fire a real one).
 - Roadmap (per EVENT_RADAR_PLAN.md): approval-gated auto-fill via Claude Code cloud
   sessions, night search agents, more EU travel-reimbursing sources.
