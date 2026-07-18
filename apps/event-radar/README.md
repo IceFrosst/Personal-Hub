@@ -11,8 +11,9 @@ high-match appears.
 
 ## What it does
 
-- **Ranked feed** of open hackathons with a transparent score — every card shows *why* it
-  ranks where it does (travel covered +40, online +35, dev-only −30, …)
+- **Ranked feed** limited to future hackathons with registration still open, with a
+  transparent score — every card shows *why* it ranks where it does (travel covered +40,
+  online +35, dev-only −30, …)
 - **Detail sheet**: tap a card for the full picture — dates, deadline, score breakdown,
   the extracted description — plus per-hackathon notes
 - **Status tracking**: interested → applying → applied, or hide it

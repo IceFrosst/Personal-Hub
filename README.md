@@ -18,7 +18,8 @@ in one place and a new app is just a new folder (no new repo, no new access gran
 ```
 
 Each `apps/<name>/` also carries its own **`README.md`** (what the app is) and **`CLAUDE.md`**
-(technical context for Claude — auto-loaded when working in that folder; see the root `CLAUDE.md`).
+(shared technical context and handoff state for Claude Code, Grok, and Codex; see the root
+`CLAUDE.md`).
 
 ## Apps
 

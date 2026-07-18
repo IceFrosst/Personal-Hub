@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { scoreHackathon, isLive } from '@/lib/scoring'
+import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import type { Hackathon, UserStatus } from '@/lib/types'
 import HackathonCard from './HackathonCard'
 import DetailSheet from './DetailSheet'
@@ -120,7 +120,7 @@ export default function Feed({ userId }: { userId: string }) {
 
   const visible = useMemo(() => {
     const scored = hackathons
-      .filter((h) => isLive(h))
+      .filter((h) => isUpcomingAndOpen(h))
       .map((h) => ({ h, scored: scoreHackathon(h), status: statuses[h.id] ?? null }))
 
     const filtered = scored.filter(({ h, status }) => {
@@ -186,7 +186,9 @@ export default function Feed({ userId }: { userId: string }) {
           <p className="text-sm text-text-muted">
             {hackathons.length === 0
               ? 'Nothing on the radar yet — the first sweep runs tonight.'
-              : 'Nothing matches this filter.'}
+              : filter === 'all'
+                ? 'No upcoming hackathons with registration open.'
+                : 'Nothing matches this filter.'}
           </p>
         </div>
       ) : (

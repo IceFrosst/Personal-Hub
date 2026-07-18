@@ -6,7 +6,7 @@ import { fetchEthGlobal } from '@/lib/ingest/ethglobal'
 import { fetchHackerEarth } from '@/lib/ingest/hackerearth'
 import { fetchHackClub } from '@/lib/ingest/hackclub'
 import { enrich, fetchPageText } from '@/lib/ingest/enrich'
-import { scoreHackathon, isLive } from '@/lib/scoring'
+import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
 
@@ -155,7 +155,7 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .limit(30)
 
-  const freshRows = ((fresh ?? []) as Hackathon[]).filter((h) => isLive(h))
+  const freshRows = ((fresh ?? []) as Hackathon[]).filter((h) => isUpcomingAndOpen(h))
 
   if (freshRows.length > 0) {
     const [{ data: subs }, { data: prefs }] = await Promise.all([

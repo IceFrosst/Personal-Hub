@@ -1,4 +1,4 @@
-# Event Radar — Claude context
+# Event Radar — shared agent context
 
 ## Stack
 
@@ -16,6 +16,10 @@
 - Score is **computed at read time** (`lib/scoring.ts`), never stored — re-weighting is a
   code change, not a migration. The same function runs in the feed (client) and the notify
   phase (server); keep them identical.
+- Feed and notification eligibility is **fail-closed** (`isUpcomingAndOpen` in
+  `lib/scoring.ts`): both `starts_at` and `registration_deadline` must parse as valid
+  timestamps and must be strictly later than now. Missing, malformed, already-started, or
+  closed-registration rows never qualify.
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
   structured extraction per root CLAUDE.md model guidance), Gemini Flash fallback, and a
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
@@ -125,12 +129,21 @@ Overnight session (branch `claude/stoic-volta-e8or22`, merged):
   route `POST /api/apply-kit/draft`, drafts persisted per hackathon and restored in the
   sheet. **Blocked on migration 0002 being applied** — UI degrades until then.
 
+Codex session (branch `codex/triple-agent-future-open-hackathons`, pending review):
+- Feed and push eligibility now share the strict future-start + open-registration rule.
+- `lib/scoring.ts` has boundary, missing-date, and malformed-date regression coverage;
+  run it with `npm test` from this app.
+
 ## Next
 
-**Handoff:** migration 0002 (`supabase/migrations/0002_apply_kit.sql`) is NOT applied —
-run it via the Management API (`POST /v1/projects/qcsyihymmaktkbqfxlkl/database/query`),
-then test Apply Kit end-to-end. Risk: none to existing features; the new tables are
-additive and unused until then.
+**Handoff:** Codex implemented strict future + open-registration eligibility on
+`codex/triple-agent-future-open-hackathons`; review/merge it next. Risk: the 2026-07-18
+production snapshot has no rows with a future start, so the feed will be empty until a
+source yields qualifying dates.
+
+- Migration 0002 (`supabase/migrations/0002_apply_kit.sql`) is NOT applied — run it via
+  the Management API (`POST /v1/projects/qcsyihymmaktkbqfxlkl/database/query`), then test
+  Apply Kit end-to-end. It is additive and unused until then.
 
 - Read the next production cron report: expect `sources.mlh` ≈ 60+, `ethglobal`/
   `hackclub` small counts, and see whether `hackerearth` 403s from Vercel IPs (if it
