@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchDevpost, type IngestRow } from '@/lib/ingest/devpost'
 import { fetchMlh } from '@/lib/ingest/mlh'
+import { fetchEthGlobal } from '@/lib/ingest/ethglobal'
+import { fetchHackerEarth } from '@/lib/ingest/hackerearth'
+import { fetchHackClub } from '@/lib/ingest/hackclub'
 import { enrich, fetchPageText } from '@/lib/ingest/enrich'
 import { scoreHackathon, isLive } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
@@ -43,6 +46,9 @@ export async function GET(request: Request) {
   const sources: Array<[string, () => Promise<IngestRow[]>]> = [
     ['devpost', () => fetchDevpost()],
     ['mlh', () => fetchMlh()],
+    ['ethglobal', () => fetchEthGlobal()],
+    ['hackerearth', () => fetchHackerEarth()],
+    ['hackclub', () => fetchHackClub()],
   ]
   for (const [name, fn] of sources) {
     try {
@@ -83,6 +89,7 @@ export async function GET(request: Request) {
             location_raw: r.location_raw,
             format: r.format,
             prize_pool: r.prize_pool,
+            registration_deadline: r.registration_deadline ?? null,
             themes: r.themes,
           }))
         )
@@ -121,7 +128,10 @@ export async function GET(request: Request) {
       if (e.format) patch.format = e.format
       if (e.city) patch.city = e.city
       if (e.country) patch.country = e.country
-      if (e.registration_deadline) patch.registration_deadline = e.registration_deadline
+      // A source-provided deadline (e.g. ETHGlobal's signupDeadline) is exact —
+      // don't let an LLM-parsed date overwrite it.
+      if (e.registration_deadline && !row.registration_deadline)
+        patch.registration_deadline = e.registration_deadline
       if (e.themes.length > 0 && (!row.themes || row.themes.length === 0)) patch.themes = e.themes
     }
     const { error: updateErr } = await db.from('hackathons').update(patch).eq('id', row.id)
