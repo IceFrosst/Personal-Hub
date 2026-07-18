@@ -4,10 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { DEFAULT_NOTIFICATION_SETTINGS } from '@/lib/types'
 import PushToggle from './PushToggle'
+import ManualRefresh from './ManualRefresh'
 import { IconArrowLeft, IconChevronRight, IconFileText } from '@tabler/icons-react'
 import Link from 'next/link'
 
-export default function SettingsPanel({ userId }: { userId: string }) {
+export default function SettingsPanel({
+  userId,
+  canRefreshSources,
+}: {
+  userId: string
+  canRefreshSources: boolean
+}) {
   const supabase = useMemo(() => createClient(), [])
   const [minScore, setMinScore] = useState<number>(DEFAULT_NOTIFICATION_SETTINGS.min_score)
   const [loaded, setLoaded] = useState(false)
@@ -100,6 +107,13 @@ export default function SettingsPanel({ userId }: { userId: string }) {
           Fill it once — Apply Kit drafts application answers from it on any hackathon.
         </p>
       </section>
+
+      {canRefreshSources && (
+        <section className="mt-8 flex flex-col gap-4">
+          <h2 className="text-lg font-medium">Data sources</h2>
+          <ManualRefresh />
+        </section>
+      )}
 
       <section className="mt-10">
         <button

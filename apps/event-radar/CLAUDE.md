@@ -28,11 +28,23 @@
   Five sources: devpost, mlh, ethglobal, hackerearth, hackclub (`lib/ingest/*.ts`).
   `IngestRow.registration_deadline` is optional — only ETHGlobal provides it; enrichment
   fills it elsewhere and never overwrites a source-provided value.
-- Global `hackathons` table is written **only** by the cron via the service-role client
-  (`lib/supabase/admin.ts`). RLS has a select-only policy for authenticated users.
+- The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. The scheduled
+  cron calls it with notifications enabled; the owner-only manual route
+  (`POST /api/ingest/refresh`) calls it with notifications disabled. Never send
+  `CRON_SECRET` or the service-role key to the browser.
+- Inserts ignore duplicate conflicts, and enrichment marks rows complete only after the
+  page fetch and enrichment attempt finish; failed page fetches stay retryable. Overlapping
+  cron/manual runs can duplicate an external enrichment request, but cannot fail a whole
+  insert batch or mark a partial row complete.
+- Manual refresh authorization is checked against the verified Supabase user email via
+  `lib/owner.ts`; `EVENT_RADAR_ADMIN_EMAIL` can override the portfolio-owner default.
+- Global `hackathons` writes use the service-role client (`lib/supabase/admin.ts`). RLS has
+  a select-only policy for authenticated users; no other browser or API path gets admin
+  access.
 - Per-user tables (`user_hackathon_status`, `user_preferences`, `push_subscriptions`,
   `application_profiles`, `application_drafts`) are written from the browser client or a
-  cookie-authed route; RLS scopes rows to `auth.uid()`. No service role outside the cron.
+  cookie-authed route; RLS scopes rows to `auth.uid()`. No service role outside the shared
+  ingest runner.
 - Apply Kit: the profile's jsonb shape is owned by `lib/apply-kit.ts` (`coerceProfile`
   merges older/partial documents onto the current shape — evolve it there, never with a
   migration). Draft answers come from `POST /api/apply-kit/draft` (Groq primary, Gemini
@@ -129,21 +141,23 @@ Overnight session (branch `claude/stoic-volta-e8or22`, merged):
   route `POST /api/apply-kit/draft`, drafts persisted per hackathon and restored in the
   sheet. **Blocked on migration 0002 being applied** — UI degrades until then.
 
-Codex session (branch `codex/triple-agent-future-open-hackathons`, pending review):
+Codex session (PR #61):
 - Feed and push eligibility now share the strict future-start + open-registration rule.
-- `lib/scoring.ts` has boundary, missing-date, and malformed-date regression coverage;
-  run it with `npm test` from this app.
+- Settings has an owner-only manual source refresh with loading and per-source result
+  feedback. It runs gather/enrich but intentionally skips push notifications.
+- Eligibility, owner authorization, and refresh-summary regression coverage runs with
+  `npm test` from this app.
 
 ## Next
 
-**Handoff:** Codex implemented strict future + open-registration eligibility on
-`codex/triple-agent-future-open-hackathons`; review/merge it next. Risk: the 2026-07-18
-production snapshot has no rows with a future start, so the feed will be empty until a
-source yields qualifying dates.
+**Handoff:** Migration 0002 (`supabase/migrations/0002_apply_kit.sql`) is NOT applied —
+run it via the Management API, then test Apply Kit end-to-end. Risk: it is additive and
+unused until applied; existing features are unaffected.
 
-- Migration 0002 (`supabase/migrations/0002_apply_kit.sql`) is NOT applied — run it via
-  the Management API (`POST /v1/projects/qcsyihymmaktkbqfxlkl/database/query`), then test
-  Apply Kit end-to-end. It is additive and unused until then.
+- The strict eligibility rule can produce an empty feed when sources have no row with
+  both a future start and future registration deadline. Use the manual Settings refresh
+  to inspect source counts, then check the stored source date semantics before relaxing
+  the fail-closed rule.
 
 - Read the next production cron report: expect `sources.mlh` ≈ 60+, `ethglobal`/
   `hackclub` small counts, and see whether `hackerearth` 403s from Vercel IPs (if it

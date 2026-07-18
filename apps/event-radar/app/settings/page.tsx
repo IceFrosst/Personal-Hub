@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import LoginScreen from '@/components/LoginScreen'
 import SettingsPanel from '@/components/SettingsPanel'
+import { isEventRadarAdmin } from '@/lib/owner'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -10,5 +11,5 @@ export default async function SettingsPage() {
 
   if (!user) return <LoginScreen />
 
-  return <SettingsPanel userId={user.id} />
+  return <SettingsPanel userId={user.id} canRefreshSources={isEventRadarAdmin(user.email)} />
 }
