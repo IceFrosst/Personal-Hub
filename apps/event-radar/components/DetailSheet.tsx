@@ -140,9 +140,11 @@ export default function DetailSheet({
         setDraftError(
           body.error === 'profile_empty'
             ? 'profile_empty'
-            : body.error === 'drafting_unavailable'
-              ? 'The drafting models are unavailable right now — try again in a minute.'
-              : `Drafting failed (${body.error ?? res.status}).`
+            : body.error === 'apply_kit_not_provisioned'
+              ? "Apply Kit isn't provisioned yet — migration 0002 needs applying."
+              : body.error === 'drafting_unavailable'
+                ? 'The drafting models are unavailable right now — try again in a minute.'
+                : `Drafting failed (${body.error ?? res.status}).`
         )
         return
       }

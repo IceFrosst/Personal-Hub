@@ -50,15 +50,20 @@ export async function GET(request: Request) {
     ['hackerearth', () => fetchHackerEarth()],
     ['hackclub', () => fetchHackClub()],
   ]
-  for (const [name, fn] of sources) {
-    try {
-      const rows = await fn()
-      gathered.push(...rows)
-      sourceResults[name] = rows.length
-    } catch (err) {
-      sourceResults[name] = `error: ${err instanceof Error ? err.message : String(err)}`
+  // Concurrent: five sources sequentially could sum past maxDuration on a bad
+  // day (each has internal per-request timeouts); together the gather phase
+  // takes as long as the slowest source, not the sum.
+  const settled = await Promise.allSettled(sources.map(([, fn]) => fn()))
+  settled.forEach((s, i) => {
+    const name = sources[i][0]
+    if (s.status === 'fulfilled') {
+      gathered.push(...s.value)
+      sourceResults[name] = s.value.length
+    } else {
+      sourceResults[name] =
+        `error: ${s.reason instanceof Error ? s.reason.message : String(s.reason)}`
     }
-  }
+  })
   summary.sources = sourceResults
 
   let inserted = 0

@@ -117,11 +117,19 @@ export async function POST(request: Request) {
   }
 
   const db = supabase.schema('hackathon')
-  const [{ data: hackathon }, { data: profileRow }] = await Promise.all([
+  const [{ data: hackathon }, { data: profileRow, error: profileErr }] = await Promise.all([
     db.from('hackathons').select('*').eq('id', hackathonId).maybeSingle(),
     db.from('application_profiles').select('profile').eq('user_id', user.id).maybeSingle(),
   ])
   if (!hackathon) return NextResponse.json({ error: 'hackathon_not_found' }, { status: 404 })
+  if (profileErr) {
+    // Most likely migration 0002 isn't applied yet — don't misreport this as
+    // an empty profile and send the user to a form that can't save.
+    return NextResponse.json(
+      { error: 'apply_kit_not_provisioned', detail: profileErr.message },
+      { status: 503 }
+    )
+  }
 
   const profile = coerceProfile(profileRow?.profile)
   if (profileIsEmpty(profile)) {
