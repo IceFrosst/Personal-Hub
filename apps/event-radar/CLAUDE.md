@@ -25,7 +25,9 @@
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
-  Five sources: devpost, mlh, ethglobal, hackerearth, hackclub (`lib/ingest/*.ts`).
+  Six sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma
+  (`lib/ingest/*.ts`). **Domain/source status is tracked in `SOURCES.md`** —
+  every allowlisted hackathon domain, whether it feeds the radar, and why.
   `IngestRow.registration_deadline` is optional — only ETHGlobal provides it; enrichment
   fills it elsewhere and never overwrites a source-provided value.
 - The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. The scheduled
@@ -108,6 +110,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   MLH approach; meetups/cafes/summits and finished/cancelled events are filtered out.
 - Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
   shell, not JSON.
+- Luma: `api.lu.ma/discover/get-paginated-events?query=hackathon` is a public,
+  no-auth, cursor-paginated feed (page with `pagination_cursor`). The query is
+  **fuzzy** — it returns some non-hackathon meetups, so `parseLumaPage` keeps
+  only name-matched entries. Do NOT use `api.lu.ma/search/get-results` (401,
+  signed-in only). The entry `url` is a bare slug → the page is `lu.ma/<slug>`.
 - The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
   dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
 - Exposing the `hackathon` schema to the Data API needs the platform config **and** the
@@ -133,7 +140,7 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 **Live in production** — ships from `main`, hub tile registered. Ranked feed with
 why-chips + filters, status tracking, settings with push toggle + threshold slider, daily
-ingest cron (five sources → insert/touch → Groq/Gemini enrichment → scored web-push
+ingest cron (six sources → insert/touch → Groq/Gemini enrichment → scored web-push
 notify). Vercel project fully provisioned (root dir + turbo-ignore + all env vars);
 auth redirects added; migration 0001 applied and schema exposed via PostgREST.
 
@@ -164,8 +171,23 @@ Throughput/cadence session (2026-07-18):
   added. **Not yet on `main`** — on branch `claude/hackathon-auto-apply-tool-hg8cwv`,
   pending Ignas's merge.
 
+Allowlisted-domains session (2026-07-18):
+- Probed **all** newly-allowlisted hackathon domains and recorded the full
+  matrix in `SOURCES.md` (working / reachable-but-no-feed / blocked).
+- **Added the Luma source** (`lib/ingest/luma.ts`, 6th source) — the public
+  `api.lu.ma/discover` hackathon query, verified live at 92 hackathons mapped.
+  Wired into the runner, labelled in the refresh summary, unit-tested.
+- Remaining candidates and their exact blockers are in `SOURCES.md → Next`
+  (Topcoder/Junction APIs to re-probe from prod egress; HackQuest/AKINDO need
+  frontend query names; Hackster is WAF-blocked).
+
 ## Next
 
+- **Verify Luma in production:** watch its per-source count in the cron report;
+  it should add global short-form community hackathons.
+- **Re-probe from production egress** the sources marked "unreachable *here*" in
+  `SOURCES.md` (Topcoder `v5/challenges`, `api.hackjunction.com`, Hackster) —
+  open egress + Vercel IPs may reach what this session couldn't.
 - **Ignas, before the GH cron works:** add repo secret `EVENT_RADAR_CRON_SECRET` (=
   project `CRON_SECRET`) at repo Settings → Secrets → Actions. Until then the workflow
   fails fast with a clear message; the daily Vercel cron is unaffected.

@@ -10,6 +10,7 @@ const SOURCE_LABELS: Record<string, string> = {
   ethglobal: 'ETHGlobal',
   hackerearth: 'HackerEarth',
   hackclub: 'Hack Club',
+  luma: 'Luma',
 }
 
 function count(value: unknown): number {
