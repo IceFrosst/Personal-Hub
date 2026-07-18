@@ -10,6 +10,7 @@ import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
 import { fetchUnstop } from './unstop'
+import { fetchHackQuest } from './hackquest'
 import { enrich, fetchPageText } from './enrich'
 import { circuitTravelCovered } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
@@ -72,8 +73,9 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['taikai', () => fetchTaikai()],
     ['dorahacks', () => fetchDoraHacks()],
     ['unstop', () => fetchUnstop()],
+    ['hackquest', () => fetchHackQuest()],
   ]
-  // Nine sequential source timeouts could consume the entire function budget;
+  // Ten sequential source timeouts could consume the entire function budget;
   // run them together so gather takes as long as the slowest source.
   const settled = await Promise.allSettled(sources.map(([, fetchSource]) => fetchSource()))
   settled.forEach((result, index) => {

@@ -33,8 +33,8 @@
   (`test/enrich.test.ts` guards the hoisting).
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
-  Nine sources: devpost, mlh, ethglobal, hackerearth, hackclub, devfolio, taikai,
-  dorahacks, unstop (`lib/ingest/*.ts`). Goal is total coverage — cast wide, let the
+  Ten sources: devpost, mlh, ethglobal, hackerearth, hackclub, devfolio, taikai,
+  dorahacks, unstop, hackquest (`lib/ingest/*.ts`). Goal is total coverage — cast wide, let the
   fail-closed eligibility rule + read-time scoring sort it out. `registration_deadline`
   is optional on `IngestRow` — ETHGlobal, Devfolio, Taikai, DoraHacks, and Unstop provide
   it up front; enrichment fills it elsewhere and never overwrites a source-provided value.
@@ -164,6 +164,15 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   is the item's `seo_url`.
 - **Devpost** now fetches up to 25 pages (was 3); the loop still breaks on the first empty
   page, so the cap just means "take everything open/upcoming" rather than the first ~30.
+- **HackQuest** (`lib/ingest/hackquest.ts`): web3/AI, Asia-heavy. Anonymous GraphQL at
+  `api.hackquest.io/graphql` — `hackathons(filter: {}){ data { … timeline } }` returns the
+  whole catalog (~111) in one call; the parser keeps `status == publish` with a future
+  `timeline.registrationClose`. No event-start field, so `starts_at` is proxied from the
+  deadline (same as Unstop); no location field, so `format` is left for enrichment. URL is
+  `/hackathon/<alias>`. **Same WAF/IP quirk as HackerEarth** — `api.hackquest.io` 403s Node
+  `fetch` from a sandbox (Node bypasses the proxy) but works via the proxied curl and from
+  Vercel's egress; verify by watching `sources.hackquest` in the prod cron, not from an
+  interactive session.
 - **Deferred (evaluated 2026-07-18, still out):** *Hackathon.com* is a client-rendered SPA
   with no JSON API and no server-rendered event markup (`/api/events` 404s, no
   `__NEXT_DATA__`/ld+json) — it would need a headless browser, which the "don't add a
@@ -284,12 +293,19 @@ Travel-detection session (2026-07-18, same branch):
 - **Watch enrichment keep up** with the bigger intake — if the pending backlog grows
   faster than 120/day, that's the ceiling to revisit (batch/concurrency vs. LLM RPM), not
   the source list.
-- **Broaden Layer 1 to more regions.** The circuit registry covers ETHGlobal (global) +
-  EU programmes; the honest way to add big US/Asia travel-funders is more entries (as their
-  events flow through existing sources by title) or new sources. Sources worth allowlisting
-  for this: lu.ma (crypto hackathons worldwide, travel-heavy), encode.club, angelhack.com,
-  akindo.io / superteam (Asia web3). Each needs a domain on the allowlist before a session
-  can build+test its scraper — ask Ignas, then add like the others.
+- **More aggregators — allowlist findings (2026-07-18).** Probed the Tier-1 candidates.
+  Buildable + shipped: **HackQuest**. Still blocked on allowlist gaps (the domains redirect
+  or the SPA calls an un-allowlisted API host):
+  - **lu.ma → luma.com** (301-redirects to the migrated domain, which isn't allowlisted).
+    Highest-volume candidate — allowlist `luma.com` + `api.lu.ma` and it's next.
+  - **encode.club → encodeclub.com** (same migrated-domain redirect). Allowlist
+    `encodeclub.com`.
+  - **hackster.io** (hardware/big-tech): listing is a client SPA, real data is on
+    `api.hackster.io` which 403s/000s here — allowlist `api.hackster.io` to build it.
+  Evaluated and dropped: **angelhack.com** — WordPress REST works (`/wp-json/wp/v2/event`)
+  but events carry no structured start/deadline (`acf: []`), so nothing satisfies the
+  fail-closed rule without brittle HTML scraping. **akindo.io** — apex reachable but a hard
+  SPA with no discoverable listing route/API. Revisit if either exposes dated JSON.
 - **Post-merge: re-enrich existing rows so the better travel detection applies to them.**
   The focusText/prompt gains only touch rows enriched *after* this ships. To backfill,
   clear `enriched_at` on already-enriched in-person rows (`update hackathon.hackathons set
