@@ -11,8 +11,9 @@ high-match appears.
 
 ## What it does
 
-- **Ranked feed** of open hackathons with a transparent score — every card shows *why* it
-  ranks where it does (travel covered +40, online +35, dev-only −30, …)
+- **Ranked feed** limited to future hackathons with registration still open, with a
+  transparent score — every card shows *why* it ranks where it does (travel covered +40,
+  online +35, dev-only −30, …)
 - **Detail sheet**: tap a card for the full picture — dates, deadline, score breakdown,
   the extracted description — plus per-hackathon notes
 - **Status tracking**: interested → applying → applied, or hide it
@@ -20,6 +21,8 @@ high-match appears.
   questions and get first-person draft answers (Groq/Gemini) with copy buttons — gaps in
   your profile come back as `[TODO]`s, never invented facts
 - **Web push** when a new hackathon clears your score threshold (adjustable in settings)
+- **Manual source refresh** for the app owner in Settings, with per-source results and no
+  test-run push notifications
 - **Sources**: Devpost, MLH, ETHGlobal, Hack Club, HackerEarth — enriched via Groq/Gemini
   (all free tiers)
 
@@ -35,8 +38,11 @@ npm run dev
 ```
 
 Needs `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the environment.
-The ingest cron (`/api/cron/ingest`) additionally needs `SUPABASE_SERVICE_ROLE_KEY`,
-`CRON_SECRET`, `GROQ_API_KEY`/`GEMINI_API_KEY`, and the VAPID key pair for push.
+Scheduled and manual ingest both need `SUPABASE_SERVICE_ROLE_KEY` plus
+`GROQ_API_KEY`/`GEMINI_API_KEY`; the cron additionally needs `CRON_SECRET`, and scheduled
+push needs the VAPID key pair.
+`EVENT_RADAR_ADMIN_EMAIL` optionally overrides which verified Google account can run the
+manual source refresh (it defaults to the portfolio owner).
 
 ## Stack
 

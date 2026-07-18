@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import { isUpcomingAndOpen } from '../lib/scoring'
+import type { Hackathon } from '../lib/types'
+
+const NOW = new Date('2026-07-18T12:00:00.000Z')
+
+function hackathon(overrides: Partial<Hackathon> = {}): Hackathon {
+  return {
+    id: 'hackathon-1',
+    source: 'test',
+    source_id: null,
+    title: 'Future Hackathon',
+    url: 'https://example.com/hackathon',
+    starts_at: '2026-08-01T09:00:00.000Z',
+    ends_at: '2026-08-03T17:00:00.000Z',
+    registration_deadline: '2026-07-31T23:59:59.000Z',
+    format: 'in_person',
+    city: 'Vilnius',
+    country: 'Lithuania',
+    location_raw: 'Vilnius, Lithuania',
+    prize_pool: null,
+    travel_covered: null,
+    accommodation_covered: null,
+    open_to_business_students: null,
+    themes: [],
+    raw_description: null,
+    enriched_at: null,
+    notified_at: null,
+    last_seen_at: NOW.toISOString(),
+    created_at: NOW.toISOString(),
+    ...overrides,
+  }
+}
+
+test('includes a hackathon that starts later and still accepts registrations', () => {
+  assert.equal(isUpcomingAndOpen(hackathon(), NOW), true)
+})
+
+test('excludes a hackathon that already started even when registration remains open', () => {
+  assert.equal(
+    isUpcomingAndOpen(hackathon({ starts_at: '2026-07-18T11:59:59.999Z' }), NOW),
+    false
+  )
+})
+
+test('uses a strict future boundary for the start time', () => {
+  assert.equal(isUpcomingAndOpen(hackathon({ starts_at: NOW.toISOString() }), NOW), false)
+})
+
+test('excludes a hackathon after registration closes', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({ registration_deadline: '2026-07-18T11:59:59.999Z' }),
+      NOW
+    ),
+    false
+  )
+})
+
+test('uses a strict future boundary for the registration deadline', () => {
+  assert.equal(
+    isUpcomingAndOpen(hackathon({ registration_deadline: NOW.toISOString() }), NOW),
+    false
+  )
+})
+
+test('fails closed when the start or registration deadline is missing', () => {
+  assert.equal(isUpcomingAndOpen(hackathon({ starts_at: null }), NOW), false)
+  assert.equal(isUpcomingAndOpen(hackathon({ registration_deadline: null }), NOW), false)
+})
+
+test('fails closed when the start or registration deadline is malformed', () => {
+  assert.equal(isUpcomingAndOpen(hackathon({ starts_at: 'not-a-date' }), NOW), false)
+  assert.equal(
+    isUpcomingAndOpen(hackathon({ registration_deadline: 'not-a-date' }), NOW),
+    false
+  )
+})
+
+test('fails closed when the comparison time is invalid', () => {
+  assert.equal(isUpcomingAndOpen(hackathon(), new Date('not-a-date')), false)
+})

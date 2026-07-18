@@ -16,7 +16,7 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 ## Who and what
 
 - **User:** Ignas (`ign3107s@gmail.com`), GitHub `icefrosst`.
-- **Workflow:** Primary development happens in Claude Code on the web — code is pushed from cloud sessions, Vercel auto-deploys, Ignas tests on the live URL. Local dev in the cloud sandbox is fine and encouraged when useful (iterating on visuals, sanity-checking with `next dev`), but **the source of truth is the GitHub repos** — nothing ships without being committed and pushed.
+- **Workflow:** Development moves between Claude Code, Grok, and Codex — code is pushed from agent sessions, Vercel auto-deploys, Ignas tests on the live URL. Local dev in an agent sandbox is fine and encouraged when useful (iterating on visuals, sanity-checking with `next dev`), but **the source of truth is the GitHub repos** — nothing ships without being committed and pushed.
 - **Goal:** Ship PWAs fast and iterate. Each app should be shippable in 1–2 sessions. The hub lists them.
 - **Hard constraint: 100% free to run.** Vercel free tier + Supabase free tier. If a request would require ANY other paid service, **stop and flag it before implementing.**
 
@@ -92,7 +92,7 @@ In a `hub` schema: `hub.user_app_preferences` — `(user_id, app_slug, preferred
 Every app folder carries **two docs**, and every app must have both:
 
 - **`apps/<name>/README.md`** — human / GitHub facing: what the app is, the idea, how to run it.
-- **`apps/<name>/CLAUDE.md`** — Claude facing: the technical context for working *inside* that app. Claude Code **auto-loads a nested `CLAUDE.md` when you touch files in its folder**, so app-specific rules belong here (the README is *not* auto-loaded into context).
+- **`apps/<name>/CLAUDE.md`** — shared agent context for working *inside* that app. Claude Code auto-loads a nested `CLAUDE.md`; Grok and Codex must read it explicitly before touching that app, so app-specific rules belong here (the README is not the handoff source).
 
 Every `apps/<name>/CLAUDE.md` uses these sections, in order:
 **Stack · Conventions · Data model · Gotchas · Current state · Next**.
@@ -302,25 +302,29 @@ node scripts/setup-vercel-project.mjs --repo Personal-Hub --name icefrosst-<name
 
 ---
 
-## Dual-agent workflow (Claude Code + Grok)
+## Triple-agent workflow (Claude Code + Grok + Codex)
 
-Two agents share this repo and must be able to **take over from each other mid-task with
+Three agents share this repo and must be able to **take over from each other mid-task with
 no lost context**. The living docs ARE the handoff — **no separate handoff files**; this
 applies to every app in the repo, not any one feature.
 
-- **Claude Code** — primary coding sessions; auto-loads this root `CLAUDE.md` and the
+- **Claude Code** — coding sessions; auto-loads this root `CLAUDE.md` and the
   nested `apps/<name>/CLAUDE.md` when it touches that app's files.
 - **Grok** — full GitHub read/write; point it at this root `CLAUDE.md` + the relevant
   `apps/<name>/CLAUDE.md` before it starts.
+- **Codex** — reads root `AGENTS.md`, which routes it here; it must also read the entire
+  relevant `apps/<name>/CLAUDE.md` before changing that app.
+- **Enter every task as a continuation.** Inspect the current branch, working tree, recent
+  commits, and shared app context before editing. Preserve another agent's in-flight work.
 - **The state of play lives in each app's `CLAUDE.md` → `Current state` / `Next`.** Keep
   them live — update them in the **same commit** as the code change, not just at session end.
 - **Handing off:** put a one-line **`Handoff:`** note at the top of that app's `Next`
   (what's in flight · what's next · any risk). The successor deletes it once picked up.
 - **Anything pushed is a valid resume point.** Commit + push frequently to the feature
   branch (never straight to `main` without confirmation) so the last push is a clean handoff.
-- Both agents push to the same feature branch and update the same `CLAUDE.md` files.
+- All three agents use the same feature branch and update the same `CLAUDE.md` files.
 
-### Shipping gotchas (both agents)
+### Shipping gotchas (all three agents)
 - **Vercel occasionally misses the production build webhook** on merge. If `main`'s HEAD has
   no production deployment after a few minutes, trigger it manually:
   `POST https://api.vercel.com/v13/deployments?teamId=$VERCEL_TEAM_ID&forceNew=1` with

@@ -61,12 +61,25 @@ export function scoreHackathon(h: Hackathon, now: Date = new Date()): ScoredHack
   return { score, reasons }
 }
 
-// A hackathon is still worth showing while you can plausibly register/attend.
-export function isLive(h: Hackathon, now: Date = new Date()): boolean {
-  const t = now.getTime()
-  if (h.registration_deadline && new Date(h.registration_deadline).getTime() < t) return false
-  if (h.ends_at && new Date(h.ends_at).getTime() < t) return false
-  if (!h.registration_deadline && !h.ends_at && h.starts_at && new Date(h.starts_at).getTime() < t)
-    return false
-  return true
+function validTimestamp(value: string | null): number | null {
+  if (!value) return null
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+// Feed and notification eligibility is intentionally fail-closed: both facts
+// must be known, valid, and strictly in the future.
+export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean {
+  const nowTimestamp = now.getTime()
+  if (!Number.isFinite(nowTimestamp)) return false
+
+  const startsAt = validTimestamp(h.starts_at)
+  const registrationDeadline = validTimestamp(h.registration_deadline)
+
+  return (
+    startsAt !== null &&
+    registrationDeadline !== null &&
+    startsAt > nowTimestamp &&
+    registrationDeadline > nowTimestamp
+  )
 }
