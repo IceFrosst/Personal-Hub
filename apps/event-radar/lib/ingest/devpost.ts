@@ -66,7 +66,9 @@ type DevpostApiHackathon = {
   open_state: string | null
 }
 
-export async function fetchDevpost(pages = 3): Promise<IngestRow[]> {
+// Devpost paginates ~10 hackathons/page and the loop stops early on the first
+// empty page, so a generous cap just means "take everything open/upcoming".
+export async function fetchDevpost(pages = 25): Promise<IngestRow[]> {
   const rows: IngestRow[] = []
 
   for (let page = 1; page <= pages; page++) {
