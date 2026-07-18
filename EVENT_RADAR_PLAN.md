@@ -6,6 +6,12 @@
 > decisions Claude made: service-role key as server-only Vercel env var behind a
 > CRON_SECRET route (same pattern as lock-in's cron), daily Vercel cron cadence.
 > Live state now tracked in `apps/event-radar/CLAUDE.md`.
+>
+> **2026-07-18 (overnight):** roadmap phase 2 built on `claude/stoic-volta-e8or22` —
+> Apply Kit (profile + drafted answers, ex-roadmap, now shipped), hackathon detail
+> sheet with notes, three new sources (ETHGlobal / Hack Club / HackerEarth), and the
+> MLH parser fixed for their www.mlh.com rebuild. Migration `0002_apply_kit.sql`
+> pending application. Live state in `apps/event-radar/CLAUDE.md`.
 
 ## Problem
 

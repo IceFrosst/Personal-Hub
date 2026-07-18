@@ -9,17 +9,22 @@ travel covered? is accommodation provided? can a business student enter?), ranks
 against what actually matters from Lithuania, and pushes a phone notification when something
 high-match appears.
 
-## What it does (v1 — pure discovery)
+## What it does
 
 - **Ranked feed** of open hackathons with a transparent score — every card shows *why* it
   ranks where it does (travel covered +40, online +35, dev-only −30, …)
+- **Detail sheet**: tap a card for the full picture — dates, deadline, score breakdown,
+  the extracted description — plus per-hackathon notes
 - **Status tracking**: interested → applying → applied, or hide it
+- **Apply Kit**: fill an application profile once, then paste any hackathon's form
+  questions and get first-person draft answers (Groq/Gemini) with copy buttons — gaps in
+  your profile come back as `[TODO]`s, never invented facts
 - **Web push** when a new hackathon clears your score threshold (adjustable in settings)
-- **Sources**: Devpost public API + MLH season pages, enriched via Groq/Gemini (both free
-  tiers). More sources are a standing roadmap item.
+- **Sources**: Devpost, MLH, ETHGlobal, Hack Club, HackerEarth — enriched via Groq/Gemini
+  (all free tiers)
 
-Applying is still on you — the Apply Kit (AI-drafted answers) and approval-gated auto-fill
-are the post-v1 roadmap, tracked in the root `EVENT_RADAR_PLAN.md`.
+Submitting is still on you — approval-gated auto-fill is the next roadmap phase, tracked
+in the root `EVENT_RADAR_PLAN.md`.
 
 ## Run it locally
 

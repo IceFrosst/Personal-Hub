@@ -37,11 +37,13 @@ export default function HackathonCard({
   scored,
   status,
   onSetStatus,
+  onOpen,
 }: {
   hackathon: Hackathon
   scored: ScoredHackathon
   status: UserStatus | null
   onSetStatus: (status: UserStatus) => void
+  onOpen: () => void
 }) {
   const dates = formatDates(h)
   const place =
@@ -54,30 +56,37 @@ export default function HackathonCard({
   return (
     <article className="flex flex-col gap-3 rounded-2xl bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        {/* Tapping the info area opens the detail sheet; the external-link icon
+            stays a plain anchor to the hackathon site. */}
+        <button onClick={onOpen} className="min-w-0 flex-1 text-left">
+          <span className="flex items-start gap-1.5 font-medium leading-snug text-text">
+            <span className="break-words">{h.title}</span>
+          </span>
+          <span className="mt-1 block text-sm text-text-muted">
+            {[place, dates, h.prize_pool ?? undefined].filter(Boolean).join(' · ')}
+          </span>
+        </button>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span
+            className={`rounded-md px-2 py-1 text-sm font-semibold tabular-nums ${scoreColor(scored.score)}`}
+            title="Match score"
+          >
+            {scored.score}
+          </span>
           <a
             href={h.url}
             target="_blank"
             rel="noreferrer"
-            className="flex items-start gap-1.5 font-medium leading-snug text-text"
+            className="flex min-h-6 min-w-11 items-center justify-center text-text-low transition-colors duration-150 ease-out hover:text-text"
+            aria-label={`Open ${h.title} site`}
           >
-            <span className="break-words">{h.title}</span>
-            <IconExternalLink size={16} stroke={1.5} className="mt-0.5 shrink-0 text-text-low" />
+            <IconExternalLink size={16} stroke={1.5} />
           </a>
-          <p className="mt-1 text-sm text-text-muted">
-            {[place, dates, h.prize_pool ?? undefined].filter(Boolean).join(' · ')}
-          </p>
         </div>
-        <span
-          className={`shrink-0 rounded-md px-2 py-1 text-sm font-semibold tabular-nums ${scoreColor(scored.score)}`}
-          title="Match score"
-        >
-          {scored.score}
-        </span>
       </div>
 
       {scored.reasons.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <button onClick={onOpen} className="flex flex-wrap gap-1.5 text-left">
           {scored.reasons.map((r) => (
             <span
               key={r.label}
@@ -88,7 +97,7 @@ export default function HackathonCard({
               {r.label} {r.pts > 0 ? `+${r.pts}` : r.pts}
             </span>
           ))}
-        </div>
+        </button>
       )}
 
       <div className="flex gap-1.5">

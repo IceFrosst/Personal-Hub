@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { scoreHackathon, isLive } from '@/lib/scoring'
 import type { Hackathon, UserStatus } from '@/lib/types'
 import HackathonCard from './HackathonCard'
+import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
@@ -22,7 +23,9 @@ export default function Feed({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), [])
   const [hackathons, setHackathons] = useState<Hackathon[]>([])
   const [statuses, setStatuses] = useState<Record<string, UserStatus>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
   const [filter, setFilter] = useState<FilterKey>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -33,11 +36,21 @@ export default function Feed({ userId }: { userId: string }) {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(300),
-      supabase.schema('hackathon').from('user_hackathon_status').select('hackathon_id, status'),
+      supabase
+        .schema('hackathon')
+        .from('user_hackathon_status')
+        .select('hackathon_id, status, notes'),
     ])
     setHackathons((rows ?? []) as Hackathon[])
     setStatuses(
       Object.fromEntries((statusRows ?? []).map((r) => [r.hackathon_id, r.status as UserStatus]))
+    )
+    setNotes(
+      Object.fromEntries(
+        (statusRows ?? [])
+          .filter((r) => r.notes)
+          .map((r) => [r.hackathon_id, r.notes as string])
+      )
     )
     setLoading(false)
   }, [supabase])
@@ -49,8 +62,14 @@ export default function Feed({ userId }: { userId: string }) {
   const setStatus = async (hackathonId: string, status: UserStatus) => {
     const current = statuses[hackathonId]
     if (current === status) {
-      // Tapping the active status clears it.
+      // Tapping the active status clears it — the whole row goes, notes included
+      // (status is NOT NULL, a status-less row can't exist).
       setStatuses((prev) => {
+        const next = { ...prev }
+        delete next[hackathonId]
+        return next
+      })
+      setNotes((prev) => {
         const next = { ...prev }
         delete next[hackathonId]
         return next
@@ -67,7 +86,34 @@ export default function Feed({ userId }: { userId: string }) {
       .schema('hackathon')
       .from('user_hackathon_status')
       .upsert(
-        { user_id: userId, hackathon_id: hackathonId, status, updated_at: new Date().toISOString() },
+        {
+          user_id: userId,
+          hackathon_id: hackathonId,
+          status,
+          notes: notes[hackathonId] ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,hackathon_id' }
+      )
+  }
+
+  // Notes ride on the status row; saving a note without a status starts one
+  // at 'interested' (writing a note IS a signal of interest).
+  const saveNotes = async (hackathonId: string, value: string) => {
+    setNotes((prev) => ({ ...prev, [hackathonId]: value }))
+    const status = statuses[hackathonId] ?? 'interested'
+    if (!statuses[hackathonId]) setStatuses((prev) => ({ ...prev, [hackathonId]: status }))
+    await supabase
+      .schema('hackathon')
+      .from('user_hackathon_status')
+      .upsert(
+        {
+          user_id: userId,
+          hackathon_id: hackathonId,
+          status,
+          notes: value || null,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'user_id,hackathon_id' }
       )
   }
@@ -93,6 +139,12 @@ export default function Feed({ userId }: { userId: string }) {
       return da < db ? -1 : 1
     })
   }, [hackathons, statuses, filter])
+
+  const selected = useMemo(() => {
+    if (!selectedId) return null
+    const h = hackathons.find((x) => x.id === selectedId)
+    return h ? { h, scored: scoreHackathon(h) } : null
+  }, [selectedId, hackathons])
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6 safe-b safe-t">
@@ -146,9 +198,22 @@ export default function Feed({ userId }: { userId: string }) {
               scored={scored}
               status={status}
               onSetStatus={(s) => setStatus(h.id, s)}
+              onOpen={() => setSelectedId(h.id)}
             />
           ))}
         </div>
+      )}
+
+      {selected && (
+        <DetailSheet
+          hackathon={selected.h}
+          scored={selected.scored}
+          status={statuses[selected.h.id] ?? null}
+          notes={notes[selected.h.id] ?? ''}
+          onSetStatus={(s) => setStatus(selected.h.id, s)}
+          onSaveNotes={(v) => saveNotes(selected.h.id, v)}
+          onClose={() => setSelectedId(null)}
+        />
       )}
     </main>
   )

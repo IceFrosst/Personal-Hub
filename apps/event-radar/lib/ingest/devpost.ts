@@ -11,6 +11,9 @@ export type IngestRow = {
   location_raw: string | null
   format: 'online' | 'in_person' | 'hybrid' | null
   prize_pool: string | null
+  // Optional: most list sources don't know it (enrichment fills it later), but
+  // some (ETHGlobal) provide an exact signup deadline up front.
+  registration_deadline?: string | null
   themes: string[]
 }
 
