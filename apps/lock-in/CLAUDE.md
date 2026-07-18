@@ -89,9 +89,11 @@ square checkbox as `TaskRow`/`RecurringRow` (gold for tasks, white for routines)
 and `plan_blocks.status` flips — plan and list stay in sync. **Locked (calendar) blocks can also be
 checked off** now, but it's **cosmetic only** (just `plan_blocks.status` — they have no task/routine
 to complete, and the status resets on the next replan since locked blocks are re-read from the
-calendar). **Today / Tomorrow** toggle plans and
-views either day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
-window, today starts from now). Blocks show a repeat glyph for routines and a tag-colored left
+calendar). **Yesterday / Today / Tomorrow** toggle (`DAY_OFFSET` −1/0/+1 from today) plans and
+views a day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
+window, today starts from now). **Yesterday is view-only** (no plan button — you don't schedule the
+past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
+still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
 
 **The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;

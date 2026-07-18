@@ -31,7 +31,10 @@ import EditRecurringSheet, { type RecurringUpdate } from '@/components/EditRecur
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 
 type Connection = { google_email: string | null; connected_at: string } | null
-type Day = 'today' | 'tomorrow'
+type Day = 'yesterday' | 'today' | 'tomorrow'
+// Day → offset from today, so late-night hours can still reach the plan they
+// were living before midnight rolled the date forward.
+const DAY_OFFSET: Record<Day, number> = { yesterday: -1, today: 0, tomorrow: 1 }
 
 export default function GamePlanClient() {
   const supabase = useMemo(() => createClient(), [])
@@ -58,7 +61,7 @@ export default function GamePlanClient() {
   const tz = settings?.timezone ?? DEFAULT_SETTINGS.timezone
   const todayStr = useMemo(() => todayInTz(tz), [tz])
   const activeDate = useMemo(
-    () => (day === 'today' ? todayStr : addDays(todayStr, 1)),
+    () => addDays(todayStr, DAY_OFFSET[day]),
     [day, todayStr]
   )
 
@@ -159,8 +162,7 @@ export default function GamePlanClient() {
     setMessage(null)
     setError(null)
     if (userId) {
-      const dateKey = next === 'today' ? todayStr : addDays(todayStr, 1)
-      await loadBlocks(userId, dateKey)
+      await loadBlocks(userId, addDays(todayStr, DAY_OFFSET[next]))
     }
   }
 
@@ -560,12 +562,12 @@ export default function GamePlanClient() {
           <>
             <div className="flex items-center justify-between">
               <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
-                {(['today', 'tomorrow'] as Day[]).map((d) => (
+                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => switchDay(d)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
                       day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
                     }`}
                   >
@@ -594,17 +596,23 @@ export default function GamePlanClient() {
               <SettingsPanel settings={settings} onChange={saveSettings} />
             )}
 
-            <button
-              type="button"
-              onClick={planDay}
-              disabled={planning}
-              className="lock-in-gold-button flex items-center justify-center gap-2 min-h-12 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-60"
-            >
-              <IconRefresh size={18} stroke={2.4} className={planning ? 'animate-spin' : ''} />
-              {planning
-                ? 'Planning…'
-                : `${blocks.length ? 'Replan' : 'Plan'} ${day === 'today' ? 'my day' : 'tomorrow'}`}
-            </button>
+            {day === 'yesterday' ? (
+              <p className="text-text-low text-xs px-1 text-center">
+                Yesterday&apos;s plan — view only. You can still tick blocks off.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={planDay}
+                disabled={planning}
+                className="lock-in-gold-button flex items-center justify-center gap-2 min-h-12 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-60"
+              >
+                <IconRefresh size={18} stroke={2.4} className={planning ? 'animate-spin' : ''} />
+                {planning
+                  ? 'Planning…'
+                  : `${blocks.length ? 'Replan' : 'Plan'} ${day === 'today' ? 'my day' : 'tomorrow'}`}
+              </button>
+            )}
 
             {message && (
               <p className="text-text-muted text-xs px-1 -mt-1 leading-snug">{message}</p>
