@@ -28,10 +28,10 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 | Domain(s) | Status | How it's reached / why not |
 |---|---|---|
 | `lu.ma` · `api.lu.ma` · `luma.com` | ✅ Live | `GET api.lu.ma/discover/get-paginated-events?query=hackathon`, cursor-paginated, **no auth**. Implemented in `lib/ingest/luma.ts` — **92 hackathons mapped live** (Austin, London, Bengaluru, São Paulo, Berlin…). Global breadth, many short community events. `luma.com` just redirects to `lu.ma`. |
-| `hackquest.io` · `api.hackquest.io` · `www.hackquest.io` | 🟡 Reachable | GraphQL API is live (`POST api.hackquest.io/graphql` answers), but **Apollo introspection is disabled** and no REST path exists (`/hackathon`, `/api/hackathon` → 404). Needs the exact query lifted from the frontend JS. Doable, not blind. |
-| `akindo.io` · `api.akindo.io` · `www.akindo.io` | 🟡 Reachable | `api.akindo.io` is a live NestJS API (returns structured `{statusCode:404}`), but no endpoint discovered (`/hackathons`, `/waves`, `/v1/hackathons`, `/communities` all 404). `www.akindo.io` itself → `000` (bot-blocked HTML). Needs endpoint names from the frontend. |
-| `spaceappschallenge.org` · `www.` | 🟡 Reachable | Site loads (200). NASA Space Apps is **one global annual event** — no list API; would be a bespoke single-event HTML scrape. Low effort/low yield. |
-| `hackjunction.com` · `www.` · `api.hackjunction.com` | 🟡 Reachable | `www` loads (200) as a SPA; `api.hackjunction.com` → `000` from here. Junction runs an events API — retry the api subdomain from production Vercel. |
+| `hackquest.io` · `api.hackquest.io` · `www.hackquest.io` | ✅ Live | GraphQL introspection is disabled, so the `getAllHackathonInfo` / `listHackathons` operation was **lifted verbatim from the frontend bundle** (`_next/static` chunks) and replayed against `POST api.hackquest.io/graphql` — public, no auth. Implemented in `lib/ingest/hackquest.ts` — **111 hackathons mapped live**, all with source-provided `registration_deadline`, prizes, and ecosystem themes (Web3/AI buildathons: Injective, Arbitrum, 0G, OKX…). |
+| `akindo.io` · `api.akindo.io` · `www.akindo.io` | ❌ blocked | The hackathon ("wave") listing lives on **`app.akindo.io`**, which is **not allowlisted** (`000`). The marketing site (`akindo.io`) bundle carries no listing endpoint; `api.akindo.io` is a live NestJS host but every guessed path (`/waves`, `/hackathons`, `/products/`, `/graphql`, …) 404s. **To unblock: allowlist `app.akindo.io`**, then lift its API paths the same way HackQuest was done. |
+| `spaceappschallenge.org` · `www.` | ❌ no feed | Site loads (200) but is a plain marketing page — no `__NEXT_DATA__`, no JSON-LD, no API. NASA Space Apps is **one global annual event**; not worth a bespoke fragile scrape. |
+| `hackjunction.com` · `www.` · `api.hackjunction.com` | ❌ here | `www` loads (200) as a SPA; `api.hackjunction.com` → `000` (DNS/network-unreachable from this session, not a WAF). Junction runs an events API — **retry the api subdomain from production Vercel egress**; if it resolves there it's implementable. |
 | `kaggle.com` · `www.` | ❌ | Site 200, but `/competitions.json` → 404; listings need the **authenticated** official Kaggle API. Also: Kaggle competitions are ML contests, not really hackathons — deprioritize. |
 | `topcoder.com` · `www.` | ❌ here | `www` 200, but `api.topcoder.com/v5/challenges` → `000` (unreachable from this session). The v5 challenges API is public and JSON in general — **re-probe from production Vercel**, likely implementable there. |
 | `encode.club` · `encodeclub.com` · `www.encode.club` | ❌ (covered) | Marketing/Framer site, no event API. **Not needed** — Encode Club hackathons already surface through the Luma feed (e.g. "…London Encode Club"). |
@@ -42,26 +42,30 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 | `imaginecup.microsoft.com` | ❌ | 307 → Microsoft auth flow. No public event feed. |
 | `hackster.io` · `www.` · `api.hackster.io` | ❌ | `www` → **403 (WAF)**, `api` → `000`. Same class as Devpost/MLH in interactive sessions. Retry from production egress; may need a curl-via-proxy path like HackerEarth. |
 
-## Implemented this pass
+## Implemented so far
 
-- **Luma** (`lib/ingest/luma.ts`, wired into `lib/ingest/run.ts`, label in
-  `lib/refresh-summary.ts`, unit test `test/luma.test.ts`). The query is fuzzy,
-  so the parser keeps only entries whose **name** mentions a hackathon / hack
-  day / hack night / game jam, dropping near-misses like "Cafe Cursor". Crawls
-  up to 4 cursor pages (~150 candidates). The existing fail-closed eligibility
-  rule (`isUpcomingAndOpen`) drops the many same-day/past entries the search
-  also returns.
+- **Luma** (`lib/ingest/luma.ts`, unit test `test/luma.test.ts`). The discover
+  query is fuzzy, so the parser keeps only entries whose **name** mentions a
+  hackathon / hack day / hack night / game jam, dropping near-misses like "Cafe
+  Cursor". Crawls up to 4 cursor pages (~150 candidates). ~92 hackathons mapped.
+- **HackQuest** (`lib/ingest/hackquest.ts`, unit test `test/hackquest.test.ts`).
+  Replays the site's own `getAllHackathonInfo` GraphQL operation; maps only
+  `status: publish` rows and passes through the exact `registrationClose` as
+  `registration_deadline`. 111 hackathons mapped.
+
+Both are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
+The shared fail-closed eligibility rule (`isUpcomingAndOpen`) drops the many
+already-started / closed-registration entries either source returns.
 
 ## Next candidates (in rough effort order)
 
 1. **Topcoder** & **Junction** — public APIs that were only *unreachable from
-   this session*. Re-probe `api.topcoder.com/v5/challenges` and
-   `api.hackjunction.com` from a production Vercel run; if they answer there,
-   both are clean JSON sources.
-2. **HackQuest** — lift the GraphQL query for the hackathon explorer from the
-   frontend bundle, then a normal `POST /graphql`.
-3. **AKINDO** — find the real `api.akindo.io` endpoint names from the frontend.
-4. **Hackster** — retry from open egress; if WAF-blocked, try the curl/proxy
+   this session* (`api.topcoder.com/v5/challenges`, `api.hackjunction.com` both
+   `000`). Re-probe from a production Vercel run; if they answer there, both are
+   clean JSON sources.
+2. **AKINDO** — allowlist `app.akindo.io`, then lift its API paths from the app
+   bundle the same way HackQuest's query was recovered.
+3. **Hackster** — retry from open egress; if still WAF-403, try the curl/proxy
    trick HackerEarth needed.
 
 Everything else (Encode Club, AngelHack, HackZurich, Space Apps, Gitcoin,

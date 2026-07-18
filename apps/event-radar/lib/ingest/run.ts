@@ -7,6 +7,7 @@ import { fetchEthGlobal } from './ethglobal'
 import { fetchHackerEarth } from './hackerearth'
 import { fetchHackClub } from './hackclub'
 import { fetchLuma } from './luma'
+import { fetchHackQuest } from './hackquest'
 import { enrich, fetchPageText } from './enrich'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
@@ -65,6 +66,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['hackerearth', () => fetchHackerEarth()],
     ['hackclub', () => fetchHackClub()],
     ['luma', () => fetchLuma()],
+    ['hackquest', () => fetchHackQuest()],
   ]
   // Five sequential source timeouts could consume the entire function budget;
   // run them together so gather takes as long as the slowest source.
