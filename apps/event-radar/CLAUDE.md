@@ -23,6 +23,14 @@
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
   structured extraction per root CLAUDE.md model guidance), Gemini Flash fallback, and a
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
+- **Travel/accommodation coverage is the priority signal** (biggest ranking weight). Two
+  things protect its recall: `fetchPageText` keeps the whole readable page (40k, not a 12k
+  head), and `focusText` hoists the passages around travel/accommodation keywords
+  (reimburse, stipend, scholarship, flight, hotel, …) to the front of the model's 9k window
+  — travel perks usually sit in a FAQ/"Travel"/"Logistics" block deep in the page. The
+  prompt treats partial/capped/selective travel support as `travel_covered = true`. When
+  you change any of these, re-verify with a long page whose travel line is buried
+  (`test/enrich.test.ts` guards the hoisting).
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Nine sources: devpost, mlh, ethglobal, hackerearth, hackclub, devfolio, taikai,
@@ -177,6 +185,21 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   GitHub Actions workflow (`.github/workflows/event-radar-ingest.yml`) adds 3 more runs
   (every 6h ≈ 4x/day) by calling the same `/api/cron/ingest` endpoint. It needs the repo
   secret `EVENT_RADAR_CRON_SECRET` = the project's `CRON_SECRET`.
+- **Finding travel-sponsoring hackathons (Ignas's top priority).** Two levers: (1) the
+  travel-funding *circuits* are already sources — ETHGlobal (travel stipends/scholarships
+  for accepted hackers), the EU circuit on Taikai (CASSINI/EUDIS/Copernicus reimburse EU
+  travel), some MLH; (2) *detection* is the bottleneck, handled by the focusText/prompt
+  recall work above. Feed filters split the intent three ways: **`Travel ✓`** = confirmed
+  `travel_covered === true` (online is deliberately excluded — it's the opposite of "go get
+  reimbursed"); **`Travel?`** = in-person events with `travel_covered === null`, the
+  manual-check candidates detection couldn't confirm (ETHGlobal's SPA pages land here — the
+  scraper can't read their perks); **`Online`** = its own thing. Don't fold online back
+  into `Travel ✓`.
+- **ETHGlobal travel is real but unreadable by the scraper** — its event pages are an RSC
+  SPA, so `fetchPageText` gets nothing and enrichment falls back to title+location, leaving
+  `travel_covered = null`. Those events surface under `Travel?`, not `Travel ✓`. A
+  source-level travel prior would need care (not everyone gets a stipend) — left out to
+  honor "never guess".
 - Push payload URLs must stay relative (`'/'`) — iron rule #1, no hardcoded app URLs.
 - `sendPush` returns `'gone'` for 404/410 → the cron deletes those subscription rows.
 - iOS requires the PWA to be installed to home screen before push permission can be asked.
@@ -231,6 +254,15 @@ Sources session (2026-07-18, branch `claude/event-radar-hackathon-sources-soi6tf
   at 30/run × 4 runs/day. Rows appear in the feed as soon as they're eligible (start + reg
   deadline both future) — enrichment only refines format/location/scoring afterward.
 
+Travel-detection session (2026-07-18, same branch):
+- Ignas's stated top priority is **hackathons that sponsor travel**. Reworked detection +
+  discovery for that: `focusText` hoists deep travel/accommodation passages into the LLM
+  window, `fetchPageText` keeps 40k not 12k, the prompt is travel-tuned (partial/selective
+  support counts as `true`) — end-to-end verified (a travel line buried ~18k deep now flags
+  `travel_covered: true`). Feed filter fixed: **`Travel ✓`** no longer includes online, and
+  a new **`Travel?`** filter surfaces in-person candidates with unknown coverage.
+- `test/enrich.test.ts` guards the hoisting; 41 tests / typecheck / lint green.
+
 ## Next
 
 - **Ignas, before the GH cron works:** add repo secret `EVENT_RADAR_CRON_SECRET` (=
@@ -247,6 +279,14 @@ Sources session (2026-07-18, branch `claude/event-radar-hackathon-sources-soi6tf
 - **Watch enrichment keep up** with the bigger intake — if the pending backlog grows
   faster than 120/day, that's the ceiling to revisit (batch/concurrency vs. LLM RPM), not
   the source list.
+- **Post-merge: re-enrich existing rows so the better travel detection applies to them.**
+  The focusText/prompt gains only touch rows enriched *after* this ships. To backfill,
+  clear `enriched_at` on already-enriched in-person rows (`update hackathon.hackathons set
+  enriched_at = null where format <> 'online' or format is null`) and let the cron re-drain
+  — costs one enrichment cycle per ~120 rows. Do it once the branch is on `main`; ask Ignas
+  first since it re-spends LLM budget. (Optional next step if travel proof matters: an
+  additive `travel_support` text column storing the evidence snippet — "reimbursed up to
+  €X" — shown on the card; not built yet to avoid a migration + UI pass this round.)
 - The strict eligibility rule can produce an empty feed when sources have no row with
   both a future start and future registration deadline. Use the manual Settings refresh
   to inspect source counts before relaxing the fail-closed rule.

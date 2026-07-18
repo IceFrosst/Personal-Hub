@@ -9,11 +9,12 @@ import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
-type FilterKey = 'all' | 'travel' | 'online' | 'biz' | 'hidden'
+type FilterKey = 'all' | 'travel' | 'travel-maybe' | 'online' | 'biz' | 'hidden'
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'travel', label: 'Travel ✓' },
+  { key: 'travel-maybe', label: 'Travel?' },
   { key: 'online', label: 'Online' },
   { key: 'biz', label: 'Open to biz' },
   { key: 'hidden', label: 'Hidden' },
@@ -126,7 +127,15 @@ export default function Feed({ userId }: { userId: string }) {
     const filtered = scored.filter(({ h, status }) => {
       if (filter === 'hidden') return status === 'hidden'
       if (status === 'hidden') return false
-      if (filter === 'travel') return h.travel_covered === true || h.format === 'online'
+      // "Travel ✓" = organizers fund travel — an in-person event you can attend on
+      // their dime. Online events (no travel needed) are the opposite of the intent,
+      // so they get their own filter and are excluded here.
+      if (filter === 'travel') return h.travel_covered === true
+      // "Travel?" = in-person events whose travel coverage we couldn't confirm —
+      // the candidates worth opening to check yourself (detection misses SPA pages
+      // like ETHGlobal, and perks buried off the main page).
+      if (filter === 'travel-maybe')
+        return h.format !== 'online' && h.travel_covered === null
       if (filter === 'online') return h.format === 'online'
       if (filter === 'biz') return h.open_to_business_students !== false
       return true
