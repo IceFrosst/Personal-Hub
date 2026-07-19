@@ -67,19 +67,25 @@ function validTimestamp(value: string | null): number | null {
   return Number.isFinite(timestamp) ? timestamp : null
 }
 
-// Feed and notification eligibility is intentionally fail-closed: both facts
-// must be known, valid, and strictly in the future.
+// Feed and notification eligibility is intentionally fail-closed for most
+// sources: both starts_at and registration_deadline must parse as valid
+// timestamps and be strictly later than now.
+//
+// Luma is the exception: its discovery API never supplies a registration
+// deadline (RSVPs stay open until the event starts). For source === 'luma'
+// with a null deadline, a strictly future starts_at is enough to qualify.
 export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean {
   const nowTimestamp = now.getTime()
   if (!Number.isFinite(nowTimestamp)) return false
 
   const startsAt = validTimestamp(h.starts_at)
-  const registrationDeadline = validTimestamp(h.registration_deadline)
+  if (startsAt === null || startsAt <= nowTimestamp) return false
 
-  return (
-    startsAt !== null &&
-    registrationDeadline !== null &&
-    startsAt > nowTimestamp &&
-    registrationDeadline > nowTimestamp
-  )
+  // Luma RSVPs stay open until the event starts; treat unknown deadline as open.
+  if (h.source === 'luma' && h.registration_deadline == null) {
+    return true
+  }
+
+  const registrationDeadline = validTimestamp(h.registration_deadline)
+  return registrationDeadline !== null && registrationDeadline > nowTimestamp
 }

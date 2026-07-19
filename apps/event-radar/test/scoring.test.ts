@@ -66,9 +66,49 @@ test('uses a strict future boundary for the registration deadline', () => {
   )
 })
 
-test('fails closed when the start or registration deadline is missing', () => {
+test('fails closed when the start is missing', () => {
   assert.equal(isUpcomingAndOpen(hackathon({ starts_at: null }), NOW), false)
+})
+
+test('fails closed for non-Luma sources when registration deadline is missing', () => {
   assert.equal(isUpcomingAndOpen(hackathon({ registration_deadline: null }), NOW), false)
+})
+
+test('includes a Luma row with future start and no registration deadline', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({ source: 'luma', registration_deadline: null }),
+      NOW
+    ),
+    true
+  )
+})
+
+test('still excludes a Luma row that has already started', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({
+        source: 'luma',
+        starts_at: '2026-07-18T11:59:59.999Z',
+        registration_deadline: null,
+      }),
+      NOW
+    ),
+    false
+  )
+})
+
+test('Luma with an explicit past deadline is still excluded', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({
+        source: 'luma',
+        registration_deadline: '2026-07-18T11:59:59.999Z',
+      }),
+      NOW
+    ),
+    false
+  )
 })
 
 test('fails closed when the start or registration deadline is malformed', () => {

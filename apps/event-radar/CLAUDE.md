@@ -16,10 +16,13 @@
 - Score is **computed at read time** (`lib/scoring.ts`), never stored — re-weighting is a
   code change, not a migration. The same function runs in the feed (client) and the notify
   phase (server); keep them identical.
-- Feed and notification eligibility is **fail-closed** (`isUpcomingAndOpen` in
-  `lib/scoring.ts`): both `starts_at` and `registration_deadline` must parse as valid
-  timestamps and must be strictly later than now. Missing, malformed, already-started, or
-  closed-registration rows never qualify.
+- Feed and notification eligibility (`isUpcomingAndOpen` in `lib/scoring.ts`) is
+  **fail-closed** for most sources: both `starts_at` and `registration_deadline` must
+  parse as valid timestamps and must be strictly later than now. Missing, malformed,
+  already-started, or closed-registration rows never qualify.
+  **Luma exception:** the discovery API never supplies a registration deadline (RSVPs
+  stay open until the event starts). For `source === 'luma'` with a null deadline, a
+  strictly future `starts_at` is enough to qualify.
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
   structured extraction per root CLAUDE.md model guidance), Gemini Flash fallback, and a
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
@@ -28,8 +31,9 @@
   Seven sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest
   (`lib/ingest/*.ts`). **Domain/source status is tracked in `SOURCES.md`** —
   every allowlisted hackathon domain, whether it feeds the radar, and why.
-  `IngestRow.registration_deadline` is optional — only ETHGlobal provides it; enrichment
-  fills it elsewhere and never overwrites a source-provided value.
+  `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
+  enrichment fills it elsewhere and never overwrites a source-provided value. Luma never
+  provides one (handled by the eligibility exception above).
 - The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. The scheduled
   cron calls it with notifications enabled; the owner-only manual route
   (`POST /api/ingest/refresh`) calls it with notifications disabled. Never send
@@ -115,6 +119,8 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   **fuzzy** — it returns some non-hackathon meetups, so `parseLumaPage` keeps
   only name-matched entries. Do NOT use `api.lu.ma/search/get-results` (401,
   signed-in only). The entry `url` is a bare slug → the page is `lu.ma/<slug>`.
+  Luma never supplies `registration_deadline`; eligibility special-cases it (see
+  Conventions).
 - HackQuest: GraphQL introspection is **disabled**, so `lib/ingest/hackquest.ts`
   hard-codes the `getAllHackathonInfo` operation lifted from the site bundle and
   POSTs it to `api.hackquest.io/graphql` (no auth). Map only `status:"publish"`
@@ -149,7 +155,7 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 why-chips + filters, status tracking, settings with push toggle + threshold slider, daily
 ingest cron (seven sources → insert/touch → Groq/Gemini enrichment → scored web-push
 notify). Vercel project fully provisioned (root dir + turbo-ignore + all env vars);
-auth redirects added; migration 0001 applied and schema exposed via PostgREST.
+auth redirects added; migrations 0001 + 0002 applied and schema exposed via PostgREST.
 
 Overnight session (branch `claude/stoic-volta-e8or22`, merged):
 - **MLH parser fixed for the www.mlh.com rebuild and verified live in-session: 63
@@ -161,7 +167,7 @@ Overnight session (branch `claude/stoic-volta-e8or22`, merged):
   (first use of the `notes` column), enriched description, Apply Kit.
 - **Apply Kit**: autosaving profile editor at `/profile` (linked from Settings), draft
   route `POST /api/apply-kit/draft`, drafts persisted per hackathon and restored in the
-  sheet. **Blocked on migration 0002 being applied** — UI degrades until then.
+  sheet. Migration 0002 applied — unblocked.
 
 Codex session (PR #61):
 - Feed and push eligibility now share the strict future-start + open-registration rule.
@@ -170,15 +176,14 @@ Codex session (PR #61):
 - Eligibility, owner authorization, and refresh-summary regression coverage runs with
   `npm test` from this app.
 
-Throughput/cadence session (2026-07-18):
+Throughput/cadence session (2026-07-18, on main):
 - Applied migration 0002 (Apply Kit unblocked); backlog drained to 106/113 enriched by
   hammering the production cron (7 stuck rows were the EthGlobal SPA + 3 MLH — the
   metadata-fallback above now handles that class).
 - Enrichment parallelized (batch 10→30, concurrency 4) and a 4x/day GitHub Actions cron
-  added. **Not yet on `main`** — on branch `claude/hackathon-auto-apply-tool-hg8cwv`,
-  pending Ignas's merge.
+  added.
 
-Allowlisted-domains session (2026-07-18):
+Allowlisted-domains session (2026-07-18, on main via #63):
 - Probed **all** newly-allowlisted hackathon domains and recorded the full
   matrix in `SOURCES.md` (working / blocked, with the exact blocker each).
 - **Added two sources**, both verified live: **Luma** (`lib/ingest/luma.ts`,
@@ -190,10 +195,16 @@ Allowlisted-domains session (2026-07-18):
   is on the non-allowlisted `app.akindo.io`), Junction (`api.hackjunction.com`
   unreachable from here), Space Apps (no feed), Hackster (WAF-403).
 
+Luma eligibility tweak (2026-07-19, this commit):
+- `isUpcomingAndOpen` now treats a Luma row as open when `starts_at` is in the future
+  even if `registration_deadline` is null (Luma RSVPs stay open until the event starts).
+  Non-Luma sources remain fail-closed. Unit tests updated.
+
 ## Next
 
-- **Verify the two new sources in production:** watch `luma` and `hackquest`
-  per-source counts in the cron report after the next run.
+- **Verify the two new sources + Luma eligibility in production:** watch `luma` and
+  `hackquest` per-source counts in the cron report; confirm future Luma events now
+  appear in the feed (they previously could not because of the strict dual-timestamp rule).
 - **Re-probe from production egress** the sources marked "unreachable *here*" in
   `SOURCES.md` (Topcoder `v5/challenges`, `api.hackjunction.com`, Hackster) —
   open egress + Vercel IPs may reach what this session couldn't.
@@ -209,9 +220,6 @@ Allowlisted-domains session (2026-07-18):
   blind and verify via the per-source cron report. Candidates in priority order:
   Devfolio (global/India, huge), DoraHacks (web3/global), Unstop (India/global),
   Taikai (EU/global), Hackathon.com (aggregator).
-- The strict eligibility rule can produce an empty feed when sources have no row with
-  both a future start and future registration deadline. Use the manual Settings refresh
-  to inspect source counts before relaxing the fail-closed rule.
 - Ignas: install the PWA on the Pixel, log in, test push end-to-end (say the word and the
   next-agent can clear a couple `notified_at` flags + trigger the cron to fire a real one).
 - Roadmap (per EVENT_RADAR_PLAN.md): approval-gated auto-fill via Claude Code cloud
