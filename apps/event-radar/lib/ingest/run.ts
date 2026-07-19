@@ -57,12 +57,18 @@ async function fetchBestPageText(row: {
 }): Promise<string | null> {
   const main = await fetchPageText(row.url)
   const faqPaths = circuitFaqPaths(row)
-  if (faqPaths.length === 0) return main
-  if (main && main.length > 1500) return main
+  // Travel-priority: always try FAQ paths (travel policy often only on /faq).
+  // Others: only if main page is thin.
+  const shouldFaq =
+    faqPaths.length > 0 && (faqPaths.length > 0 ? true : !main || main.length <= 1500)
+  // Prefer FAQ for priority circuits even when main is long
+  const forceFaq = faqPaths.length > 0
+  if (!forceFaq && main && main.length > 1500) return main
+  if (!shouldFaq && !forceFaq) return main
 
   const base = row.url.replace(/\/?$/, '')
   const extras: string[] = []
-  for (const path of faqPaths.slice(0, 2)) {
+  for (const path of faqPaths.slice(0, 3)) {
     try {
       const extra = await fetchPageText(`${base}${path}`)
       if (extra && extra.length > 200) extras.push(extra)
@@ -198,6 +204,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     const circuitTravel = circuitTravelCovered({
       source: row.source,
       title: row.title,
+      url: row.url,
       format: effectiveFormat,
     })
     const travel =
