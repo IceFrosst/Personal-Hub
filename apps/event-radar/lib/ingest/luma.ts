@@ -61,6 +61,11 @@ function place(geo: LumaGeo | null | undefined): string | null {
   return [str(geo.city), str(geo.region), str(geo.country)].filter(Boolean).join(', ') || null
 }
 
+function hasUsefulGeo(geo: LumaGeo | null | undefined): boolean {
+  if (!geo) return false
+  return !!(str(geo.city) || str(geo.country) || str(geo.city_state) || str(geo.region))
+}
+
 // Pure mapper — one API page of entries to IngestRows, name-filtered. Exported
 // so the parser can be unit-tested without a live network call.
 export function parseLumaPage(page: LumaPage): IngestRow[] {
@@ -74,8 +79,22 @@ export function parseLumaPage(page: LumaPage): IngestRow[] {
     // Drop the fuzzy near-misses ("Cafe Cursor", generic meetups) the query
     // pulls in; keep anything self-describing as a hackathon / hack day / jam.
     if (!/\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam\b/i.test(title)) continue
+
     const geo = e.geo_address_info
-    const isOffline = e.location_type === 'offline' || !!geo
+    const locationRaw = place(geo)
+
+    // More aggressive format detection:
+    // - explicit offline → in_person
+    // - any useful geo data → in_person (most Luma in-person events land here)
+    // - explicit online → online
+    // - otherwise fall back to online only if nothing location-like exists
+    let format: 'online' | 'in_person' = 'online'
+    if (e.location_type === 'offline' || hasUsefulGeo(geo) || locationRaw) {
+      format = 'in_person'
+    } else if (e.location_type === 'online') {
+      format = 'online'
+    }
+
     rows.push({
       source: 'luma',
       source_id: str(e.api_id),
@@ -83,8 +102,8 @@ export function parseLumaPage(page: LumaPage): IngestRow[] {
       url: `https://lu.ma/${slug}`,
       starts_at: toISO(e.start_at),
       ends_at: toISO(e.end_at),
-      location_raw: place(geo),
-      format: isOffline ? 'in_person' : 'online',
+      location_raw: locationRaw,
+      format,
       prize_pool: null,
       themes: [],
     })

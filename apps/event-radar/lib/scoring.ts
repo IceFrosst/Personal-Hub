@@ -22,6 +22,10 @@ function prizeNumber(prize: string | null): number {
 // Ranking priorities locked in EVENT_RADAR_PLAN.md. Score is computed at read
 // time so re-weighting never needs a migration. `unknown` (null) fields earn a
 // small optimistic nudge but never as much as a confirmed yes.
+//
+// Online events deliberately get **no** points from the travel/location section.
+// Being online is neutral, not a bonus — we care about travel-covered in-person
+// events and strong eligibility signals.
 export function scoreHackathon(h: Hackathon, now: Date = new Date()): ScoredHackathon {
   const reasons: ScoreReason[] = []
   const add = (label: string, pts: number) => {
@@ -30,9 +34,7 @@ export function scoreHackathon(h: Hackathon, now: Date = new Date()): ScoredHack
 
   const online = h.format === 'online'
 
-  if (online) {
-    add('Online — no travel needed', 35)
-  } else {
+  if (!online) {
     if (h.travel_covered === true) add('Travel covered', 40)
     else if (h.travel_covered === null) add('Travel coverage unknown', 8)
 

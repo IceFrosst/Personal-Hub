@@ -126,7 +126,8 @@ export default function Feed({ userId }: { userId: string }) {
     const filtered = scored.filter(({ h, status }) => {
       if (filter === 'hidden') return status === 'hidden'
       if (status === 'hidden') return false
-      if (filter === 'travel') return h.travel_covered === true || h.format === 'online'
+      // Travel ✓ = confirmed travel coverage only (no longer includes online)
+      if (filter === 'travel') return h.travel_covered === true
       if (filter === 'online') return h.format === 'online'
       if (filter === 'biz') return h.open_to_business_students !== false
       return true

@@ -23,13 +23,23 @@ const page = {
       event: { api_id: 'evt-2', name: 'Cafe Cursor Shanghai', url: 'cafe-cursor', location_type: 'offline' },
     },
     {
-      // Online hackathon with no geo — maps to format 'online'.
+      // Explicit online, no geo → online
       event: {
         api_id: 'evt-3',
         name: 'Global AI Hack Night',
         url: 'ai-hack-night',
         start_at: '2026-08-01T18:00:00.000Z',
         location_type: 'online',
+      },
+    },
+    {
+      // Has geo but location_type missing → should now be treated as in_person
+      event: {
+        api_id: 'evt-5',
+        name: 'London Speed Build Hackathon',
+        url: 'speed-build-london',
+        start_at: '2026-07-25T09:00:00.000Z',
+        geo_address_info: { city: 'London', country: 'United Kingdom' },
       },
     },
     {
@@ -41,7 +51,7 @@ const page = {
 
 test('maps hackathon entries and drops fuzzy/unusable ones', () => {
   const rows = parseLumaPage(page)
-  assert.equal(rows.length, 2)
+  assert.equal(rows.length, 3)
 
   assert.deepEqual(rows[0], {
     source: 'luma',
@@ -59,6 +69,11 @@ test('maps hackathon entries and drops fuzzy/unusable ones', () => {
   assert.equal(rows[1].title, 'Global AI Hack Night')
   assert.equal(rows[1].format, 'online')
   assert.equal(rows[1].location_raw, null)
+
+  // New case: geo present → in_person even without location_type=offline
+  assert.equal(rows[2].title, 'London Speed Build Hackathon')
+  assert.equal(rows[2].format, 'in_person')
+  assert.equal(rows[2].location_raw, 'London, United Kingdom')
 })
 
 test('tolerates an empty or shapeless page without throwing', () => {
