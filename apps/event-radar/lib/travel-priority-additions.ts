@@ -1,12 +1,9 @@
 /**
- * Research batches for Tier A/B.
- * 2026-07-19 deep pass: X + CN sites + Reddit + official FAQs.
- * Focus: SF / China / HK / international-facing only.
+ * Research batches. Tier A = travel available + est. ≥15% success for strong applicants.
  */
 import type { TravelPriorityCircuit } from './travel-priority'
 
 export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
-  // --- prior US/Canada batch ---
   {
     id: 'yhack',
     label: 'YHack',
@@ -16,7 +13,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/yhack\.org$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://yhack.org/',
-    evidence: 'yhack.org: accepted can apply for travel reimbursement; East Coast priority',
+    evidence: 'Accepted can apply for reimbursement; East Coast priority (≥15%)',
   },
   {
     id: 'conuhacks',
@@ -27,7 +24,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/conuhacks\.io$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.conuhacks.io/',
-    evidence: 'Official: up to $150 CAD / $100 USD per person',
+    evidence: 'Up to $150 CAD / $100 USD per person — published pool',
   },
   {
     id: 'technica',
@@ -38,7 +35,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/gotechnica\.org$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://gotechnica.org/',
-    evidence: 'UMD; documented travel reimbursement program',
+    evidence: 'Documented reimbursement program',
   },
   {
     id: 'bigredhacks',
@@ -49,7 +46,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/bigredhacks\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.bigredhacks.com/',
-    evidence: 'Cornell; historical ~$150 + buses',
+    evidence: 'Historical case-by-case ~$150 + buses',
   },
   {
     id: 'hacksc',
@@ -60,10 +57,8 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hacksc\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://hacksc.com/',
-    evidence: 'USC; community guides list travel support',
+    evidence: 'Community guides list travel support',
   },
-
-  // --- 2026-07-19 China / SF / international Tier A ---
   {
     id: 'adventurex',
     label: 'AdventureX',
@@ -73,8 +68,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/adventure-x\.org$/i],
     faqPaths: ['/zh', '/en', '/faq'],
     siteUrl: 'https://adventure-x.org/',
-    evidence:
-      'Official CN site: 旅费补助 for distant participants; 食宿全包; international applicants from 10+ countries; under-26/student extra 差旅报销',
+    evidence: 'Official 旅费补助 for distant + student 差旅; international',
   },
   {
     id: 'duke-nus-ghi',
@@ -85,8 +79,53 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/duke-nus\.edu\.sg$/i],
     faqPaths: [],
     siteUrl: 'https://www.duke-nus.edu.sg/sdghi/news-events/events/innovation-hackathon',
+    evidence: 'LMIC teams: travel fully covered when selected',
+  },
+  // Promoted under ≥15% rule
+  {
+    id: 'junction',
+    label: 'Junction',
+    tier: 'A',
+    region: 'eu',
+    titlePattern: /\bjunction\b/i,
+    hostPatterns: [/hackjunction\.com$/i, /junction\.fi$/i],
+    faqPaths: ['/faq', '/travel', '/info'],
+    siteUrl: 'https://www.hackjunction.com/',
     evidence:
-      'Duke-NUS: for qualifying LMIC teams in region, travel expenses fully covered; international-facing',
+      'Tier A (≥15%): limited grants (e.g. ~€300) — not everyone, but real pool for accepted international',
+  },
+  {
+    id: 'easya',
+    label: 'EasyA',
+    tier: 'A',
+    region: 'global',
+    titlePattern: /\beasy\s*a\b/i,
+    hostPatterns: [/easya\.io$/i],
+    faqPaths: ['/faq', '/travel'],
+    siteUrl: 'https://www.easya.io/',
+    evidence: 'Tier A (≥15%): repeatedly cited for travel support on selected events',
+  },
+  {
+    id: 'encode',
+    label: 'Encode',
+    tier: 'A',
+    region: 'global',
+    titlePattern: /\bencode\b/i,
+    hostPatterns: [/encode\.club$/i],
+    faqPaths: ['/faq', '/travel'],
+    siteUrl: 'https://www.encode.club/',
+    evidence: 'Tier A (≥15%): travel/stipend for selected builders on many programs',
+  },
+  {
+    id: 'pearlhacks',
+    label: 'Pearl Hacks',
+    tier: 'A',
+    region: 'na',
+    titlePattern: /\bpearl\s*hacks\b/i,
+    hostPatterns: [/pearlhacks\.com$/i],
+    faqPaths: ['/faq', '/travel'],
+    siteUrl: 'https://pearlhacks.com/',
+    evidence: 'Tier A (≥15%): limited support some years — apply when FAQ open',
   },
 ]
 
@@ -100,18 +139,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hack2skill\.com$/i],
     faqPaths: [],
     siteUrl: 'https://hack2skill.com/event/bah2026/',
-    evidence: 'Travel reimbursement for finalists only (X + official)',
-  },
-  {
-    id: 'pearlhacks',
-    label: 'Pearl Hacks',
-    tier: 'B',
-    region: 'na',
-    titlePattern: /\bpearl\s*hacks\b/i,
-    hostPatterns: [/pearlhacks\.com$/i],
-    faqPaths: ['/faq', '/travel'],
-    siteUrl: 'https://pearlhacks.com/',
-    evidence: 'Limited some years',
+    evidence: 'Finalists only — national funnel <<15% of applicants',
   },
   {
     id: 'mchacks',
@@ -122,7 +150,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/mchacks\.ca$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://mchacks.ca/',
-    evidence: '2026 FAQ: not offering; prior years had limited $100',
+    evidence: '2026 FAQ: not offering — year-off',
   },
   {
     id: 'sfhacks',
@@ -133,7 +161,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/sfhacks\.io$/i],
     faqPaths: ['/faqs', '/faq'],
     siteUrl: 'https://www.sfhacks.io/',
-    evidence: 'SF major; no published travel policy found — monitor FAQ',
+    evidence: 'No published travel policy',
   },
   {
     id: 'cathay-hackathon',
@@ -144,6 +172,18 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/cathaypacific\.com$/i],
     faqPaths: [],
     siteUrl: 'https://news.cathaypacific.com/',
-    evidence: 'HK; winner prizes sometimes include flights — not all attendees',
+    evidence: 'Winner-only flights — <<15%',
+  },
+  {
+    id: 'ethglobal',
+    label: 'ETHGlobal',
+    tier: 'B',
+    region: 'global',
+    titlePattern: /eth\s?global/i,
+    hostPatterns: [/ethglobal\.com$/i],
+    faqPaths: ['/faq', '/travel', '/perks', '/scholarships'],
+    siteUrl: 'https://ethglobal.com/',
+    evidence:
+      'Scholarships exist but X shows most accepted still self-fund — est. below 15% for open travel',
   },
 ]

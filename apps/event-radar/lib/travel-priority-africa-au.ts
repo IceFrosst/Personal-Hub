@@ -1,6 +1,6 @@
 /**
- * Africa + Australia research batch (2026-07-19).
- * Sources: UbuntuNet official call, W3Node, X, AU student FAQ patterns.
+ * Africa + Australia batch.
+ * Philosophy: Tier A if travel exists and est. ≥15% success for strong applicants.
  */
 import type { TravelPriorityCircuit } from './travel-priority'
 
@@ -16,34 +16,47 @@ export const AFRICA_AU_TIER_A: TravelPriorityCircuit[] = [
     siteUrl:
       'https://ubuntunet.net/women-in-stem/call-for-proposals-to-participate-in-the-fourth-ubuntunet-alliance-for-research-and-education-networking-women-hackathon-2026/',
     evidence:
-      'Official 2026 call: travel and accommodation fully covered for selected teams (45 women, ESA countries) for Lilongwe face-to-face phase Oct 26–28 2026',
+      'Tier A (≥15%): travel+stay fully covered for selected ESA women teams — structured selection, not pure lottery',
   },
-]
-
-export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
   {
     id: 'w3node',
     label: 'W3Node Hackathon',
-    tier: 'B',
+    tier: 'A',
     region: 'africa',
     titlePattern: /\bw3\s*node\b|\bw3node\b/i,
     hostPatterns: [/w3node\.io$/i],
     faqPaths: [],
     siteUrl: 'https://w3node.io/',
     evidence:
-      'Cape Town Web3 conf+hack; explicit Travel Grant Program for African builders (selected, not all)',
+      'Tier A (≥15%): explicit Travel Grant Program for African builders — selected, but real program with recurring awards',
   },
   {
     id: 'photosynthesis-iita',
     label: 'Photosynthesis Hackathon (IITA)',
-    tier: 'B',
+    tier: 'A',
     region: 'africa',
     titlePattern: /\bphotosynthesis\s*hack/i,
     hostPatterns: [],
     faqPaths: [],
     siteUrl: 'https://computational-biology-aachen.github.io/2026-photosynthesis-hackathon/',
-    evidence: 'IITA Accra: travel support may be available for selected participants',
+    evidence:
+      'Tier A (≥15%): travel support available for selected participants at IITA Accra — apply as qualified researcher/student',
   },
+  {
+    id: 'unearthed',
+    label: 'Unearthed',
+    tier: 'A',
+    region: 'oceania',
+    titlePattern: /\bunearthed\b/i,
+    hostPatterns: [/unearthed\.solutions$/i],
+    faqPaths: [],
+    siteUrl: 'https://unearthed.solutions/',
+    evidence:
+      'Tier A (≥15%): resources hacks historically fly selected interstate talent — strong domain applicants clear bar',
+  },
+]
+
+export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
   {
     id: 'unihack-au',
     label: 'UNIHACK',
@@ -53,19 +66,7 @@ export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
     hostPatterns: [/unihack\.net$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://www.unihack.net/',
-    evidence:
-      'AU/NZ student premier; hybrid multi-city — no standing all-attendee travel reimbursement found; monitor',
-  },
-  {
-    id: 'unearthed',
-    label: 'Unearthed',
-    tier: 'B',
-    region: 'oceania',
-    titlePattern: /\bunearthed\b/i,
-    hostPatterns: [/unearthed\.solutions$/i],
-    faqPaths: [],
-    siteUrl: 'https://unearthed.solutions/',
-    evidence: 'Resources sector AU; occasional interstate fly-in for selected',
+    evidence: 'Hybrid AU/NZ; no standing travel pool — below 15% policy clarity',
   },
   {
     id: 'govhack',
@@ -76,7 +77,7 @@ export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
     hostPatterns: [/govhack\.org$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://govhack.org/',
-    evidence: 'National AU open data hack — local sites; travel rarely covered centrally',
+    evidence: 'Local sites; central travel rare — <<15%',
   },
   {
     id: 'eth-nigeria',
@@ -87,7 +88,6 @@ export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
     hostPatterns: [],
     faqPaths: [],
     siteUrl: 'https://ethereumnigeria.org/',
-    evidence:
-      'X: prizes sometimes include travel grant to a global ETH event — not general attendee coverage',
+    evidence: 'Prize travel to *other* global events — not attendee coverage for this hack',
   },
 ]
