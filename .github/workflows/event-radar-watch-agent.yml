@@ -1,0 +1,31 @@
+# Weekly watch agent — checks annual/gov mega-event pages for reachability
+# and registration language. Promote confirmed dates into known-events.ts manually
+# or via a follow-up PR.
+
+name: Event Radar watch agent
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: event-radar-watch-agent
+  cancel-in-progress: true
+
+jobs:
+  watches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe watch URLs
+        run: node apps/event-radar/scripts/probe-watches.mjs
+
+      - name: Upload watch-probe-results.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-probe-results
+          path: watch-probe-results.json
+          retention-days: 30

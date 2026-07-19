@@ -1,44 +1,63 @@
-# Event Radar — capture plan (A–F)
+# Event Radar — capture plan (A–F) + how to let agents test
 
-How we cover ~250 high-signal hackathons without missing registration windows.
+## How Grok / Claude can test live HTTP (sandbox is blocked)
 
-## A. Existing live sources (auto)
+The coding sandbox often gets `connection refused` / HTTP 000 to third-party
+hackathon hosts. **Do not rely on sandbox curl.** Use one of these instead:
 
-Devpost, MLH, ETHGlobal, HackerEarth, Hack Club, Luma, HackQuest, Devfolio, Taikai, DoraHacks, Unstop.
+### Option 1 — GitHub Actions probe (recommended, no secrets in chat)
 
-Cron: Vercel daily + GitHub Actions ~4×/day (`event-radar-ingest.yml`).
+1. Repo already has `.github/workflows/event-radar-probe.yml`.
+2. GitHub → **Actions** → **Event Radar source probe** → **Run workflow**.
+3. When green, download artifact **probe-results** (`probe-results.json`).
+4. Paste that JSON into chat, **or** grant the agent permission to read Actions
+   artifacts / workflow logs.
 
-## B. New platform scrapers
+Same for **Event Radar watch agent** (annual pages).
 
-| Source | File | Notes |
-|--------|------|-------|
-| Topcoder | `lib/ingest/topcoder.ts` | v5 Active challenges; filters to hackathon-like |
-| (next) AngelHack, Junction API, Superteam | — | Add when prod egress confirms JSON |
+### Option 2 — Production ingest (tests full pipeline)
 
-## C. Luma multi-query
+1. Ensure repo secret `EVENT_RADAR_CRON_SECRET` matches Vercel `CRON_SECRET`.
+2. Actions → **Event Radar ingest** → **Run workflow**.
+3. Workflow logs print the JSON summary (`sources`, `inserted`, `enriched`).
+4. Paste the log summary into chat for the agent to interpret.
 
-`lib/ingest/luma.ts` runs: `hackathon`, Singapore, Hong Kong, London, Paris, San Francisco, buildathon, Junction — 2 pages each, URL-deduped.
+### Option 3 — Manual Refresh in the app
 
-## D. Known events + watches
+Settings → Manual Refresh → copy the toast/details line into chat.
 
-| Mechanism | File | Role |
-|-----------|------|------|
-| Exact seeds | `known-events.ts` | Junction, confirmed dated events |
-| Annual windows | `watches.ts` | SIH, AdventureX, NASA Space Apps, Google SC, SG–India, HackUST, NUS Hack&Roll, CodeFest |
+### Option 4 — Allowlist (only if your agent host supports it)
 
-When real dates land, promote watch → known with exact deadline.
+If the agent environment uses an egress allowlist, add:
 
-## E. Calendars / newsletters
+`devpost.com`, `api.lu.ma`, `api.devfolio.co`, `api.taikai.network`,
+`dorahacks.io`, `unstop.com`, `api.topcoder.com`, `api.hackquest.io`,
+`ethglobal.com`, `www.mlh.com`, `hackjunction.com`, `sih.gov.in`,
+`adventure-x.org`, `spaceappschallenge.org`, `cerebralvalley.ai`
 
-Operational (not code): follow MLH calendar, Cerebral Valley, Superteam, Encode on X/Luma. Weekly human or agent pass → seed `known-events.ts`.
+---
 
-## F. Gov / one-off
+## A–F capture layers
 
-Watches cover SIH + NASA + Google SC. Confirm on official domains each season.
+| Layer | Mechanism |
+|-------|-----------|
+| A | Existing scrapers in `lib/ingest/*` + 4×/day cron |
+| B | Topcoder (+ future AngelHack/Junction when probe OK) |
+| C | Luma multi-query |
+| D | `known-events.ts` + `watches.ts` |
+| E | Watch agent weekly + human/newsletter pass |
+| F | SIH / NASA / Google SC watches |
 
-## Verify after deploy
+## Agent workflows
 
-1. Settings → Manual Refresh  
-2. Expect ~14 source lines including Topcoder, Known, Watches  
-3. Topcoder may `error` from some regions — non-fatal  
-4. Luma count should rise vs single-query baseline  
+| Workflow | Cadence | Output |
+|----------|---------|--------|
+| `event-radar-probe.yml` | Nightly + manual | `probe-results.json` |
+| `event-radar-watch-agent.yml` | Weekly Mon + manual | `watch-probe-results.json` |
+| `event-radar-ingest.yml` | 4×/day + manual | Production ingest JSON |
+
+## After probe fails
+
+- Non-critical source red → leave wired; cron degrades per-source.
+- Critical (Devpost/Luma/Devfolio) red → fix scraper or allowlist immediately.
+- Watch page shows `reg_language` → update `known-events.ts` with exact dates.
