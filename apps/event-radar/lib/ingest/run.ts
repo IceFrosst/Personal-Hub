@@ -12,7 +12,9 @@ import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
 import { fetchUnstop } from './unstop'
+import { fetchTopcoder } from './topcoder'
 import { fetchKnownEvents } from './known-events'
+import { watchesToRows } from './watches'
 import { enrich, fetchPageText } from './enrich'
 import { circuitTravelCovered, circuitFaqPaths } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
@@ -22,7 +24,6 @@ import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
 const ENRICH_BATCH = 30
 const ENRICH_CONCURRENCY = 4
 const TIME_BUDGET_MS = 50_000
-// PostgREST/Supabase .in() filters blow up past a few hundred values (URL length).
 const URL_CHUNK = 80
 
 export class IngestNotConfiguredError extends Error {
@@ -49,7 +50,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-/** Try main URL, then circuit FAQ-style paths, concatenate useful text. */
 async function fetchBestPageText(row: {
   url: string
   source: string
@@ -58,8 +58,6 @@ async function fetchBestPageText(row: {
   const main = await fetchPageText(row.url)
   const faqPaths = circuitFaqPaths(row)
   if (faqPaths.length === 0) return main
-
-  // Only chase FAQ paths when main page is missing or very thin (typical SPA shell).
   if (main && main.length > 1500) return main
 
   const base = row.url.replace(/\/?$/, '')
@@ -69,7 +67,7 @@ async function fetchBestPageText(row: {
       const extra = await fetchPageText(`${base}${path}`)
       if (extra && extra.length > 200) extras.push(extra)
     } catch {
-      // ignore individual failures
+      /* ignore */
     }
   }
   if (!main && extras.length === 0) return null
@@ -91,7 +89,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     elapsed_ms: 0,
   }
 
-  // ---- Phase 1: gather ----
   const gathered: IngestRow[] = []
   const sources: Array<[string, () => Promise<IngestRow[]>]> = [
     ['devpost', () => fetchDevpost()],
@@ -105,7 +102,9 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['taikai', () => fetchTaikai()],
     ['dorahacks', () => fetchDoraHacks()],
     ['unstop', () => fetchUnstop()],
+    ['topcoder', () => fetchTopcoder()],
     ['known', async () => fetchKnownEvents()],
+    ['watch', async () => watchesToRows()],
   ]
 
   const settled = await Promise.allSettled(sources.map(([, fetchSource]) => fetchSource()))
@@ -126,7 +125,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     const urls = gathered.map((row) => row.url)
     const known = new Set<string>()
 
-    // Chunked existing-url lookup — a single .in() with 400+ URLs can 400/URI-too-long.
     for (const urlChunk of chunk(urls, URL_CHUNK)) {
       const { data: existing, error: existingError } = await db
         .from('hackathons')
@@ -146,7 +144,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         seen.has(row.url) ? false : (seen.add(row.url), true)
       )
 
-      // Insert in chunks too — large upserts can time out or hit payload limits.
       for (const insertChunk of chunk(toInsert, URL_CHUNK)) {
         if (insertChunk.length === 0) continue
         const { data: insertedRows, error: insertError } = await db
@@ -176,10 +173,8 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         for (const row of insertedRows ?? []) newlyInsertedIds.push(row.id)
       }
 
-      // Touch last_seen_at for already-known URLs (chunked).
       if (known.size > 0 && !summary.insert_error) {
-        const knownUrls = [...known]
-        for (const urlChunk of chunk(knownUrls, URL_CHUNK)) {
+        for (const urlChunk of chunk([...known], URL_CHUNK)) {
           await db
             .from('hackathons')
             .update({ last_seen_at: new Date().toISOString() })
@@ -188,10 +183,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       }
     }
   }
-
-  // ---- Phase 2: enrich ----
-  // Always try page extraction first (including FAQ paths for known circuits).
-  // Circuit prior only fills when extraction still leaves travel unknown.
 
   const enrichRow = async (row: Hackathon): Promise<boolean> => {
     const text = await fetchBestPageText({
@@ -209,8 +200,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       title: row.title,
       format: effectiveFormat,
     })
-
-    // Page finding always wins. Circuit prior only when page said nothing.
     const travel =
       extracted.travel_covered !== null && extracted.travel_covered !== undefined
         ? extracted.travel_covered
@@ -231,7 +220,11 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (extracted.themes.length > 0 && (!row.themes || row.themes.length === 0))
       patch.themes = extracted.themes
 
-    if (row.source === 'known' && travel === null && circuitTravel === true) {
+    if (
+      (row.source === 'known' || row.source === 'watch') &&
+      travel === null &&
+      circuitTravel === true
+    ) {
       patch.travel_covered = true
     }
 
@@ -246,10 +239,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   const toEnrich: Hackathon[] = []
 
   if (newlyInsertedIds.length > 0) {
-    const { data: freshRows } = await db
-      .from('hackathons')
-      .select('*')
-      .in('id', newlyInsertedIds)
+    const { data: freshRows } = await db.from('hackathons').select('*').in('id', newlyInsertedIds)
     if (freshRows) toEnrich.push(...(freshRows as Hackathon[]))
   }
 
@@ -275,7 +265,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     summary.enriched += results.filter(Boolean).length
   }
 
-  // ---- Phase 3: notify ----
   if (sendNotifications) {
     const goneSubscriptionIds: string[] = []
     const processedHackathonIds: string[] = []
@@ -287,18 +276,16 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       .order('created_at', { ascending: false })
       .limit(30)
 
-    const freshRows = ((fresh ?? []) as Hackathon[]).filter((hackathon) =>
-      isUpcomingAndOpen(hackathon)
-    )
+    const freshRows = ((fresh ?? []) as Hackathon[]).filter((h) => isUpcomingAndOpen(h))
     if (freshRows.length > 0) {
       const [{ data: subscriptions }, { data: preferences }] = await Promise.all([
         db.from('push_subscriptions').select('id, user_id, subscription'),
         db.from('user_preferences').select('user_id, notification_settings'),
       ])
       const preferencesByUser = new Map(
-        (preferences ?? []).map((preference) => [
-          preference.user_id,
-          { ...DEFAULT_NOTIFICATION_SETTINGS, ...preference.notification_settings },
+        (preferences ?? []).map((p) => [
+          p.user_id,
+          { ...DEFAULT_NOTIFICATION_SETTINGS, ...p.notification_settings },
         ])
       )
 
@@ -310,9 +297,9 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
             preferencesByUser.get(subscription.user_id) ?? DEFAULT_NOTIFICATION_SETTINGS
           if (!settings.enabled || score < settings.min_score) continue
           const topReasons = reasons
-            .filter((reason) => reason.pts > 0)
+            .filter((r) => r.pts > 0)
             .slice(0, 2)
-            .map((reason) => reason.label)
+            .map((r) => r.label)
             .join(' · ')
           const result = await sendPush(subscription.subscription, {
             title: hackathon.title,
