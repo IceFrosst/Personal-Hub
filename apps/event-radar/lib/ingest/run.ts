@@ -22,6 +22,8 @@ import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
 const ENRICH_BATCH = 30
 const ENRICH_CONCURRENCY = 4
 const TIME_BUDGET_MS = 50_000
+// PostgREST/Supabase .in() filters blow up past a few hundred values (URL length).
+const URL_CHUNK = 80
 
 export class IngestNotConfiguredError extends Error {
   constructor() {
@@ -39,6 +41,12 @@ export type IngestSummary = {
   elapsed_ms: number
   gather_error?: string
   insert_error?: string
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
 }
 
 /** Try main URL, then circuit FAQ-style paths, concatenate useful text. */
@@ -116,25 +124,35 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
 
   if (gathered.length > 0) {
     const urls = gathered.map((row) => row.url)
-    const { data: existing, error: existingError } = await db
-      .from('hackathons')
-      .select('url')
-      .in('url', urls)
-    if (existingError) {
-      summary.gather_error = existingError.message
-    } else {
-      const known = new Set((existing ?? []).map((row) => row.url))
+    const known = new Set<string>()
+
+    // Chunked existing-url lookup — a single .in() with 400+ URLs can 400/URI-too-long.
+    for (const urlChunk of chunk(urls, URL_CHUNK)) {
+      const { data: existing, error: existingError } = await db
+        .from('hackathons')
+        .select('url')
+        .in('url', urlChunk)
+      if (existingError) {
+        summary.gather_error = existingError.message
+        break
+      }
+      for (const row of existing ?? []) known.add(row.url)
+    }
+
+    if (!summary.gather_error) {
       const fresh = gathered.filter((row) => !known.has(row.url))
       const seen = new Set<string>()
       const toInsert = fresh.filter((row) =>
         seen.has(row.url) ? false : (seen.add(row.url), true)
       )
 
-      if (toInsert.length > 0) {
+      // Insert in chunks too — large upserts can time out or hit payload limits.
+      for (const insertChunk of chunk(toInsert, URL_CHUNK)) {
+        if (insertChunk.length === 0) continue
         const { data: insertedRows, error: insertError } = await db
           .from('hackathons')
           .upsert(
-            toInsert.map((row) => ({
+            insertChunk.map((row) => ({
               source: row.source,
               source_id: row.source_id,
               title: row.title,
@@ -150,17 +168,23 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
             { onConflict: 'source,url', ignoreDuplicates: true }
           )
           .select('id')
-        if (insertError) summary.insert_error = insertError.message
-        else {
-          summary.inserted = insertedRows?.length ?? 0
-          for (const row of insertedRows ?? []) newlyInsertedIds.push(row.id)
+        if (insertError) {
+          summary.insert_error = insertError.message
+          break
         }
+        summary.inserted += insertedRows?.length ?? 0
+        for (const row of insertedRows ?? []) newlyInsertedIds.push(row.id)
       }
-      if (known.size > 0) {
-        await db
-          .from('hackathons')
-          .update({ last_seen_at: new Date().toISOString() })
-          .in('url', [...known])
+
+      // Touch last_seen_at for already-known URLs (chunked).
+      if (known.size > 0 && !summary.insert_error) {
+        const knownUrls = [...known]
+        for (const urlChunk of chunk(knownUrls, URL_CHUNK)) {
+          await db
+            .from('hackathons')
+            .update({ last_seen_at: new Date().toISOString() })
+            .in('url', urlChunk)
+        }
       }
     }
   }
@@ -207,8 +231,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (extracted.themes.length > 0 && (!row.themes || row.themes.length === 0))
       patch.themes = extracted.themes
 
-    // Seeded known events already have strong metadata — still allow enrichment
-    // to refine, but ensure travel stays true if circuit says so and page was silent.
     if (row.source === 'known' && travel === null && circuitTravel === true) {
       patch.travel_covered = true
     }

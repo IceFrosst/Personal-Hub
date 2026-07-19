@@ -47,16 +47,19 @@ export function formatRefreshSummary(value: unknown): RefreshResult {
       message: 'Refresh response was incomplete — try again.',
     }
   }
-  if (typeof summary.gather_error === 'string' || typeof summary.insert_error === 'string') {
-    failures.push('database update')
-  }
+
+  // Surface the real DB error text instead of a generic "database update".
+  const dbErrors: string[] = []
+  if (typeof summary.gather_error === 'string') dbErrors.push(`lookup: ${summary.gather_error}`)
+  if (typeof summary.insert_error === 'string') dbErrors.push(`insert: ${summary.insert_error}`)
+  if (dbErrors.length > 0) failures.push(...dbErrors)
 
   const inserted = count(summary.inserted)
   const enriched = count(summary.enriched)
   if (failures.length > 0) {
     return {
       tone: 'warning',
-      message: `Refresh finished with errors: ${failures.join(', ')}. ${inserted} new, ${enriched} enriched.`,
+      message: `Refresh finished with errors: ${failures.join('; ')}. ${inserted} new, ${enriched} enriched.`,
       details,
     }
   }
