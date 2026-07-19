@@ -1,11 +1,12 @@
 /**
- * Research batch 2026-07-19 (web + X):
- * New Tier A with explicit/recent travel language.
- * Imported into travel-priority.ts list order via merge in registry.
+ * Research batches for Tier A/B.
+ * 2026-07-19 deep pass: X + CN sites + Reddit + official FAQs.
+ * Focus: SF / China / HK / international-facing only.
  */
 import type { TravelPriorityCircuit } from './travel-priority'
 
 export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
+  // --- prior US/Canada batch ---
   {
     id: 'yhack',
     label: 'YHack',
@@ -15,8 +16,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/yhack\.org$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://yhack.org/',
-    evidence:
-      'yhack.org 2026: accepted participants can apply for travel reimbursement; East Coast priority',
+    evidence: 'yhack.org: accepted can apply for travel reimbursement; East Coast priority',
   },
   {
     id: 'conuhacks',
@@ -24,10 +24,10 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     tier: 'A',
     region: 'na',
     titlePattern: /\bconu\s*hacks\b/i,
-    hostPatterns: [/conuhacks\.io$/i, /hackconcordia/i],
+    hostPatterns: [/conuhacks\.io$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.conuhacks.io/',
-    evidence: 'Site: up to $150 CAD / $100 USD travel reimbursement per person',
+    evidence: 'Official: up to $150 CAD / $100 USD per person',
   },
   {
     id: 'technica',
@@ -35,10 +35,10 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     tier: 'A',
     region: 'na',
     titlePattern: /\btechnica\b/i,
-    hostPatterns: [/gotechnica\.org$/i, /technica\.umd\.edu$/i],
-    faqPaths: ['/faq', '/travel', '/Travel'],
+    hostPatterns: [/gotechnica\.org$/i],
+    faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://gotechnica.org/',
-    evidence: 'UMD all-women/non-binary hack; documented travel reimbursement pages',
+    evidence: 'UMD; documented travel reimbursement program',
   },
   {
     id: 'bigredhacks',
@@ -49,7 +49,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/bigredhacks\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.bigredhacks.com/',
-    evidence: 'Cornell; historical up to ~$150 case-by-case + buses',
+    evidence: 'Cornell; historical ~$150 + buses',
   },
   {
     id: 'hacksc',
@@ -60,7 +60,33 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hacksc\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://hacksc.com/',
-    evidence: 'USC flagship; repeatedly listed with travel support in community guides',
+    evidence: 'USC; community guides list travel support',
+  },
+
+  // --- 2026-07-19 China / SF / international Tier A ---
+  {
+    id: 'adventurex',
+    label: 'AdventureX',
+    tier: 'A',
+    region: 'asia',
+    titlePattern: /\badventure\s*x\b/i,
+    hostPatterns: [/adventure-x\.org$/i],
+    faqPaths: ['/zh', '/en', '/faq'],
+    siteUrl: 'https://adventure-x.org/',
+    evidence:
+      'Official CN site: 旅费补助 for distant participants; 食宿全包; international applicants from 10+ countries; under-26/student extra 差旅报销',
+  },
+  {
+    id: 'duke-nus-ghi',
+    label: 'APAC Global Health Innovation Hackathon',
+    tier: 'A',
+    region: 'asia',
+    titlePattern: /global health innovation hackathon|duke-?nus.*hack/i,
+    hostPatterns: [/duke-nus\.edu\.sg$/i],
+    faqPaths: [],
+    siteUrl: 'https://www.duke-nus.edu.sg/sdghi/news-events/events/innovation-hackathon',
+    evidence:
+      'Duke-NUS: for qualifying LMIC teams in region, travel expenses fully covered; international-facing',
   },
 ]
 
@@ -74,7 +100,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hack2skill\.com$/i],
     faqPaths: [],
     siteUrl: 'https://hack2skill.com/event/bah2026/',
-    evidence: 'X/official: travel reimbursement for in-person finalists (not all applicants)',
+    evidence: 'Travel reimbursement for finalists only (X + official)',
   },
   {
     id: 'pearlhacks',
@@ -85,7 +111,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/pearlhacks\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://pearlhacks.com/',
-    evidence: 'UNC women/non-binary; limited support some years',
+    evidence: 'Limited some years',
   },
   {
     id: 'mchacks',
@@ -93,9 +119,31 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     tier: 'B',
     region: 'na',
     titlePattern: /\bmc\s*hacks\b/i,
-    hostPatterns: [/mchacks\.ca$/i, /mchacks\.io$/i],
-    faqPaths: ['/faq', '/travel'],
+    hostPatterns: [/mchacks\.ca$/i],
+    faqPaths: ['/faq'],
     siteUrl: 'https://mchacks.ca/',
-    evidence: 'McGill; has offered up to $100 selected years; 2026 site said none — monitor',
+    evidence: '2026 FAQ: not offering; prior years had limited $100',
+  },
+  {
+    id: 'sfhacks',
+    label: 'SF Hacks',
+    tier: 'B',
+    region: 'na',
+    titlePattern: /\bsf\s*hacks\b/i,
+    hostPatterns: [/sfhacks\.io$/i],
+    faqPaths: ['/faqs', '/faq'],
+    siteUrl: 'https://www.sfhacks.io/',
+    evidence: 'SF major; no published travel policy found — monitor FAQ',
+  },
+  {
+    id: 'cathay-hackathon',
+    label: 'Cathay Hackathon',
+    tier: 'B',
+    region: 'asia',
+    titlePattern: /\bcathay\s*hack/i,
+    hostPatterns: [/cathaypacific\.com$/i],
+    faqPaths: [],
+    siteUrl: 'https://news.cathaypacific.com/',
+    evidence: 'HK; winner prizes sometimes include flights — not all attendees',
   },
 ]

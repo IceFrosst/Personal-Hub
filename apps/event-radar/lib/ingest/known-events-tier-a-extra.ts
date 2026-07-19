@@ -1,6 +1,6 @@
 import type { IngestRow } from './devpost'
 
-/** Extra Tier A seeds from 2026-07-19 research batch */
+/** Tier A seeds including 2026-07-19 research (AdventureX, YHack, etc.) */
 export function fetchTierAExtraSeeds(): IngestRow[] {
   const now = Date.now()
   const rows: IngestRow[] = [
@@ -68,6 +68,20 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
       prize_pool: null,
       registration_deadline: '2026-10-20T23:59:59.000Z',
       themes: ['student', 'general'],
+    },
+    // China Tier A — next cycle (update when 2027 dates drop)
+    {
+      source: 'known',
+      source_id: 'adventurex-2027',
+      title: 'AdventureX',
+      url: 'https://adventure-x.org/',
+      starts_at: '2027-07-15T02:00:00.000Z',
+      ends_at: '2027-07-20T10:00:00.000Z',
+      location_raw: 'Hangzhou, China',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2027-06-01T23:59:59.000Z',
+      themes: ['china', 'international', 'youth', 'ai'],
     },
   ]
   return rows.filter((r) => r.starts_at && Date.parse(r.starts_at) > now)
