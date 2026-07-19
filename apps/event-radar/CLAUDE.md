@@ -16,6 +16,9 @@
 - Score is **computed at read time** (`lib/scoring.ts`), never stored — re-weighting is a
   code change, not a migration. The same function runs in the feed (client) and the notify
   phase (server); keep them identical.
+- **Online events get zero points** from the travel/location section. Being online is
+  neutral, not a bonus. We prioritise confirmed travel-covered in-person events and
+  strong eligibility signals.
 - Feed and notification eligibility (`isUpcomingAndOpen` in `lib/scoring.ts`) is
   **fail-closed** for most sources: both `starts_at` and `registration_deadline` must
   parse as valid timestamps and must be strictly later than now. Missing, malformed,
@@ -23,25 +26,23 @@
   **Luma exception:** the discovery API never supplies a registration deadline (RSVPs
   stay open until the event starts). For `source === 'luma'` with a null deadline, a
   strictly future `starts_at` is enough to qualify.
+- **Travel ✓ filter** = only `travel_covered === true` (confirmed reimbursement).
+  Online is a separate filter.
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
   structured extraction per root CLAUDE.md model guidance), Gemini Flash fallback, and a
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Seven sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest
-  (`lib/ingest/*.ts`). **Domain/source status is tracked in `SOURCES.md`** —
-  every allowlisted hackathon domain, whether it feeds the radar, and why.
+  (`lib/ingest/*.ts`). **Domain/source status is tracked in `SOURCES.md`**.
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
   enrichment fills it elsewhere and never overwrites a source-provided value. Luma never
   provides one (handled by the eligibility exception above).
-- The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. The scheduled
-  cron calls it with notifications enabled; the owner-only manual route
-  (`POST /api/ingest/refresh`) calls it with notifications disabled. Never send
-  `CRON_SECRET` or the service-role key to the browser.
-- Inserts ignore duplicate conflicts, and enrichment marks rows complete only after the
-  page fetch and enrichment attempt finish; failed page fetches stay retryable. Overlapping
-  cron/manual runs can duplicate an external enrichment request, but cannot fail a whole
-  insert batch or mark a partial row complete.
+- The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. Newly inserted
+  rows are enriched in the same run (priority), and rows that still have critical nulls
+  (`format` / `travel_covered`) are also retried. The scheduled cron calls it with
+  notifications enabled; the owner-only manual route (`POST /api/ingest/refresh`) calls
+  it with notifications disabled.
 - Manual refresh authorization is checked against the verified Supabase user email via
   `lib/owner.ts`; `EVENT_RADAR_ADMIN_EMAIL` can override the portfolio-owner default.
 - Global `hackathons` writes use the service-role client (`lib/supabase/admin.ts`). RLS has
@@ -62,9 +63,7 @@
 ## Data model
 
 Schema `hackathon` (additive-only forever). Migrations `0001_init.sql` and
-`0002_apply_kit.sql` both **applied 2026-07-18** via the Management API (0002 was applied
-by the same session that added the throughput/cadence work below; Apply Kit is now
-unblocked). 0002 adds:
+`0002_apply_kit.sql` both **applied 2026-07-18** via the Management API. 0002 adds:
 
 - `application_profiles` — PK `user_id`, `profile` jsonb (shape owned by
   `lib/apply-kit.ts`), RLS own-rows.
@@ -115,112 +114,45 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
   shell, not JSON.
 - Luma: `api.lu.ma/discover/get-paginated-events?query=hackathon` is a public,
-  no-auth, cursor-paginated feed (page with `pagination_cursor`). The query is
-  **fuzzy** — it returns some non-hackathon meetups, so `parseLumaPage` keeps
-  only name-matched entries. Do NOT use `api.lu.ma/search/get-results` (401,
-  signed-in only). The entry `url` is a bare slug → the page is `lu.ma/<slug>`.
-  Luma never supplies `registration_deadline`; eligibility special-cases it (see
-  Conventions).
+  no-auth, cursor-paginated feed. The query is **fuzzy** — it returns some non-hackathon
+  meetups, so `parseLumaPage` keeps only name-matched entries. Format detection is
+  aggressive: any useful geo data → `in_person`. Do NOT use `api.lu.ma/search/get-results`
+  (401, signed-in only). The entry `url` is a bare slug → the page is `lu.ma/<slug>`.
+  Luma never supplies `registration_deadline`; eligibility special-cases it.
 - HackQuest: GraphQL introspection is **disabled**, so `lib/ingest/hackquest.ts`
   hard-codes the `getAllHackathonInfo` operation lifted from the site bundle and
   POSTs it to `api.hackquest.io/graphql` (no auth). Map only `status:"publish"`
   rows; it provides an exact `registrationClose` → passed through as
   `registration_deadline` (like ETHGlobal). Detail page: `www.hackquest.io/hackathon/<alias>`.
-  If the query 400s, re-lift it from the frontend (operation names live in the
-  `_next/static` chunks; see `SOURCES.md`).
 - The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
   dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
-- Exposing the `hackathon` schema to the Data API needs the platform config **and** the
-  `authenticator` role's `pgrst.db_schemas` + both `notify pgrst` reloads — see the
-  "Data API exposure" section in root `SCHEMA_RULES.md` (this bit Event Radar's first
-  cron run with `Invalid schema: hackathon`).
-- Enrichment throughput is capped by two ceilings, not by choice: Vercel Hobby's 60s
-  `maxDuration`, and the free LLM RPM limits (~30/min Groq, ~15/min Gemini). The runner
-  self-budgets to 50s and enriches `ENRICH_BATCH` (30) rows per run in
-  `ENRICH_CONCURRENCY` (4) parallel chunks — raise those only together and only after
-  checking both ceilings, or you'll trip 429s. A row whose page can't be fetched
-  (EthGlobal SPA, WAF blocks) falls back to enriching from title+location metadata so it
-  doesn't clog every batch; a row with neither page nor metadata stays pending for a retry.
-- Cadence: Vercel Hobby cron = once/day max (the `vercel.json` daily floor). A free
-  GitHub Actions workflow (`.github/workflows/event-radar-ingest.yml`) adds 3 more runs
-  (every 6h ≈ 4x/day) by calling the same `/api/cron/ingest` endpoint. It needs the repo
-  secret `EVENT_RADAR_CRON_SECRET` = the project's `CRON_SECRET`.
-- Push payload URLs must stay relative (`'/'`) — iron rule #1, no hardcoded app URLs.
+- Enrichment throughput is capped by two ceilings: Vercel Hobby's 60s `maxDuration`, and
+  free LLM RPM limits. The runner self-budgets to 50s and enriches up to 30 rows per run
+  in concurrency 4. Newly inserted rows are prioritised; rows that still have critical
+  nulls are also retried.
+- Cadence: Vercel Hobby cron = once/day max. A free GitHub Actions workflow adds 3 more
+  runs (every 6h ≈ 4x/day). Needs repo secret `EVENT_RADAR_CRON_SECRET`.
+- Push payload URLs must stay relative (`'/'`) — iron rule #1.
 - `sendPush` returns `'gone'` for 404/410 → the cron deletes those subscription rows.
 - iOS requires the PWA to be installed to home screen before push permission can be asked.
 
 ## Current state
 
-**Live in production** — ships from `main`, hub tile registered. Ranked feed with
-why-chips + filters, status tracking, settings with push toggle + threshold slider, daily
-ingest cron (seven sources → insert/touch → Groq/Gemini enrichment → scored web-push
-notify). Vercel project fully provisioned (root dir + turbo-ignore + all env vars);
-auth redirects added; migrations 0001 + 0002 applied and schema exposed via PostgREST.
+**Live in production** — ships from `main`.
 
-Overnight session (branch `claude/stoic-volta-e8or22`, merged):
-- **MLH parser fixed for the www.mlh.com rebuild and verified live in-session: 63
-  upcoming events** (production cron had been reporting `parsed 0 events`).
-- **Three new sources**, live-tested in-session: ethglobal 4 (with exact signup
-  deadlines), hackclub 15, devpost 27; hackerearth parser validated via proxy but its
-  WAF 403s the sandbox's direct IP — watch its per-source result in production.
-- **Detail sheet** (tap a card): metadata, score breakdown, status buttons, notes UI
-  (first use of the `notes` column), enriched description, Apply Kit.
-- **Apply Kit**: autosaving profile editor at `/profile` (linked from Settings), draft
-  route `POST /api/apply-kit/draft`, drafts persisted per hackathon and restored in the
-  sheet. Migration 0002 applied — unblocked.
-
-Codex session (PR #61):
-- Feed and push eligibility now share the strict future-start + open-registration rule.
-- Settings has an owner-only manual source refresh with loading and per-source result
-  feedback. It runs gather/enrich but intentionally skips push notifications.
-- Eligibility, owner authorization, and refresh-summary regression coverage runs with
-  `npm test` from this app.
-
-Throughput/cadence session (2026-07-18, on main):
-- Applied migration 0002 (Apply Kit unblocked); backlog drained to 106/113 enriched by
-  hammering the production cron (7 stuck rows were the EthGlobal SPA + 3 MLH — the
-  metadata-fallback above now handles that class).
-- Enrichment parallelized (batch 10→30, concurrency 4) and a 4x/day GitHub Actions cron
-  added.
-
-Allowlisted-domains session (2026-07-18, on main via #63):
-- Probed **all** newly-allowlisted hackathon domains and recorded the full
-  matrix in `SOURCES.md` (working / blocked, with the exact blocker each).
-- **Added two sources**, both verified live: **Luma** (`lib/ingest/luma.ts`,
-  ~92 mapped — public `api.lu.ma/discover` hackathon query) and **HackQuest**
-  (`lib/ingest/hackquest.ts`, 111 mapped — the site's `getAllHackathonInfo`
-  GraphQL op lifted from the bundle, with exact registration deadlines). Both
-  wired into the runner, labelled in the refresh summary, unit-tested.
-- Not implementable this pass (all documented in `SOURCES.md`): AKINDO (listing
-  is on the non-allowlisted `app.akindo.io`), Junction (`api.hackjunction.com`
-  unreachable from here), Space Apps (no feed), Hackster (WAF-403).
-
-Luma eligibility tweak (2026-07-19, this commit):
-- `isUpcomingAndOpen` now treats a Luma row as open when `starts_at` is in the future
-  even if `registration_deadline` is null (Luma RSVPs stay open until the event starts).
-  Non-Luma sources remain fail-closed. Unit tests updated.
+Recent changes (2026-07-19):
+- Removed the +35 Online score bonus entirely. Online is now neutral.
+- Travel ✓ filter tightened to only `travel_covered === true`.
+- Luma format detection made aggressive (any useful geo → in_person).
+- Enrichment now prioritises newly inserted rows in the same run and retries rows that
+  still have critical nulls (format / travel_covered).
 
 ## Next
 
-- **Verify the two new sources + Luma eligibility in production:** watch `luma` and
-  `hackquest` per-source counts in the cron report; confirm future Luma events now
-  appear in the feed (they previously could not because of the strict dual-timestamp rule).
-- **Re-probe from production egress** the sources marked "unreachable *here*" in
-  `SOURCES.md` (Topcoder `v5/challenges`, `api.hackjunction.com`, Hackster) —
-  open egress + Vercel IPs may reach what this session couldn't.
-- **AKINDO:** ask Ignas to allowlist `app.akindo.io`, then lift its API paths
-  from the app bundle the way HackQuest's query was recovered.
-- **Ignas, before the GH cron works:** add repo secret `EVENT_RADAR_CRON_SECRET` (=
-  project `CRON_SECRET`) at repo Settings → Secrets → Actions. Until then the workflow
-  fails fast with a clear message; the daily Vercel cron is unaffected.
-- **More sources (global + niche) — requested, blocked on egress.** New scrapers can't be
-  written+tested from an interactive session (all candidate domains 403 through the proxy
-  here). Path: Ignas allowlists the target domains (devfolio.co, dorahacks.io, unstop.com,
-  taikai.network, …) so a session can live-test like the overnight one did, OR add them
-  blind and verify via the per-source cron report. Candidates in priority order:
-  Devfolio (global/India, huge), DoraHacks (web3/global), Unstop (India/global),
-  Taikai (EU/global), Hackathon.com (aggregator).
-- Ignas: install the PWA on the Pixel, log in, test push end-to-end (say the word and the
-  next-agent can clear a couple `notified_at` flags + trigger the cron to fire a real one).
-- Roadmap (per EVENT_RADAR_PLAN.md): approval-gated auto-fill via Claude Code cloud
-  sessions, night search agents, more EU travel-reimbursing sources.
+- Trigger a manual refresh and verify that in-person Luma events (London, Dubai, etc.)
+  are no longer mis-tagged as Online and that the Travel filter only shows confirmed
+  travel-covered events.
+- Watch enrichment success rate on the new priority queue.
+- Add repo secret `EVENT_RADAR_CRON_SECRET` so the 4×/day GitHub Actions workflow works.
+- Re-probe Topcoder / Junction / Hackster from production egress.
+- Roadmap: more EU travel-reimbursing sources, approval-gated auto-fill, night agents.
