@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Watch TreeHacks + PennApps (and similar) for NEXT cycle registration only.
- * Never invent events — only alert when apply/reg language is live.
+ * Watch dormant Tier A circuits for NEXT cycle registration only.
+ * Never invent events — only alert when apply/reg language is live for the next year.
  */
 const UA = 'Mozilla/5.0 (compatible; EventRadar-DormantTierA/1.0)'
 
@@ -19,6 +19,13 @@ const DORMANT = [
     paths: ['/', 'https://apply.pennapps.com/'],
     staleYear: '2025',
     nextYear: '2026',
+  },
+  {
+    id: 'hackupc',
+    url: 'https://hackupc.com/',
+    paths: ['/', 'https://my.hackupc.com/'],
+    staleYear: '2026',
+    nextYear: '2027',
   },
 ]
 
@@ -41,7 +48,7 @@ function analyze(text, staleYear, nextYear) {
   if (new RegExp(nextYear).test(text)) signals.push(`mentions_${nextYear}`)
   if (new RegExp(staleYear).test(text) && !new RegExp(nextYear).test(text))
     signals.push(`stale_year_${staleYear}_only`)
-  if (/travel|reimburs|flights?\s+(and\s+)?food\s+(are\s+)?covered/i.test(lower))
+  if (/travel|reimburs|half of (your )?travel|€\s*\d+/i.test(lower))
     signals.push('travel_language')
   return signals
 }
@@ -59,10 +66,12 @@ for (const d of DORMANT) {
     }
   }
   const all = [...new Set(pages.flatMap((p) => p.signals))]
+  // Alert only when next-year cycle looks open, not stale leftover Apply buttons
   const alert =
     all.includes('reg_open_language') &&
     !all.includes('reg_closed_language') &&
-    (all.includes(`mentions_${d.nextYear}`) || !all.includes(`stale_year_${d.staleYear}_only`))
+    all.includes(`mentions_${d.nextYear}`) &&
+    !all.includes(`stale_year_${d.staleYear}_only`)
 
   results.push({
     id: d.id,
@@ -86,4 +95,4 @@ fs.writeFileSync(
   JSON.stringify({ probed_at: new Date().toISOString(), results }, null, 2)
 )
 const alerts = results.filter((r) => r.alert).map((r) => r.id)
-console.log(`\nReg-open alerts: ${alerts.join(', ') || 'none (correct for mid-2026)'}`)
+console.log(`\nReg-open alerts: ${alerts.join(', ') || 'none'}`)

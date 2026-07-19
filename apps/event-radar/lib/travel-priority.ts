@@ -7,7 +7,7 @@ import { AFRICA_AU_TIER_A, AFRICA_AU_TIER_B } from './travel-priority-africa-au'
 
 /**
  * Tier A/B circuits with documented or frequently reported travel support.
- * A = strong / explicit reimbursement  |  B = limited / selective / variable
+ * A = strong / explicit reimbursement (≥15% for eligible)  |  B = limited / selective / variable
  */
 export type TravelPriorityTier = 'A' | 'B'
 
@@ -33,7 +33,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/hackmit\.org$/i],
     faqPaths: ['/faq', '/travel', '/logistics'],
     siteUrl: 'https://hackmit.org/',
-    evidence: 'X 2026: flying out 1000 students — food and travel covered',
+    evidence: 'Travel reimbursement up to regional cap for attendees who submit',
   },
   {
     id: 'treehacks',
@@ -44,7 +44,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/treehacks\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://treehacks.com/',
-    evidence: 'Official: meals, travels, and lodging for accepted',
+    evidence: 'Official: meals, travels, and lodging for accepted (dormant until 2027 apps)',
   },
   {
     id: 'pennapps',
@@ -55,7 +55,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/pennapps\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://pennapps.com/',
-    evidence: 'Long history of travel reimbursement',
+    evidence: 'Long history of travel reimbursement (dormant until next reg)',
   },
   {
     id: 'hackthenorth',
@@ -66,7 +66,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/hackthenorth\.com$/i],
     faqPaths: ['/faq', '/travel', '/travel-guidelines'],
     siteUrl: 'https://hackthenorth.com/',
-    evidence: 'Published travel guidelines + partial reimbursement 2026',
+    evidence: 'Published travel guidelines + partial reimbursement',
   },
   {
     id: 'hackillinois',
@@ -110,7 +110,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/mhacks\.org$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.mhacks.org/',
-    evidence: 'Historically yes',
+    evidence: 'FAQ lists travel reimbursements; Oct 2026 Ann Arbor',
   },
   {
     id: 'bitcamp',
@@ -189,16 +189,18 @@ const CORE: TravelPriorityCircuit[] = [
     siteUrl: 'https://hackduke.org/',
     evidence: 'Duke',
   },
+  // EU — HackUPC promoted: published half-travel, max €120 EU / €200 outside
   {
-    id: 'junction',
-    label: 'Junction',
-    tier: 'B',
+    id: 'hackupc',
+    label: 'HackUPC',
+    tier: 'A',
     region: 'eu',
-    titlePattern: /\bjunction\b/i,
-    hostPatterns: [/hackjunction\.com$/i],
-    faqPaths: ['/faq', '/travel'],
-    siteUrl: 'https://www.hackjunction.com/',
-    evidence: 'Limited grants ~€300',
+    titlePattern: /\bhack\s*upc\b/i,
+    hostPatterns: [/hackupc\.com$/i],
+    faqPaths: ['/faq', '/'],
+    siteUrl: 'https://hackupc.com/',
+    evidence:
+      '2026 policy: half of travel costs — max €50 Spain outside Catalonia, €120 Europe, €120–200 outside Europe (receipts + demo). Dormant until 2027 cycle.',
   },
   {
     id: 'starthack',
@@ -210,39 +212,6 @@ const CORE: TravelPriorityCircuit[] = [
     faqPaths: ['/faq'],
     siteUrl: 'https://www.starthack.eu/',
     evidence: 'Occasional',
-  },
-  {
-    id: 'hackupc',
-    label: 'HackUPC',
-    tier: 'B',
-    region: 'eu',
-    titlePattern: /\bhack\s*upc\b/i,
-    hostPatterns: [/hackupc\.com$/i],
-    faqPaths: ['/faq'],
-    siteUrl: 'https://hackupc.com/',
-    evidence: 'Sometimes',
-  },
-  {
-    id: 'ethglobal',
-    label: 'ETHGlobal',
-    tier: 'B',
-    region: 'global',
-    titlePattern: /eth\s?global/i,
-    hostPatterns: [/ethglobal\.com$/i],
-    faqPaths: ['/faq', '/travel'],
-    siteUrl: 'https://ethglobal.com/',
-    evidence: 'Per-event scholarships',
-  },
-  {
-    id: 'encode',
-    label: 'Encode',
-    tier: 'B',
-    region: 'global',
-    titlePattern: /\bencode\b/i,
-    hostPatterns: [/encode\.club$/i],
-    faqPaths: ['/faq'],
-    siteUrl: 'https://www.encode.club/',
-    evidence: 'Selective',
   },
   {
     id: 'cassini',
@@ -266,20 +235,8 @@ const CORE: TravelPriorityCircuit[] = [
     siteUrl: 'https://hack.ust.hk/',
     evidence: 'HK mostly local',
   },
-  {
-    id: 'easya',
-    label: 'EasyA',
-    tier: 'B',
-    region: 'global',
-    titlePattern: /\beasy\s*a\b/i,
-    hostPatterns: [/easya\.io$/i],
-    faqPaths: ['/faq'],
-    siteUrl: 'https://www.easya.io/',
-    evidence: 'Selected events',
-  },
 ]
 
-// Research A first (incl. Africa/AU A), then core, then B batches.
 export const TRAVEL_PRIORITY: TravelPriorityCircuit[] = [
   ...AFRICA_AU_TIER_A,
   ...TIER_A_RESEARCH_BATCH,
