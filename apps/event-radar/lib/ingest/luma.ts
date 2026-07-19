@@ -1,24 +1,25 @@
 import type { IngestRow } from './devpost'
 
-// Luma's public discovery API — the same feed that powers lu.ma's "Discover"
-// search. `get-paginated-events?query=hackathon` fuzzy-matches the query, so it
-// returns real global hackathons (Austin, Bengaluru, Sydney, …) alongside some
-// loosely-related meetups; we keep only entries whose name actually mentions a
-// hackathon so the catalog stays on-topic. No auth needed — the signed-in-only
-// endpoint is `/search/get-results`, which we deliberately do NOT use.
-//
-// Each entry's `url` is a bare slug; the public event page is lu.ma/<slug>.
-// Luma is heavy on short community hackathons worldwide — good breadth, and the
-// strict future-start/open-registration eligibility rule drops the many
-// same-day/past entries the fuzzy search also returns.
+// Luma public discovery API — multi-query crawl for global + regional coverage.
+// Single "hackathon" query misses city-specific and Asia events; we run several
+// focused queries and dedupe by URL.
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 const API = 'https://api.lu.ma/discover/get-paginated-events'
-const QUERY = 'hackathon'
-// Bound the crawl: the feed is cursor-paginated and effectively unbounded, but
-// hackathons this feed surfaces thin out fast and each page is one HTTP round
-// trip against the function's time budget. Four pages ≈ 150 candidate events.
-const MAX_PAGES = 4
+
+// Breadth queries — keep short; each query costs up to PAGES_PER_QUERY HTTP calls.
+const QUERIES = [
+  'hackathon',
+  'hackathon Singapore',
+  'hackathon "Hong Kong"',
+  'hackathon London',
+  'hackathon Paris',
+  'hackathon "San Francisco"',
+  'buildathon',
+  'Junction hackathon',
+] as const
+
+const PAGES_PER_QUERY = 2
 
 type LumaGeo = {
   city?: string | null
@@ -35,7 +36,6 @@ type LumaEvent = {
   end_at?: string
   location_type?: string
   geo_address_info?: LumaGeo | null
-  virtual_info?: { has_access?: boolean } | null
 }
 
 type LumaPage = {
@@ -66,8 +66,6 @@ function hasUsefulGeo(geo: LumaGeo | null | undefined): boolean {
   return !!(str(geo.city) || str(geo.country) || str(geo.city_state) || str(geo.region))
 }
 
-// Pure mapper — one API page of entries to IngestRows, name-filtered. Exported
-// so the parser can be unit-tested without a live network call.
 export function parseLumaPage(page: LumaPage): IngestRow[] {
   const rows: IngestRow[] = []
   for (const entry of page.entries ?? []) {
@@ -76,18 +74,12 @@ export function parseLumaPage(page: LumaPage): IngestRow[] {
     const title = str(e.name)
     const slug = str(e.url)
     if (!title || !slug) continue
-    // Drop the fuzzy near-misses ("Cafe Cursor", generic meetups) the query
-    // pulls in; keep anything self-describing as a hackathon / hack day / jam.
-    if (!/\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam\b/i.test(title)) continue
+    if (!/\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam|buildathon\b/i.test(title))
+      continue
 
     const geo = e.geo_address_info
     const locationRaw = place(geo)
 
-    // More aggressive format detection:
-    // - explicit offline → in_person
-    // - any useful geo data → in_person (most Luma in-person events land here)
-    // - explicit online → online
-    // - otherwise fall back to online only if nothing location-like exists
     let format: 'online' | 'in_person' = 'online'
     if (e.location_type === 'offline' || hasUsefulGeo(geo) || locationRaw) {
       format = 'in_person'
@@ -111,32 +103,29 @@ export function parseLumaPage(page: LumaPage): IngestRow[] {
   return rows
 }
 
-export async function fetchLuma(): Promise<IngestRow[]> {
+async function fetchLumaQuery(query: string, seen: Set<string>): Promise<IngestRow[]> {
   const rows: IngestRow[] = []
-  const seen = new Set<string>()
   let cursor: string | null = null
-  let pages = 0
 
-  for (let i = 0; i < MAX_PAGES; i++) {
-    const params = new URLSearchParams({ query: QUERY })
+  for (let i = 0; i < PAGES_PER_QUERY; i++) {
+    const params = new URLSearchParams({ query })
     if (cursor) params.set('pagination_cursor', cursor)
-    const res = await fetch(`${API}?${params.toString()}`, {
-      headers: { Accept: 'application/json', 'User-Agent': UA },
-      signal: AbortSignal.timeout(8000),
-      redirect: 'follow',
-    })
+    let res: Response
+    try {
+      res = await fetch(`${API}?${params.toString()}`, {
+        headers: { Accept: 'application/json', 'User-Agent': UA },
+        signal: AbortSignal.timeout(8000),
+        redirect: 'follow',
+      })
+    } catch {
+      break
+    }
     if (!res.ok) {
-      // A first-page failure is fatal (nothing gathered); later pages degrade
-      // to whatever we already have rather than throwing away a good crawl.
-      if (i === 0) throw new Error(`luma -> ${res.status}`)
+      if (i === 0 && query === 'hackathon') throw new Error(`luma -> ${res.status}`)
       break
     }
     const page = (await res.json()) as LumaPage
-    if (!Array.isArray(page.entries)) {
-      if (i === 0) throw new Error(`luma: expected entries[], got ${typeof page.entries}`)
-      break
-    }
-    pages++
+    if (!Array.isArray(page.entries)) break
     for (const row of parseLumaPage(page)) {
       if (seen.has(row.url)) continue
       seen.add(row.url)
@@ -145,9 +134,29 @@ export async function fetchLuma(): Promise<IngestRow[]> {
     cursor = str(page.next_cursor)
     if (!page.has_more || !cursor) break
   }
+  return rows
+}
+
+export async function fetchLuma(): Promise<IngestRow[]> {
+  const seen = new Set<string>()
+  const rows: IngestRow[] = []
+
+  // Primary query first (must succeed); regional queries degrade independently.
+  const primary = await fetchLumaQuery('hackathon', seen)
+  rows.push(...primary)
+
+  for (const q of QUERIES) {
+    if (q === 'hackathon') continue
+    try {
+      const batch = await fetchLumaQuery(q, seen)
+      rows.push(...batch)
+    } catch {
+      // non-primary query failure is non-fatal
+    }
+  }
 
   if (rows.length === 0) {
-    throw new Error(`luma: 0 hackathons mapped across ${pages} page(s) — feed shape or query drifted?`)
+    throw new Error('luma: 0 hackathons mapped — feed shape or query drifted?')
   }
   return rows
 }
