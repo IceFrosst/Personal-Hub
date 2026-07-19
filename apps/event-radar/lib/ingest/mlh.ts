@@ -1,9 +1,10 @@
 import type { IngestRow } from './devpost'
 
-// MLH lists a season's events as static HTML cards at
-// https://mlh.io/seasons/<year>/events. No API — this is a deliberately
-// tolerant regex parse: when the markup drifts we return [] for the season
-// rather than throwing, and the cron's per-source error reporting surfaces it.
+// MLH season pages:
+//   https://www.mlh.com/seasons/2026/events
+//   https://www.mlh.com/seasons/2027/events
+// No public API — HTML cards and/or Inertia JSON. Tolerant parse: markup drift
+// returns [] for that season; cron surfaces the error fingerprint.
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 
@@ -12,7 +13,6 @@ const MONTHS: Record<string, number> = {
   jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
 }
 
-// "Sep 12th - 14th" / "Oct 3rd - Nov 1st" plus a season year hint.
 export function parseMlhDates(raw: string, year: number): [string | null, string | null] {
   const clean = raw.toLowerCase().replace(/(\d+)(st|nd|rd|th)/g, '$1')
   const parts = clean.split('-').map((p) => p.trim())
@@ -28,7 +28,7 @@ export function parseMlhDates(raw: string, year: number): [string | null, string
   const [m1, d1] = parsePart(parts[0], null)
   const [m2, d2] = parts.length > 1 ? parsePart(parts[1], m1) : [m1, d1]
 
-  // MLH seasons span Sep(year-1)–Aug(year): months Sep–Dec belong to year-1.
+  // MLH seasons span ~Sep(year-1)–Aug(year): months Sep–Dec belong to year-1.
   const resolveYear = (m: number | null) => (m !== null && m >= 8 ? year - 1 : year)
   const toISO = (m: number | null, d: number | null) =>
     m !== null && d !== null ? new Date(Date.UTC(resolveYear(m), m, d)).toISOString() : null
@@ -43,7 +43,6 @@ function extract(block: string, re: RegExp): string | null {
 
 export function parseMlhHtml(html: string, seasonYear: number): IngestRow[] {
   const rows: IngestRow[] = []
-  // Each event is an <a class="event-link" href="..."> card.
   const cardRe = /<a[^>]*class="[^"]*event-link[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g
   let m: RegExpExecArray | null
   while ((m = cardRe.exec(html)) !== null) {
@@ -74,13 +73,6 @@ export function parseMlhHtml(html: string, seasonYear: number): IngestRow[] {
   }
   return rows
 }
-
-// ---- Inertia.js path ----
-// MLH rebuilt their site on Inertia (Vite assets, no semantic classes): the
-// whole page state is HTML-escaped JSON in a root element's data-page
-// attribute. We don't hard-code the props path to the events — Inertia prop
-// shapes move — instead we scan the payload for the largest array of objects
-// that look like events and map field-name variants defensively.
 
 function decodeEntities(s: string): string {
   return s
@@ -127,8 +119,6 @@ function toISO(v: unknown): string | null {
 
 function mapInertiaEvent(e: JsonObject): IngestRow | null {
   const title = str(e.name) ?? str(e.title)
-  // Prefer the hackathon's own site (websiteUrl) — better page for enrichment
-  // than MLH's event stub; fall back to the MLH-relative url.
   const url = str(e.website) ?? str(e.websiteUrl) ?? str(e.url) ?? str(e.event_url)
   if (!title || !url) return null
   const typeRaw =
@@ -164,12 +154,6 @@ function mapInertiaEvent(e: JsonObject): IngestRow | null {
   }
 }
 
-// Several elements can carry a data-page attribute (pagination controls do),
-// and the quote style isn't guaranteed — collect every candidate in both
-// styles and take the largest one that decodes to a JSON object. Since the
-// mlh.com rebuild the page object is no longer an attribute at all: it's the
-// BODY of a `<script data-page="app" type="application/json">` tag (the
-// attribute itself is a 3-byte decoy), so script bodies join the candidates.
 function inertiaCandidates(html: string): string[] {
   const attrs = [
     ...html.matchAll(/data-page="([^"]+)"/g),
@@ -188,7 +172,7 @@ function extractInertiaPayload(html: string): unknown {
       const parsed: unknown = JSON.parse(candidate)
       if (typeof parsed === 'object' && parsed !== null) return parsed
     } catch {
-      // decoy or truncated candidate — try the next one
+      /* try next */
     }
   }
   return null
@@ -200,10 +184,6 @@ export function parseMlhInertia(html: string): IngestRow[] {
   const arrays: JsonObject[][] = []
   findEventArrays(page, arrays)
   if (arrays.length === 0) return []
-  // Merge every event-shaped array (upcomingEvents + pastEvents both match)
-  // and dedupe by id/url — stale events are dropped by the caller, which knows
-  // "now". Taking only the largest array would pick 250+ past events and lose
-  // the upcoming ones entirely.
   const seen = new Set<string>()
   const rows: IngestRow[] = []
   for (const arr of arrays) {
@@ -219,9 +199,6 @@ export function parseMlhInertia(html: string): IngestRow[] {
   return rows
 }
 
-// When the parser stops matching, the error should describe the page we did
-// get, in enough detail to relocate the event data without pulling the full
-// HTML out of production (mlh.io is unreachable from Claude Code sessions).
 function describeDrift(html: string): string {
   const anchors = (html.match(/<a[\s>]/gi) ?? []).length
   const hackathons = (html.match(/hackathon/gi) ?? []).length
@@ -238,8 +215,6 @@ function describeDrift(html: string): string {
   } else {
     inertia += 'none parseable'
   }
-  // Raw-markup slices around "hackathon" occurrences — when neither parser
-  // matches, seeing the actual surrounding HTML beats any further guessing.
   const sliceAt = (idx: number) =>
     idx < 0 ? '' : html.slice(Math.max(0, idx - 150), idx + 500).replace(/\s+/g, ' ')
   const first = html.search(/hackathon/i)
@@ -250,25 +225,24 @@ function describeDrift(html: string): string {
   return `page ${html.length}b, ${anchors} anchors, "hackathon" x${hackathons}, ${inertia}; markup: ${slices}`
 }
 
+/** Seasons to scrape — always include current calendar year and the published next season. */
+export function mlhSeasonYears(now = new Date()): number[] {
+  const y = now.getUTCFullYear()
+  // Explicit set so 2027 is never dropped when mid-year math is ambiguous.
+  return [...new Set([y, y + 1, 2026, 2027])].filter((s) => s >= y - 1 && s <= y + 1).sort()
+}
+
 export async function fetchMlh(): Promise<IngestRow[]> {
-  // Mid-season the current year still has upcoming events and the next season
-  // is already published — fetch both, tolerating a failure on either. But
-  // "nothing ingested" must never be silent: if NO season yields a page the
-  // error carries the HTTP statuses (fetch/blocking problem), and if pages
-  // arrive but zero cards parse the error carries a markup fingerprint
-  // (regex drift). A plain [] here would look like "no events listed".
-  const year = new Date().getUTCFullYear()
-  const seasons = [year, year + 1]
+  const seasons = mlhSeasonYears()
   const parsed: IngestRow[] = []
   let lastHtml: string | null = null
   const failures: string[] = []
 
   for (const season of seasons) {
     try {
-      // mlh.io now 302s to www.mlh.com — fetch the destination directly.
       const res = await fetch(`https://www.mlh.com/seasons/${season}/events`, {
         headers: { 'User-Agent': UA },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(10000),
         redirect: 'follow',
       })
       if (!res.ok) {
@@ -289,11 +263,6 @@ export async function fetchMlh(): Promise<IngestRow[]> {
     throw new Error(`parsed 0 events — ${describeDrift(lastHtml)}`)
   }
 
-  // The season pages list finished events too (a 250+ row pastEvents array).
-  // Parsing them proves the parser works; ingesting them would flood the
-  // catalog and burn enrichment batches on dead hackathons — drop anything
-  // that already ended. Zero rows AFTER this filter is a truthful "nothing
-  // upcoming", not parser drift.
   const cutoff = Date.now() - 86400000
   return parsed.filter((r) => {
     const end = r.ends_at ?? r.starts_at

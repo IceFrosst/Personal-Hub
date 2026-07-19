@@ -1,6 +1,5 @@
 import type { IngestRow } from './devpost'
 
-/** Tier A seeds including 2026-07-19 research (AdventureX, YHack, etc.) */
 export function fetchTierAExtraSeeds(): IngestRow[] {
   const now = Date.now()
   const rows: IngestRow[] = [
@@ -69,7 +68,6 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
       registration_deadline: '2026-10-20T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-    // China Tier A — next cycle (update when 2027 dates drop)
     {
       source: 'known',
       source_id: 'adventurex-2027',
@@ -82,6 +80,33 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
       prize_pool: null,
       registration_deadline: '2027-06-01T23:59:59.000Z',
       themes: ['china', 'international', 'youth', 'ai'],
+    },
+    // Site-verified 2026-07-19
+    {
+      source: 'known',
+      source_id: 'hackrice-2026',
+      title: 'HackRice 16',
+      url: 'https://hackrice.com/',
+      starts_at: '2026-09-11T17:00:00.000Z',
+      ends_at: '2026-09-13T22:00:00.000Z',
+      location_raw: 'Houston, TX, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-08-20T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'vthacks-14',
+      title: 'VTHacks 14',
+      url: 'https://vthacks.com/',
+      starts_at: '2027-02-14T14:00:00.000Z',
+      ends_at: '2027-02-16T00:00:00.000Z',
+      location_raw: 'Blacksburg, VA, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2027-01-20T23:59:59.000Z',
+      themes: ['student', 'general'],
     },
   ]
   return rows.filter((r) => r.starts_at && Date.parse(r.starts_at) > now)

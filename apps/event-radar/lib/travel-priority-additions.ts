@@ -1,5 +1,5 @@
 /**
- * Research batches. Tier A = travel available + est. ≥15% success for strong applicants.
+ * Research batches. Tier A = travel available + est. ≥15% for eligible applicants.
  */
 import type { TravelPriorityCircuit } from './travel-priority'
 
@@ -13,7 +13,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/yhack\.org$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://yhack.org/',
-    evidence: 'Accepted can apply for reimbursement; East Coast priority (≥15%)',
+    evidence: 'Accepted can apply for reimbursement; East Coast priority',
   },
   {
     id: 'conuhacks',
@@ -24,7 +24,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/conuhacks\.io$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.conuhacks.io/',
-    evidence: 'Up to $150 CAD / $100 USD per person — published pool',
+    evidence: 'Up to $150 CAD / $100 USD per person',
   },
   {
     id: 'technica',
@@ -68,7 +68,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/adventure-x\.org$/i],
     faqPaths: ['/zh', '/en', '/faq'],
     siteUrl: 'https://adventure-x.org/',
-    evidence: 'Official 旅费补助 for distant + student 差旅; international',
+    evidence: 'Official 旅费补助 for distant + student 差旅',
   },
   {
     id: 'duke-nus-ghi',
@@ -81,7 +81,6 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     siteUrl: 'https://www.duke-nus.edu.sg/sdghi/news-events/events/innovation-hackathon',
     evidence: 'LMIC teams: travel fully covered when selected',
   },
-  // Promoted under ≥15% rule
   {
     id: 'junction',
     label: 'Junction',
@@ -91,8 +90,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hackjunction\.com$/i, /junction\.fi$/i],
     faqPaths: ['/faq', '/travel', '/info'],
     siteUrl: 'https://www.hackjunction.com/',
-    evidence:
-      'Tier A (≥15%): limited grants (e.g. ~€300) — not everyone, but real pool for accepted international',
+    evidence: 'Limited grants (~€300) for accepted international — ≥15% pool',
   },
   {
     id: 'easya',
@@ -103,7 +101,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/easya\.io$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.easya.io/',
-    evidence: 'Tier A (≥15%): repeatedly cited for travel support on selected events',
+    evidence: 'Travel support on selected events',
   },
   {
     id: 'encode',
@@ -114,7 +112,7 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/encode\.club$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.encode.club/',
-    evidence: 'Tier A (≥15%): travel/stipend for selected builders on many programs',
+    evidence: 'Travel/stipend for selected builders',
   },
   {
     id: 'pearlhacks',
@@ -125,7 +123,32 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/pearlhacks\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://pearlhacks.com/',
-    evidence: 'Tier A (≥15%): limited support some years — apply when FAQ open',
+    evidence: 'Limited support some years when FAQ open',
+  },
+  // 2026-07-19 site-verified
+  {
+    id: 'hackrice',
+    label: 'HackRice',
+    tier: 'A',
+    region: 'na',
+    titlePattern: /\bhack\s*rice\b/i,
+    hostPatterns: [/hackrice\.com$/i],
+    faqPaths: ['/faq', '/'],
+    siteUrl: 'https://hackrice.com/',
+    evidence:
+      'Official FAQ 2026: travel stipends offered — "majority of our budget goes towards" this; amounts later summer; Sep 11–13 2026 Houston',
+  },
+  {
+    id: 'vthacks',
+    label: 'VTHacks',
+    tier: 'A',
+    region: 'na',
+    titlePattern: /\bvt\s*hacks\b|\bvthacks\b/i,
+    hostPatterns: [/vthacks\.com$/i],
+    faqPaths: ['/faq', '/'],
+    siteUrl: 'https://vthacks.com/',
+    evidence:
+      'Official FAQ: "Not from Blacksburg? We selectively offer travel reimbursements!" — ≥15% for strong non-local applicants',
   },
 ]
 
@@ -139,7 +162,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hack2skill\.com$/i],
     faqPaths: [],
     siteUrl: 'https://hack2skill.com/event/bah2026/',
-    evidence: 'Finalists only — national funnel <<15% of applicants',
+    evidence: 'Finalists only — national funnel <<15%',
   },
   {
     id: 'mchacks',
@@ -150,7 +173,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/mchacks\.ca$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://mchacks.ca/',
-    evidence: '2026 FAQ: not offering — year-off',
+    evidence: '2026 FAQ: not offering',
   },
   {
     id: 'sfhacks',
@@ -172,7 +195,7 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/cathaypacific\.com$/i],
     faqPaths: [],
     siteUrl: 'https://news.cathaypacific.com/',
-    evidence: 'Winner-only flights — <<15%',
+    evidence: 'Winner-only flights',
   },
   {
     id: 'ethglobal',
@@ -181,9 +204,30 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     region: 'global',
     titlePattern: /eth\s?global/i,
     hostPatterns: [/ethglobal\.com$/i],
-    faqPaths: ['/faq', '/travel', '/perks', '/scholarships'],
+    faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://ethglobal.com/',
-    evidence:
-      'Scholarships exist but X shows most accepted still self-fund — est. below 15% for open travel',
+    evidence: 'Scholarships exist but most accepted self-fund',
+  },
+  {
+    id: 'hophacks',
+    label: 'HopHacks',
+    tier: 'B',
+    region: 'na',
+    titlePattern: /\bhop\s*hacks\b/i,
+    hostPatterns: [/hophacks\.com$/i],
+    faqPaths: ['/faq'],
+    siteUrl: 'https://hophacks.com/',
+    evidence: '2026: no individual travel reimbursements; bus only if enough interest',
+  },
+  {
+    id: 'shellhacks',
+    label: 'ShellHacks',
+    tier: 'B',
+    region: 'na',
+    titlePattern: /\bshell\s*hacks\b/i,
+    hostPatterns: [/shellhacks\.net$/i],
+    faqPaths: ['/faq'],
+    siteUrl: 'https://shellhacks.net/',
+    evidence: 'No travel policy on site (Sep 2026 edition)',
   },
 ]
