@@ -16,6 +16,7 @@ const SOURCE_LABELS: Record<string, string> = {
   taikai: 'Taikai',
   dorahacks: 'DoraHacks',
   unstop: 'Unstop',
+  known: 'Known events',
 }
 
 function count(value: unknown): number {

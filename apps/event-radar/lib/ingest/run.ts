@@ -12,17 +12,13 @@ import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
 import { fetchUnstop } from './unstop'
+import { fetchKnownEvents } from './known-events'
 import { enrich, fetchPageText } from './enrich'
-import { circuitTravelCovered } from './travel-circuits'
+import { circuitTravelCovered, circuitFaqPaths } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
 
-// Enrichment throughput is bounded by two ceilings, not by choice:
-//   1. Vercel Hobby caps each function at 60s (maxDuration).
-//   2. The free LLM tiers rate-limit (~30 req/min Groq, ~15 Gemini).
-// So we parallelize up to CONCURRENCY (staying near the combined RPM ceiling)
-// and cap the batch at what fits the time budget.
 const ENRICH_BATCH = 30
 const ENRICH_CONCURRENCY = 4
 const TIME_BUDGET_MS = 50_000
@@ -43,6 +39,33 @@ export type IngestSummary = {
   elapsed_ms: number
   gather_error?: string
   insert_error?: string
+}
+
+/** Try main URL, then circuit FAQ-style paths, concatenate useful text. */
+async function fetchBestPageText(row: {
+  url: string
+  source: string
+  title: string
+}): Promise<string | null> {
+  const main = await fetchPageText(row.url)
+  const faqPaths = circuitFaqPaths(row)
+  if (faqPaths.length === 0) return main
+
+  // Only chase FAQ paths when main page is missing or very thin (typical SPA shell).
+  if (main && main.length > 1500) return main
+
+  const base = row.url.replace(/\/?$/, '')
+  const extras: string[] = []
+  for (const path of faqPaths.slice(0, 2)) {
+    try {
+      const extra = await fetchPageText(`${base}${path}`)
+      if (extra && extra.length > 200) extras.push(extra)
+    } catch {
+      // ignore individual failures
+    }
+  }
+  if (!main && extras.length === 0) return null
+  return [main, ...extras].filter(Boolean).join('\n\n')
 }
 
 export async function runIngest({ sendNotifications = true } = {}): Promise<IngestSummary> {
@@ -74,6 +97,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['taikai', () => fetchTaikai()],
     ['dorahacks', () => fetchDoraHacks()],
     ['unstop', () => fetchUnstop()],
+    ['known', async () => fetchKnownEvents()],
   ]
 
   const settled = await Promise.allSettled(sources.map(([, fetchSource]) => fetchSource()))
@@ -142,25 +166,35 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   }
 
   // ---- Phase 2: enrich ----
-  // Priority: newly inserted rows first, then incomplete / never-enriched rows.
+  // Always try page extraction first (including FAQ paths for known circuits).
+  // Circuit prior only fills when extraction still leaves travel unknown.
 
   const enrichRow = async (row: Hackathon): Promise<boolean> => {
-    const text = await fetchPageText(row.url)
+    const text = await fetchBestPageText({
+      url: row.url,
+      source: row.source,
+      title: row.title,
+    })
     const source = text ?? ([row.title, row.location_raw].filter(Boolean).join(' — ') || null)
     if (!source) return false
 
     const extracted = await enrich(source)
-    // Layer-1 travel prior: known travel-funding circuits fill unknown only.
-    // Explicit page finding (true or false) always wins.
     const effectiveFormat = extracted.format ?? row.format
     const circuitTravel = circuitTravelCovered({
       source: row.source,
       title: row.title,
       format: effectiveFormat,
     })
+
+    // Page finding always wins. Circuit prior only when page said nothing.
+    const travel =
+      extracted.travel_covered !== null && extracted.travel_covered !== undefined
+        ? extracted.travel_covered
+        : circuitTravel
+
     const patch: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
-      travel_covered: extracted.travel_covered ?? circuitTravel,
+      travel_covered: travel,
       accommodation_covered: extracted.accommodation_covered,
       open_to_business_students: extracted.open_to_business_students,
     }
@@ -172,6 +206,12 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       patch.registration_deadline = extracted.registration_deadline
     if (extracted.themes.length > 0 && (!row.themes || row.themes.length === 0))
       patch.themes = extracted.themes
+
+    // Seeded known events already have strong metadata — still allow enrichment
+    // to refine, but ensure travel stays true if circuit says so and page was silent.
+    if (row.source === 'known' && travel === null && circuitTravel === true) {
+      patch.travel_covered = true
+    }
 
     const { data: updated, error: updateError } = await db
       .from('hackathons')
@@ -213,7 +253,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     summary.enriched += results.filter(Boolean).length
   }
 
-  // ---- Phase 3: notify (scheduled runs only) ----
+  // ---- Phase 3: notify ----
   if (sendNotifications) {
     const goneSubscriptionIds: string[] = []
     const processedHackathonIds: string[] = []
