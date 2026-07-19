@@ -57,14 +57,11 @@ async function fetchBestPageText(row: {
 }): Promise<string | null> {
   const main = await fetchPageText(row.url)
   const faqPaths = circuitFaqPaths(row)
-  // Travel-priority: always try FAQ paths (travel policy often only on /faq).
-  // Others: only if main page is thin.
-  const shouldFaq =
-    faqPaths.length > 0 && (faqPaths.length > 0 ? true : !main || main.length <= 1500)
-  // Prefer FAQ for priority circuits even when main is long
-  const forceFaq = faqPaths.length > 0
-  if (!forceFaq && main && main.length > 1500) return main
-  if (!shouldFaq && !forceFaq) return main
+
+  // Travel-priority circuits: always crawl FAQ paths (policy often only there).
+  // Everyone else: only if the main page is thin.
+  if (faqPaths.length === 0) return main
+  if (main && main.length > 1500 && faqPaths.length === 0) return main
 
   const base = row.url.replace(/\/?$/, '')
   const extras: string[] = []
