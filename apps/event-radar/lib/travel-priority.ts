@@ -43,7 +43,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/treehacks\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://treehacks.com/',
-    evidence: 'Meals, travel, lodging for accepted',
+    evidence: 'Official: meals, travels, and lodging for accepted',
   },
   {
     id: 'pennapps',
@@ -87,7 +87,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/calhacks\.io$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://calhacks.io/',
-    evidence: 'Varies by year; community cites travel support',
+    evidence: 'SF Palace of Fine Arts; FAQ includes travel reimbursement; ASEAN community cites ~$500',
   },
   {
     id: 'lahacks',
@@ -188,7 +188,6 @@ const CORE: TravelPriorityCircuit[] = [
     siteUrl: 'https://hackduke.org/',
     evidence: 'Duke code-for-good',
   },
-  // Tier B core (abbreviated hosts — full list retained)
   {
     id: 'hackny',
     label: 'HackNY',
@@ -363,7 +362,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/ethglobal\.com$/i],
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://ethglobal.com/',
-    evidence: 'Per-event scholarships',
+    evidence: 'Per-event scholarships (X: many accepted still crowdfund flights)',
   },
   {
     id: 'encode',
@@ -409,17 +408,7 @@ const CORE: TravelPriorityCircuit[] = [
     siteUrl: 'https://www.copernicus.eu/',
     evidence: 'Occasional local',
   },
-  {
-    id: 'adventurex',
-    label: 'AdventureX',
-    tier: 'B',
-    region: 'asia',
-    titlePattern: /\badventure\s*x\b/i,
-    hostPatterns: [/adventure-x\.org$/i],
-    faqPaths: [],
-    siteUrl: 'https://adventure-x.org/en',
-    evidence: 'Limited some years',
-  },
+  // AdventureX is Tier A in research batch — do not list as B here
   {
     id: 'hackust',
     label: 'HackUST',
@@ -429,7 +418,7 @@ const CORE: TravelPriorityCircuit[] = [
     hostPatterns: [/hack\.ust\.hk$/i],
     faqPaths: [],
     siteUrl: 'https://hack.ust.hk/',
-    evidence: 'Mostly local',
+    evidence: 'HK; mostly local / regional',
   },
   {
     id: 'unihack',
@@ -499,9 +488,10 @@ const CORE: TravelPriorityCircuit[] = [
   },
 ]
 
+// Research Tier A first so promotions (e.g. AdventureX) beat any older B entry.
 export const TRAVEL_PRIORITY: TravelPriorityCircuit[] = [
-  ...CORE,
   ...TIER_A_RESEARCH_BATCH,
+  ...CORE,
   ...TIER_B_RESEARCH_BATCH,
 ]
 
