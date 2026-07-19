@@ -2,24 +2,26 @@
  * Travel priority tier philosophy (updated 2026-07-19)
  *
  * Tier A — pursue actively
- *   Travel support exists (full, partial, or grant application) AND
- *   estimated chance of receiving it is ≥ ~15% for a strong, eligible applicant
- *   who applies on time (not lottery-of-thousands finalist-only).
+ *   1) Travel support exists (full, partial, or grant), AND
+ *   2) Estimated chance ≥ ~15% for a strong applicant who is *eligible*
+ *      (citizenship / region / gender gates count — if you cannot apply, odds = 0).
  *
- *   Includes:
- *   - All accepted get travel (HackMIT, TreeHacks, …)
- *   - Accepted can claim / apply with high hit rate (YHack East Coast, ConUHacks pool)
- *   - Explicit selection programs where competitive builders routinely clear ~15%+
- *     (W3Node travel grants, UbuntuNet selected teams, Photosynthesis selected support,
- *      Junction limited grants, EasyA/Encode event stipends when offered)
+ *   Examples of A for a Lithuania-based applicant:
+ *   - HackMIT / TreeHacks / PennApps / HtN (open international students)
+ *   - Junction limited grants, YHack, ConUHacks, AdventureX student 差旅
+ *   - EasyA / Encode when the event offers builder travel
+ *
+ *   Not A for LT even if “selected get travel”:
+ *   - W3Node (African builders)
+ *   - UbuntuNet Women (ESA Africa women only)
  *
  * Tier B — monitor / opportunistic
- *   Travel is rare, year-off, winner-only, finalist-only with <<15% odds,
- *   or FAQ currently says no. Still matched for badge/FAQ crawl when they appear.
- *
- * Always re-check FAQ yearly — policies move.
+ *   Region-gated, winner-only, FAQ-no, or unclear policy.
  */
 export const TRAVEL_TIER_PHILOSOPHY = {
   tierAMinSuccessEstimate: 0.15,
+  /** Eligibility is required for the 15% bar to apply */
+  eligibilityRequired: true,
   updated: '2026-07-19',
+  noteForUser: 'Primary user region: Lithuania / EU — Africa-only grants are Tier B',
 } as const

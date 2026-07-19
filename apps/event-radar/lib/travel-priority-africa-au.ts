@@ -1,35 +1,13 @@
 /**
  * Africa + Australia batch.
- * Philosophy: Tier A if travel exists and est. ≥15% success for strong applicants.
+ * Tier A = travel available + est. ≥15% for a strong *eligible* applicant.
+ * Eligibility is part of the bar — Africa-only grants are not Tier A for EU applicants.
  */
 import type { TravelPriorityCircuit } from './travel-priority'
 
 export const AFRICA_AU_TIER_A: TravelPriorityCircuit[] = [
-  {
-    id: 'ubuntunet-women',
-    label: 'UbuntuNet Women Hackathon',
-    tier: 'A',
-    region: 'africa',
-    titlePattern: /\bubuntunet\b.*hack|women\s*hackathon.*ubuntunet|ubuntunet.*women/i,
-    hostPatterns: [/ubuntunet\.net$/i, /events\.ubuntunet\.net$/i],
-    faqPaths: [],
-    siteUrl:
-      'https://ubuntunet.net/women-in-stem/call-for-proposals-to-participate-in-the-fourth-ubuntunet-alliance-for-research-and-education-networking-women-hackathon-2026/',
-    evidence:
-      'Tier A (≥15%): travel+stay fully covered for selected ESA women teams — structured selection, not pure lottery',
-  },
-  {
-    id: 'w3node',
-    label: 'W3Node Hackathon',
-    tier: 'A',
-    region: 'africa',
-    titlePattern: /\bw3\s*node\b|\bw3node\b/i,
-    hostPatterns: [/w3node\.io$/i],
-    faqPaths: [],
-    siteUrl: 'https://w3node.io/',
-    evidence:
-      'Tier A (≥15%): explicit Travel Grant Program for African builders — selected, but real program with recurring awards',
-  },
+  // None currently open to non-African / non-ESA applicants at ≥15%.
+  // Photosynthesis (IITA Accra) may accept international researchers — kept A below with note.
   {
     id: 'photosynthesis-iita',
     label: 'Photosynthesis Hackathon (IITA)',
@@ -40,7 +18,7 @@ export const AFRICA_AU_TIER_A: TravelPriorityCircuit[] = [
     faqPaths: [],
     siteUrl: 'https://computational-biology-aachen.github.io/2026-photosynthesis-hackathon/',
     evidence:
-      'Tier A (≥15%): travel support available for selected participants at IITA Accra — apply as qualified researcher/student',
+      'Travel support for selected participants (IITA Accra). International researchers may qualify — confirm call; not Africa-citizenship-gated in public copy',
   },
   {
     id: 'unearthed',
@@ -52,11 +30,36 @@ export const AFRICA_AU_TIER_A: TravelPriorityCircuit[] = [
     faqPaths: [],
     siteUrl: 'https://unearthed.solutions/',
     evidence:
-      'Tier A (≥15%): resources hacks historically fly selected interstate talent — strong domain applicants clear bar',
+      'AU resources hacks; selected interstate (and sometimes international domain talent) fly-ins — open by skill not nationality',
   },
 ]
 
 export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
+  {
+    id: 'w3node',
+    label: 'W3Node Hackathon',
+    tier: 'B',
+    region: 'africa',
+    titlePattern: /\bw3\s*node\b|\bw3node\b/i,
+    hostPatterns: [/w3node\.io$/i],
+    faqPaths: [],
+    siteUrl: 'https://w3node.io/',
+    evidence:
+      'Travel Grant Program targets African builders — not applicable for Lithuania/EU applicants (est. ~0% grant odds). Event still trackable',
+  },
+  {
+    id: 'ubuntunet-women',
+    label: 'UbuntuNet Women Hackathon',
+    tier: 'B',
+    region: 'africa',
+    titlePattern: /\bubuntunet\b.*hack|women\s*hackathon.*ubuntunet|ubuntunet.*women/i,
+    hostPatterns: [/ubuntunet\.net$/i, /events\.ubuntunet\.net$/i],
+    faqPaths: [],
+    siteUrl:
+      'https://ubuntunet.net/women-in-stem/call-for-proposals-to-participate-in-the-fourth-ubuntunet-alliance-for-research-and-education-networking-women-hackathon-2026/',
+    evidence:
+      'Full travel+stay but eligibility: women from UbuntuNet ESA countries only — not open to Lithuania',
+  },
   {
     id: 'unihack-au',
     label: 'UNIHACK',
@@ -66,7 +69,7 @@ export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
     hostPatterns: [/unihack\.net$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://www.unihack.net/',
-    evidence: 'Hybrid AU/NZ; no standing travel pool — below 15% policy clarity',
+    evidence: 'AU/NZ students only; no standing international travel pool',
   },
   {
     id: 'govhack',
@@ -77,7 +80,7 @@ export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
     hostPatterns: [/govhack\.org$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://govhack.org/',
-    evidence: 'Local sites; central travel rare — <<15%',
+    evidence: 'Local AU sites; central travel rare',
   },
   {
     id: 'eth-nigeria',
@@ -88,6 +91,6 @@ export const AFRICA_AU_TIER_B: TravelPriorityCircuit[] = [
     hostPatterns: [],
     faqPaths: [],
     siteUrl: 'https://ethereumnigeria.org/',
-    evidence: 'Prize travel to *other* global events — not attendee coverage for this hack',
+    evidence: 'Local/regional; prize travel to other events — not LT-relevant attendee coverage',
   },
 ]
