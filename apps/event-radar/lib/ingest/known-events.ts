@@ -1,7 +1,6 @@
 import type { IngestRow } from './devpost'
 import { fetchTierAExtraSeeds } from './known-events-tier-a-extra'
-
-// High-signal travel-priority flagships + research-batch Tier A.
+import { fetchAfricaAuSeeds } from './known-events-africa-au'
 
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
@@ -30,19 +29,6 @@ export function fetchKnownEvents(): IngestRow[] {
       format: 'in_person',
       prize_pool: null,
       registration_deadline: '2026-08-31T23:59:59.000Z',
-      themes: ['student', 'general'],
-    },
-    {
-      source: 'known',
-      source_id: 'pennapps-2026-fall',
-      title: 'PennApps',
-      url: 'https://pennapps.com/',
-      starts_at: '2026-09-12T12:00:00.000Z',
-      ends_at: '2026-09-14T00:00:00.000Z',
-      location_raw: 'Philadelphia, PA, USA',
-      format: 'in_person',
-      prize_pool: null,
-      registration_deadline: '2026-08-20T23:59:59.000Z',
       themes: ['student', 'general'],
     },
     {
@@ -78,26 +64,14 @@ export function fetchKnownEvents(): IngestRow[] {
       url: 'https://calhacks.io/',
       starts_at: '2026-10-24T17:00:00.000Z',
       ends_at: '2026-10-26T05:00:00.000Z',
-      location_raw: 'Berkeley, CA, USA',
+      location_raw: 'San Francisco, CA, USA',
       format: 'in_person',
       prize_pool: null,
       registration_deadline: '2026-09-30T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-    {
-      source: 'known',
-      source_id: 'hackzurich-2026',
-      title: 'HackZurich',
-      url: 'https://hackzurich.com/',
-      starts_at: '2026-09-18T08:00:00.000Z',
-      ends_at: '2026-09-20T18:00:00.000Z',
-      location_raw: 'Zurich, Switzerland',
-      format: 'in_person',
-      prize_pool: null,
-      registration_deadline: '2026-08-31T23:59:59.000Z',
-      themes: ['general', 'europe'],
-    },
     ...fetchTierAExtraSeeds(),
+    ...fetchAfricaAuSeeds(),
   ]
 
   return rows.filter((r) => {
