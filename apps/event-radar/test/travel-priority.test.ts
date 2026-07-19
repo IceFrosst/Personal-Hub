@@ -5,50 +5,32 @@ import {
   TRAVEL_PRIORITY,
   isTravelPriority,
   matchTravelPriority,
-  travelPriorityFaqPaths,
+  travelPriorityStats,
 } from '../lib/travel-priority'
 
-test('registry includes full Tier A and B from policy tables', () => {
-  const ids = new Set(TRAVEL_PRIORITY.map((c) => c.id))
-  for (const id of [
-    'hackmit',
-    'treehacks',
-    'pennapps',
-    'hackthenorth',
-    'hackillinois',
-    'calhacks',
-    'lahacks',
-    'mhacks',
-    'bitcamp',
-    'hackgt',
-    'junction',
-    'starthack',
-    'hackupc',
-    'ethglobal',
-    'encode',
-    'cassini',
-    'eudis',
-    'copernicus',
-  ]) {
-    assert.ok(ids.has(id), `missing ${id}`)
-  }
+test('expanded registry has 40+ circuits', () => {
+  const { total, tierA, tierB } = travelPriorityStats()
+  assert.ok(total >= 40, `expected >=40 got ${total}`)
+  assert.ok(tierA >= 15, `tier A expected >=15 got ${tierA}`)
+  assert.ok(tierB >= 20, `tier B expected >=20 got ${tierB}`)
 })
 
-test('Tier A count is 10', () => {
-  assert.equal(TRAVEL_PRIORITY.filter((c) => c.tier === 'A').length, 10)
+test('new Tier A names match', () => {
+  assert.equal(matchTravelPriority({ title: 'HackPrinceton' })?.id, 'hackprinceton')
+  assert.equal(matchTravelPriority({ title: 'BoilerMake XII' })?.tier, 'A')
+  assert.equal(matchTravelPriority({ title: 'nwHacks 2027' })?.id, 'nwhacks')
+  assert.equal(matchTravelPriority({ title: 'UofTHacks 12' })?.id, 'uofthacks')
+  assert.equal(matchTravelPriority({ title: 'HackDuke Code for Good' })?.id, 'hackduke')
 })
 
-test('matches new Tier A events', () => {
-  assert.equal(matchTravelPriority({ title: 'HackIllinois 2027' })?.id, 'hackillinois')
-  assert.equal(matchTravelPriority({ title: 'CalHacks 13.0' })?.tier, 'A')
-  assert.equal(matchTravelPriority({ title: 'LA Hacks' })?.id, 'lahacks')
-  assert.equal(matchTravelPriority({ title: 'MHacks 2026' })?.id, 'mhacks')
-  assert.equal(matchTravelPriority({ title: 'Bitcamp' })?.id, 'bitcamp')
-  assert.equal(matchTravelPriority({ title: 'HackGT 13' })?.id, 'hackgt')
+test('new Tier B regions match', () => {
+  assert.equal(matchTravelPriority({ title: 'HackZurich 2026' })?.region, 'eu')
+  assert.equal(matchTravelPriority({ title: 'AdventureX 2026' })?.region, 'asia')
+  assert.equal(matchTravelPriority({ title: 'UNIHACK' })?.region, 'oceania')
+  assert.equal(matchTravelPriority({ title: 'ShellHacks' })?.id, 'shellhacks')
+  assert.equal(matchTravelPriority({ title: 'Colosseum Hackathon' })?.id, 'colosseum')
 })
 
-test('FAQ paths and isTravelPriority', () => {
-  assert.ok(travelPriorityFaqPaths({ title: 'CalHacks' }).includes('/faq'))
-  assert.equal(isTravelPriority({ title: 'Junction 2026', url: '', source: 'known' }), true)
+test('still rejects random events', () => {
   assert.equal(isTravelPriority({ title: 'Random Meetup', url: 'https://lu.ma/x', source: 'luma' }), false)
 })

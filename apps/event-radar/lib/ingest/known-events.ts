@@ -1,12 +1,11 @@
 import type { IngestRow } from './devpost'
 
-// Hand-curated high-value + full Tier A/B travel-priority flagships.
-// Seasonal date estimates — confirm on official sites each year.
+// High-signal travel-priority flagships. Seasonal date estimates — confirm yearly.
 
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
   const rows: IngestRow[] = [
-    // ---- Tier B / EU ----
+    // EU
     {
       source: 'known',
       source_id: 'junction-2026-main',
@@ -46,8 +45,20 @@ export function fetchKnownEvents(): IngestRow[] {
       registration_deadline: '2027-04-15T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-
-    // ---- Tier A — US / Canada ----
+    {
+      source: 'known',
+      source_id: 'hackzurich-2026',
+      title: 'HackZurich',
+      url: 'https://hackzurich.com/',
+      starts_at: '2026-09-18T08:00:00.000Z',
+      ends_at: '2026-09-20T18:00:00.000Z',
+      location_raw: 'Zurich, Switzerland',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-08-31T23:59:59.000Z',
+      themes: ['general', 'europe'],
+    },
+    // Tier A US/Canada
     {
       source: 'known',
       source_id: 'hackmit-2026',
@@ -177,6 +188,71 @@ export function fetchKnownEvents(): IngestRow[] {
       prize_pool: null,
       registration_deadline: '2026-09-25T23:59:59.000Z',
       themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'hackprinceton-2026',
+      title: 'HackPrinceton',
+      url: 'https://hackprinceton.com/',
+      starts_at: '2026-11-07T14:00:00.000Z',
+      ends_at: '2026-11-09T00:00:00.000Z',
+      location_raw: 'Princeton, NJ, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-10-10T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'boilermake-2027',
+      title: 'BoilerMake',
+      url: 'https://boilermake.org/',
+      starts_at: '2027-01-23T14:00:00.000Z',
+      ends_at: '2027-01-25T00:00:00.000Z',
+      location_raw: 'West Lafayette, IN, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2027-01-05T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'nwhacks-2027',
+      title: 'nwHacks',
+      url: 'https://www.nwhacks.io/',
+      starts_at: '2027-01-17T17:00:00.000Z',
+      ends_at: '2027-01-18T22:00:00.000Z',
+      location_raw: 'Vancouver, Canada',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-12-15T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'uofthacks-2027',
+      title: 'UofTHacks',
+      url: 'https://uofthacks.com/',
+      starts_at: '2027-01-16T14:00:00.000Z',
+      ends_at: '2027-01-18T00:00:00.000Z',
+      location_raw: 'Toronto, Canada',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-12-20T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'hackduke-2026',
+      title: 'HackDuke',
+      url: 'https://hackduke.org/',
+      starts_at: '2026-11-07T14:00:00.000Z',
+      ends_at: '2026-11-08T22:00:00.000Z',
+      location_raw: 'Durham, NC, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-10-15T23:59:59.000Z',
+      themes: ['student', 'social-good'],
     },
   ]
 
