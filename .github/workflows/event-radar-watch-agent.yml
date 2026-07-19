@@ -1,6 +1,5 @@
-# Weekly watch agent — checks annual/gov mega-event pages for reachability
-# and registration language. Promote confirmed dates into known-events.ts manually
-# or via a follow-up PR.
+# Weekly watch agent + individual Tier A/B site checkers.
+# Open-egress runners probe official pages for registration language.
 
 name: Event Radar watch agent
 
@@ -19,13 +18,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Probe watch URLs
+      - name: Probe annual watch URLs
         run: node apps/event-radar/scripts/probe-watches.mjs
 
-      - name: Upload watch-probe-results.json
+      - name: Probe each Tier A/B travel-priority site
+        run: node apps/event-radar/scripts/probe-travel-priority.mjs
+
+      - name: Upload probe artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: watch-probe-results
-          path: watch-probe-results.json
+          name: watch-and-travel-priority-probes
+          path: |
+            watch-probe-results.json
+            travel-priority-probe.json
           retention-days: 30
