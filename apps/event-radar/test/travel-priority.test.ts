@@ -2,38 +2,53 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  TRAVEL_PRIORITY,
   isTravelPriority,
   matchTravelPriority,
   travelPriorityFaqPaths,
-  travelPriorityTierLabel,
 } from '../lib/travel-priority'
 
-test('matches HackMIT by title and host', () => {
-  assert.equal(matchTravelPriority({ title: 'HackMIT 2026', url: 'https://example.com' })?.id, 'hackmit')
-  assert.equal(
-    matchTravelPriority({ title: 'Something', url: 'https://hackmit.org/' })?.id,
-    'hackmit'
-  )
+test('registry includes full Tier A and B from policy tables', () => {
+  const ids = new Set(TRAVEL_PRIORITY.map((c) => c.id))
+  for (const id of [
+    'hackmit',
+    'treehacks',
+    'pennapps',
+    'hackthenorth',
+    'hackillinois',
+    'calhacks',
+    'lahacks',
+    'mhacks',
+    'bitcamp',
+    'hackgt',
+    'junction',
+    'starthack',
+    'hackupc',
+    'ethglobal',
+    'encode',
+    'cassini',
+    'eudis',
+    'copernicus',
+  ]) {
+    assert.ok(ids.has(id), `missing ${id}`)
+  }
 })
 
-test('matches TreeHacks and PennApps', () => {
-  assert.equal(matchTravelPriority({ title: 'TreeHacks 2027' })?.tier, 'A')
-  assert.equal(matchTravelPriority({ title: 'PennApps XXVI' })?.id, 'pennapps')
+test('Tier A count is 10', () => {
+  assert.equal(TRAVEL_PRIORITY.filter((c) => c.tier === 'A').length, 10)
 })
 
-test('matches Junction and ETHGlobal as tier B', () => {
-  assert.equal(matchTravelPriority({ title: 'Junction 2026' })?.tier, 'B')
-  assert.equal(matchTravelPriority({ title: 'ETHGlobal NYC', source: 'ethglobal' })?.id, 'ethglobal')
+test('matches new Tier A events', () => {
+  assert.equal(matchTravelPriority({ title: 'HackIllinois 2027' })?.id, 'hackillinois')
+  assert.equal(matchTravelPriority({ title: 'CalHacks 13.0' })?.tier, 'A')
+  assert.equal(matchTravelPriority({ title: 'LA Hacks' })?.id, 'lahacks')
+  assert.equal(matchTravelPriority({ title: 'MHacks 2026' })?.id, 'mhacks')
+  assert.equal(matchTravelPriority({ title: 'Bitcamp' })?.id, 'bitcamp')
+  assert.equal(matchTravelPriority({ title: 'HackGT 13' })?.id, 'hackgt')
 })
 
-test('FAQ paths exist for priority circuits', () => {
-  const paths = travelPriorityFaqPaths({ title: 'HackMIT 2026' })
-  assert.ok(paths.includes('/faq'))
-  assert.ok(paths.length >= 2)
-})
-
-test('label and isTravelPriority helpers', () => {
-  assert.equal(isTravelPriority({ title: 'Hack the North 2026', url: '', source: 'known' }), true)
-  assert.ok(travelPriorityTierLabel({ title: 'HackMIT', url: '', source: 'known' })?.includes('A'))
+test('FAQ paths and isTravelPriority', () => {
+  assert.ok(travelPriorityFaqPaths({ title: 'CalHacks' }).includes('/faq'))
+  assert.equal(isTravelPriority({ title: 'Junction 2026', url: '', source: 'known' }), true)
   assert.equal(isTravelPriority({ title: 'Random Meetup', url: 'https://lu.ma/x', source: 'luma' }), false)
 })
