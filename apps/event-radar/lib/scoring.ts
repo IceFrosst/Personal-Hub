@@ -1,10 +1,9 @@
 import type { Hackathon } from './types'
+import { isTravelPriority, matchTravelPriority } from './travel-priority'
 
 export type ScoreReason = { label: string; pts: number }
 export type ScoredHackathon = { score: number; reasons: ScoreReason[] }
 
-// Countries reachable from Lithuania cheaply enough that missing travel
-// coverage matters much less. Home country is scored separately.
 const NEIGHBOR_COUNTRIES = ['latvia', 'estonia', 'poland']
 const HOME_COUNTRY = 'lithuania'
 
@@ -19,13 +18,6 @@ function prizeNumber(prize: string | null): number {
   return digits ? parseInt(digits, 10) : 0
 }
 
-// Ranking priorities locked in EVENT_RADAR_PLAN.md. Score is computed at read
-// time so re-weighting never needs a migration. `unknown` (null) fields earn a
-// small optimistic nudge but never as much as a confirmed yes.
-//
-// Online events deliberately get **no** points from the travel/location section.
-// Being online is neutral, not a bonus — we care about travel-covered in-person
-// events and strong eligibility signals.
 export function scoreHackathon(h: Hackathon, now: Date = new Date()): ScoredHackathon {
   const reasons: ScoreReason[] = []
   const add = (label: string, pts: number) => {
@@ -35,8 +27,17 @@ export function scoreHackathon(h: Hackathon, now: Date = new Date()): ScoredHack
   const online = h.format === 'online'
 
   if (!online) {
-    if (h.travel_covered === true) add('Travel covered', 40)
+    // Confirmed travel: largest single boost (was 40 → 50)
+    if (h.travel_covered === true) add('Travel covered', 50)
     else if (h.travel_covered === null) add('Travel coverage unknown', 8)
+
+    // Tier A/B circuit — still valuable even before enrichment confirms
+    const circuit = matchTravelPriority(h)
+    if (circuit && h.travel_covered !== true) {
+      add(`Travel tier ${circuit.tier} · ${circuit.label}`, 18)
+    } else if (circuit && h.travel_covered === true) {
+      add(`Travel tier ${circuit.tier}`, 8)
+    }
 
     if (matchesCountry(h, [HOME_COUNTRY])) add('In Lithuania', 25)
     else if (matchesCountry(h, NEIGHBOR_COUNTRIES) && h.travel_covered !== true)
@@ -69,13 +70,6 @@ function validTimestamp(value: string | null): number | null {
   return Number.isFinite(timestamp) ? timestamp : null
 }
 
-// Feed and notification eligibility is intentionally fail-closed for most
-// sources: both starts_at and registration_deadline must parse as valid
-// timestamps and be strictly later than now.
-//
-// Luma is the exception: its discovery API never supplies a registration
-// deadline (RSVPs stay open until the event starts). For source === 'luma'
-// with a null deadline, a strictly future starts_at is enough to qualify.
 export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean {
   const nowTimestamp = now.getTime()
   if (!Number.isFinite(nowTimestamp)) return false
@@ -83,8 +77,16 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
   const startsAt = validTimestamp(h.starts_at)
   if (startsAt === null || startsAt <= nowTimestamp) return false
 
-  // Luma RSVPs stay open until the event starts; treat unknown deadline as open.
-  if (h.source === 'luma' && h.registration_deadline == null) {
+  // Luma / known / watch / travel-priority seeds often lack a hard deadline.
+  if (
+    (h.source === 'luma' || h.source === 'known' || h.source === 'watch') &&
+    h.registration_deadline == null
+  ) {
+    return true
+  }
+
+  // Travel-priority domains: show if start is future even without deadline
+  if (isTravelPriority(h) && h.registration_deadline == null) {
     return true
   }
 
