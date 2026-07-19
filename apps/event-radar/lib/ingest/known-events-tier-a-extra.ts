@@ -81,7 +81,7 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
       registration_deadline: '2027-06-01T23:59:59.000Z',
       themes: ['china', 'international', 'youth', 'ai'],
     },
-    // Site-verified 2026-07-19
+    // Confirmed on hackrice.com 2026-07-19
     {
       source: 'known',
       source_id: 'hackrice-2026',
@@ -95,19 +95,7 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
       registration_deadline: '2026-08-20T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-    {
-      source: 'known',
-      source_id: 'vthacks-14',
-      title: 'VTHacks 14',
-      url: 'https://vthacks.com/',
-      starts_at: '2027-02-14T14:00:00.000Z',
-      ends_at: '2027-02-16T00:00:00.000Z',
-      location_raw: 'Blacksburg, VA, USA',
-      format: 'in_person',
-      prize_pool: null,
-      registration_deadline: '2027-01-20T23:59:59.000Z',
-      themes: ['student', 'general'],
-    },
+    // VTHacks: Tier A matcher only — no invented dates until site publishes them
   ]
   return rows.filter((r) => r.starts_at && Date.parse(r.starts_at) > now)
 }
