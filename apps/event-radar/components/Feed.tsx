@@ -3,17 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
+import { isTravelPriority } from '@/lib/travel-priority'
 import type { Hackathon, UserStatus } from '@/lib/types'
 import HackathonCard from './HackathonCard'
 import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
-type FilterKey = 'all' | 'travel' | 'online' | 'biz' | 'hidden'
+type FilterKey = 'all' | 'travel' | 'travel_tier' | 'online' | 'biz' | 'hidden'
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'travel', label: 'Travel ✓' },
+  { key: 'travel_tier', label: 'Travel tier' },
   { key: 'online', label: 'Online' },
   { key: 'biz', label: 'Open to biz' },
   { key: 'hidden', label: 'Hidden' },
@@ -47,9 +49,7 @@ export default function Feed({ userId }: { userId: string }) {
     )
     setNotes(
       Object.fromEntries(
-        (statusRows ?? [])
-          .filter((r) => r.notes)
-          .map((r) => [r.hackathon_id, r.notes as string])
+        (statusRows ?? []).filter((r) => r.notes).map((r) => [r.hackathon_id, r.notes as string])
       )
     )
     setLoading(false)
@@ -62,8 +62,6 @@ export default function Feed({ userId }: { userId: string }) {
   const setStatus = async (hackathonId: string, status: UserStatus) => {
     const current = statuses[hackathonId]
     if (current === status) {
-      // Tapping the active status clears it — the whole row goes, notes included
-      // (status is NOT NULL, a status-less row can't exist).
       setStatuses((prev) => {
         const next = { ...prev }
         delete next[hackathonId]
@@ -97,8 +95,6 @@ export default function Feed({ userId }: { userId: string }) {
       )
   }
 
-  // Notes ride on the status row; saving a note without a status starts one
-  // at 'interested' (writing a note IS a signal of interest).
   const saveNotes = async (hackathonId: string, value: string) => {
     setNotes((prev) => ({ ...prev, [hackathonId]: value }))
     const status = statuses[hackathonId] ?? 'interested'
@@ -126,8 +122,9 @@ export default function Feed({ userId }: { userId: string }) {
     const filtered = scored.filter(({ h, status }) => {
       if (filter === 'hidden') return status === 'hidden'
       if (status === 'hidden') return false
-      // Travel ✓ = confirmed travel coverage only (no longer includes online)
       if (filter === 'travel') return h.travel_covered === true
+      // Travel tier = Tier A/B circuits (verify individually even if not yet confirmed)
+      if (filter === 'travel_tier') return isTravelPriority(h)
       if (filter === 'online') return h.format === 'online'
       if (filter === 'biz') return h.open_to_business_students !== false
       return true
@@ -189,7 +186,9 @@ export default function Feed({ userId }: { userId: string }) {
               ? 'Nothing on the radar yet — the first sweep runs tonight.'
               : filter === 'all'
                 ? 'No upcoming hackathons with registration open.'
-                : 'Nothing matches this filter.'}
+                : filter === 'travel_tier'
+                  ? 'No Tier A/B travel-priority events open right now.'
+                  : 'Nothing matches this filter.'}
           </p>
         </div>
       ) : (

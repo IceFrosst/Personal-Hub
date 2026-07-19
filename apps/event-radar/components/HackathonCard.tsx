@@ -2,6 +2,7 @@
 
 import type { Hackathon, UserStatus } from '@/lib/types'
 import type { ScoredHackathon } from '@/lib/scoring'
+import { travelPriorityTierLabel } from '@/lib/travel-priority'
 import {
   IconExternalLink,
   IconStar,
@@ -10,11 +11,21 @@ import {
   IconEyeOff,
 } from '@tabler/icons-react'
 
-const STATUS_META: Array<{ status: UserStatus; label: string; icon: typeof IconStar; active: string }> = [
+const STATUS_META: Array<{
+  status: UserStatus
+  label: string
+  icon: typeof IconStar
+  active: string
+}> = [
   { status: 'interested', label: 'Interested', icon: IconStar, active: 'text-blue border-blue/50 bg-blue/10' },
   { status: 'applying', label: 'Applying', icon: IconSend, active: 'text-amber border-amber/50 bg-amber/10' },
   { status: 'applied', label: 'Applied', icon: IconChecks, active: 'text-green border-green/50 bg-green/10' },
-  { status: 'hidden', label: 'Hide', icon: IconEyeOff, active: 'text-text-muted border-border-focus bg-surface-elevated' },
+  {
+    status: 'hidden',
+    label: 'Hide',
+    icon: IconEyeOff,
+    active: 'text-text-muted border-border-focus bg-surface-elevated',
+  },
 ]
 
 function formatDates(h: Hackathon): string | null {
@@ -52,15 +63,19 @@ export default function HackathonCard({
       : [h.city ?? undefined, h.country ?? undefined].filter(Boolean).join(', ') ||
         h.location_raw ||
         'Location TBA'
+  const tierLabel = travelPriorityTierLabel(h)
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
-        {/* Tapping the info area opens the detail sheet; the external-link icon
-            stays a plain anchor to the hackathon site. */}
         <button onClick={onOpen} className="min-w-0 flex-1 text-left">
-          <span className="flex items-start gap-1.5 font-medium leading-snug text-text">
+          <span className="flex flex-wrap items-center gap-1.5 font-medium leading-snug text-text">
             <span className="break-words">{h.title}</span>
+            {tierLabel && (
+              <span className="shrink-0 rounded-md border border-amber/40 bg-amber/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber">
+                {tierLabel}
+              </span>
+            )}
           </span>
           <span className="mt-1 block text-sm text-text-muted">
             {[place, dates, h.prize_pool ?? undefined].filter(Boolean).join(' · ')}

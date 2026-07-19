@@ -1,23 +1,13 @@
 import type { IngestRow } from './devpost'
 
-// Hand-curated high-value events that don't reliably appear in any public API
-// feed (or appear too late). Keep this list small and high-signal only.
-// Rules for adding:
-//   1. Confirmed dates + registration URL
-//   2. Prefer events with travel sponsorship when known
-//   3. Remove once the event ends or a proper source starts covering it
-//
-// Cerebral Valley (cerebralvalley.ai) is a major AI events hub. Their site is a
-// JS SPA with no documented public API; this sandbox cannot reach the host
-// (connection refused). Events below were pulled via the browse tool from
-// https://cerebralvalley.ai/events?type=HACKATHON on 2026-07-19.
+// Hand-curated high-value events + Tier A travel-priority flagships.
+// Rules: confirmed or strongly approximate dates; remove once past.
+// Cerebral Valley seeds from 2026-07-19 listing (no travel support).
 
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
   const rows: IngestRow[] = [
     {
-      // Junction 2026 Main Event — Europe's leading hackathon.
-      // Limited travel grants up to €300 (confirmed via official channels).
       source: 'known',
       source_id: 'junction-2026-main',
       title: 'Junction 2026',
@@ -31,7 +21,75 @@ export function fetchKnownEvents(): IngestRow[] {
       themes: ['general', 'hardware', 'ai'],
     },
 
-    // ---- Cerebral Valley AI hackathons (from live listing 2026-07-19) ----
+    // ---- Tier A travel-priority flagships (official sites; verify dates yearly) ----
+    {
+      source: 'known',
+      source_id: 'hackmit-2026',
+      title: 'HackMIT 2026',
+      url: 'https://hackmit.org/',
+      starts_at: '2026-09-19T12:00:00.000Z',
+      ends_at: '2026-09-20T22:00:00.000Z',
+      location_raw: 'Cambridge, MA, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-08-31T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'pennapps-2026-fall',
+      title: 'PennApps',
+      url: 'https://pennapps.com/',
+      starts_at: '2026-09-12T12:00:00.000Z',
+      ends_at: '2026-09-14T00:00:00.000Z',
+      location_raw: 'Philadelphia, PA, USA',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-08-20T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'hack-the-north-2026',
+      title: 'Hack the North 2026',
+      url: 'https://hackthenorth.com/',
+      starts_at: '2026-09-18T12:00:00.000Z',
+      ends_at: '2026-09-20T22:00:00.000Z',
+      location_raw: 'Waterloo, Canada',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-08-15T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      // TreeHacks is typically February — next edition after mid-2026
+      source: 'known',
+      source_id: 'treehacks-2027',
+      title: 'TreeHacks 2027',
+      url: 'https://treehacks.com/',
+      starts_at: '2027-02-13T17:00:00.000Z',
+      ends_at: '2027-02-15T05:00:00.000Z',
+      location_raw: 'Stanford, CA, USA',
+      format: 'in_person',
+      prize_pool: '150000+ USD',
+      registration_deadline: '2027-01-15T23:59:59.000Z',
+      themes: ['student', 'general'],
+    },
+    {
+      source: 'known',
+      source_id: 'start-hack-2027',
+      title: 'START Hack',
+      url: 'https://www.starthack.eu/',
+      starts_at: '2027-03-19T08:00:00.000Z',
+      ends_at: '2027-03-21T18:00:00.000Z',
+      location_raw: 'St. Gallen, Switzerland',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2027-02-28T23:59:59.000Z',
+      themes: ['student', 'business'],
+    },
+
+    // ---- Cerebral Valley AI hackathons (no travel) ----
     {
       source: 'known',
       source_id: 'cv-last-mile-agent',
@@ -177,7 +235,6 @@ export function fetchKnownEvents(): IngestRow[] {
     },
   ]
 
-  // Drop anything already past
   return rows.filter((r) => {
     if (!r.starts_at) return true
     return Date.parse(r.starts_at) > now
