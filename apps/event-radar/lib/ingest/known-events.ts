@@ -2,6 +2,11 @@ import type { IngestRow } from './devpost'
 import { fetchTierAExtraSeeds } from './known-events-tier-a-extra'
 import { fetchAfricaAuSeeds } from './known-events-africa-au'
 
+/**
+ * Only seed events with confirmed or near-term credible dates.
+ * Do NOT invent next-year TreeHacks / PennApps rows — those stay
+ * dormant until the travel-priority probe sees reg-open language.
+ */
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
   const rows: IngestRow[] = [
@@ -46,19 +51,6 @@ export function fetchKnownEvents(): IngestRow[] {
     },
     {
       source: 'known',
-      source_id: 'treehacks-2027',
-      title: 'TreeHacks 2027',
-      url: 'https://treehacks.com/',
-      starts_at: '2027-02-13T17:00:00.000Z',
-      ends_at: '2027-02-15T05:00:00.000Z',
-      location_raw: 'Stanford, CA, USA',
-      format: 'in_person',
-      prize_pool: '150000+ USD',
-      registration_deadline: '2027-01-15T23:59:59.000Z',
-      themes: ['student', 'general'],
-    },
-    {
-      source: 'known',
       source_id: 'calhacks-2026',
       title: 'CalHacks',
       url: 'https://calhacks.io/',
@@ -70,12 +62,15 @@ export function fetchKnownEvents(): IngestRow[] {
       registration_deadline: '2026-09-30T23:59:59.000Z',
       themes: ['student', 'general'],
     },
+    // TreeHacks + PennApps: intentionally NOT seeded.
+    // Last cycles: TreeHacks Feb 13–15 2026 (done), PennApps XXVI Sep 19–21 2025 (done).
+    // Next cycle appears only after probe detects registration open.
     ...fetchTierAExtraSeeds(),
     ...fetchAfricaAuSeeds(),
   ]
 
   return rows.filter((r) => {
-    if (!r.starts_at) return true
+    if (!r.starts_at) return false
     return Date.parse(r.starts_at) > now
   })
 }
