@@ -8,7 +8,12 @@ import { fetchHackerEarth } from './hackerearth'
 import { fetchHackClub } from './hackclub'
 import { fetchLuma } from './luma'
 import { fetchHackQuest } from './hackquest'
+import { fetchDevfolio } from './devfolio'
+import { fetchTaikai } from './taikai'
+import { fetchDoraHacks } from './dorahacks'
+import { fetchUnstop } from './unstop'
 import { enrich, fetchPageText } from './enrich'
+import { circuitTravelCovered } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
@@ -65,6 +70,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['hackclub', () => fetchHackClub()],
     ['luma', () => fetchLuma()],
     ['hackquest', () => fetchHackQuest()],
+    ['devfolio', () => fetchDevfolio()],
+    ['taikai', () => fetchTaikai()],
+    ['dorahacks', () => fetchDoraHacks()],
+    ['unstop', () => fetchUnstop()],
   ]
 
   const settled = await Promise.allSettled(sources.map(([, fetchSource]) => fetchSource()))
@@ -133,10 +142,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   }
 
   // ---- Phase 2: enrich ----
-  // Priority order:
-  // 1. Newly inserted rows from this run (enrich right after ingest)
-  // 2. Older rows that still have critical nulls (format or travel_covered)
-  // 3. Classic never-enriched rows
+  // Priority: newly inserted rows first, then incomplete / never-enriched rows.
 
   const enrichRow = async (row: Hackathon): Promise<boolean> => {
     const text = await fetchPageText(row.url)
@@ -144,9 +150,17 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (!source) return false
 
     const extracted = await enrich(source)
+    // Layer-1 travel prior: known travel-funding circuits fill unknown only.
+    // Explicit page finding (true or false) always wins.
+    const effectiveFormat = extracted.format ?? row.format
+    const circuitTravel = circuitTravelCovered({
+      source: row.source,
+      title: row.title,
+      format: effectiveFormat,
+    })
     const patch: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
-      travel_covered: extracted.travel_covered,
+      travel_covered: extracted.travel_covered ?? circuitTravel,
       accommodation_covered: extracted.accommodation_covered,
       open_to_business_students: extracted.open_to_business_students,
     }
@@ -154,7 +168,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (extracted.format) patch.format = extracted.format
     if (extracted.city) patch.city = extracted.city
     if (extracted.country) patch.country = extracted.country
-    // Preserve an exact source-provided deadline
     if (extracted.registration_deadline && !row.registration_deadline)
       patch.registration_deadline = extracted.registration_deadline
     if (extracted.themes.length > 0 && (!row.themes || row.themes.length === 0))
@@ -168,7 +181,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     return !updateError && (updated?.length ?? 0) > 0
   }
 
-  // Build the enrichment queue with priority
   const toEnrich: Hackathon[] = []
 
   if (newlyInsertedIds.length > 0) {
@@ -179,7 +191,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (freshRows) toEnrich.push(...(freshRows as Hackathon[]))
   }
 
-  // Also pull a batch of incomplete / never-enriched rows
   const { data: pending } = await db
     .from('hackathons')
     .select('*')

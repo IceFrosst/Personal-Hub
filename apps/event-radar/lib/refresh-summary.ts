@@ -12,6 +12,10 @@ const SOURCE_LABELS: Record<string, string> = {
   hackclub: 'Hack Club',
   luma: 'Luma',
   hackquest: 'HackQuest',
+  devfolio: 'Devfolio',
+  taikai: 'Taikai',
+  dorahacks: 'DoraHacks',
+  unstop: 'Unstop',
 }
 
 function count(value: unknown): number {
