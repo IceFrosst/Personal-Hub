@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { DEFAULT_NOTIFICATION_SETTINGS } from '@/lib/types'
+import {
+  coerceNotificationSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  PRIORITY_COUNTRY_OPTIONS,
+  type NotificationSettings,
+} from '@/lib/types'
 import PushToggle from './PushToggle'
 import ManualRefresh from './ManualRefresh'
 import { IconArrowLeft, IconChevronRight, IconFileText } from '@tabler/icons-react'
@@ -16,7 +21,7 @@ export default function SettingsPanel({
   canRefreshSources: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const [minScore, setMinScore] = useState<number>(DEFAULT_NOTIFICATION_SETTINGS.min_score)
+  const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS)
   const [loaded, setLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -28,21 +33,20 @@ export default function SettingsPanel({
       .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => {
-        const settings = { ...DEFAULT_NOTIFICATION_SETTINGS, ...data?.notification_settings }
-        setMinScore(settings.min_score)
+        setSettings(coerceNotificationSettings(data?.notification_settings))
         setLoaded(true)
       })
   }, [supabase, userId])
 
-  const save = async (score: number) => {
-    setMinScore(score)
+  const persist = async (next: NotificationSettings) => {
+    setSettings(next)
     await supabase
       .schema('hackathon')
       .from('user_preferences')
       .upsert(
         {
           user_id: userId,
-          notification_settings: { ...DEFAULT_NOTIFICATION_SETTINGS, min_score: score },
+          notification_settings: next,
         },
         { onConflict: 'user_id' }
       )
@@ -69,22 +73,51 @@ export default function SettingsPanel({
       </header>
 
       <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-medium">Priorities</h2>
+        {loaded && (
+          <label className="flex flex-col gap-2 text-sm text-text-muted">
+            <span className="flex items-center justify-between">
+              <span>Priority country</span>
+              {saved && <span className="text-green">saved</span>}
+            </span>
+            <select
+              value={settings.priority_country}
+              onChange={(e) =>
+                persist({ ...settings, priority_country: e.target.value.toLowerCase() })
+              }
+              className="min-h-11 rounded-md border border-border bg-surface px-3 text-base text-text focus:border-border-focus focus:outline-none"
+            >
+              {PRIORITY_COUNTRY_OPTIONS.map((o) => (
+                <option key={o.value || 'none'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-text-low">
+              Events in this country get a +30 score boost (travel covered is +50).
+            </span>
+          </label>
+        )}
+      </section>
+
+      <section className="mt-8 flex flex-col gap-4">
         <h2 className="text-lg font-medium">Notifications</h2>
         <PushToggle userId={userId} />
         {loaded && (
           <label className="flex flex-col gap-2 text-sm text-text-muted">
             <span>
               Notify me when a hackathon scores at least{' '}
-              <span className="font-semibold text-text">{minScore}</span>
-              {saved && <span className="ml-2 text-green">saved</span>}
+              <span className="font-semibold text-text">{settings.min_score}</span>
             </span>
             <input
               type="range"
               min={20}
               max={100}
               step={5}
-              value={minScore}
-              onChange={(e) => save(parseInt(e.target.value, 10))}
+              value={settings.min_score}
+              onChange={(e) =>
+                persist({ ...settings, min_score: parseInt(e.target.value, 10) })
+              }
               className="h-11 w-full accent-[#8e4ec6]"
             />
           </label>

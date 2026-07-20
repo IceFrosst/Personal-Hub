@@ -5,7 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { isTravelPriority } from '@/lib/travel-priority'
 import { isBalticOrPoland } from '@/lib/region-baltic'
-import type { Hackathon, UserStatus } from '@/lib/types'
+import {
+  coerceNotificationSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  type Hackathon,
+  type NotificationSettings,
+  type UserStatus,
+} from '@/lib/types'
 import HackathonCard from './HackathonCard'
 import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
@@ -28,12 +34,13 @@ export default function Feed({ userId }: { userId: string }) {
   const [hackathons, setHackathons] = useState<Hackathon[]>([])
   const [statuses, setStatuses] = useState<Record<string, UserStatus>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const [prefs, setPrefs] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS)
   const [filter, setFilter] = useState<FilterKey>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const [{ data: rows }, { data: statusRows }] = await Promise.all([
+    const [{ data: rows }, { data: statusRows }, { data: prefRow }] = await Promise.all([
       supabase
         .schema('hackathon')
         .from('hackathons')
@@ -44,6 +51,12 @@ export default function Feed({ userId }: { userId: string }) {
         .schema('hackathon')
         .from('user_hackathon_status')
         .select('hackathon_id, status, notes'),
+      supabase
+        .schema('hackathon')
+        .from('user_preferences')
+        .select('notification_settings')
+        .eq('user_id', userId)
+        .maybeSingle(),
     ])
     setHackathons((rows ?? []) as Hackathon[])
     setStatuses(
@@ -54,8 +67,9 @@ export default function Feed({ userId }: { userId: string }) {
         (statusRows ?? []).filter((r) => r.notes).map((r) => [r.hackathon_id, r.notes as string])
       )
     )
+    setPrefs(coerceNotificationSettings(prefRow?.notification_settings))
     setLoading(false)
-  }, [supabase])
+  }, [supabase, userId])
 
   useEffect(() => {
     load()
@@ -116,10 +130,19 @@ export default function Feed({ userId }: { userId: string }) {
       )
   }
 
+  const scoreOpts = useMemo(
+    () => ({ priority_country: prefs.priority_country }),
+    [prefs.priority_country]
+  )
+
   const visible = useMemo(() => {
     const scored = hackathons
       .filter((h) => isUpcomingAndOpen(h))
-      .map((h) => ({ h, scored: scoreHackathon(h), status: statuses[h.id] ?? null }))
+      .map((h) => ({
+        h,
+        scored: scoreHackathon(h, new Date(), scoreOpts),
+        status: statuses[h.id] ?? null,
+      }))
 
     const filtered = scored.filter(({ h, status }) => {
       if (filter === 'hidden') return status === 'hidden'
@@ -138,13 +161,13 @@ export default function Feed({ userId }: { userId: string }) {
       const db = b.h.registration_deadline ?? b.h.starts_at ?? '9999'
       return da < db ? -1 : 1
     })
-  }, [hackathons, statuses, filter])
+  }, [hackathons, statuses, filter, scoreOpts])
 
   const selected = useMemo(() => {
     if (!selectedId) return null
     const h = hackathons.find((x) => x.id === selectedId)
-    return h ? { h, scored: scoreHackathon(h) } : null
-  }, [selectedId, hackathons])
+    return h ? { h, scored: scoreHackathon(h, new Date(), scoreOpts) } : null
+  }, [selectedId, hackathons, scoreOpts])
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6 safe-b safe-t">
@@ -187,7 +210,7 @@ export default function Feed({ userId }: { userId: string }) {
             {hackathons.length === 0
               ? 'Nothing on the radar yet — the first sweep runs tonight.'
               : filter === 'all'
-                ? 'No upcoming hackathons with registration open.'
+                ? 'No open events starting at least 1 week from now.'
                 : filter === 'travel_tier'
                   ? 'No Tier A/B travel-priority events open right now.'
                   : filter === 'baltic_pl'
