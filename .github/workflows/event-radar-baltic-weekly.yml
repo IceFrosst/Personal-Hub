@@ -1,0 +1,90 @@
+# Weekly Baltics + Poland discovery
+# - Probes local organiser sites for registration-open language
+# - Uploads JSON + markdown report
+# - Opens or updates a GitHub issue with findings
+
+name: Event Radar Baltic weekly
+
+on:
+  schedule:
+    # Mondays 07:00 UTC (~10:00 Lithuania summer)
+    - cron: '0 7 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: event-radar-baltic-weekly
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  baltic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe Baltic/PL organisers
+        run: node apps/event-radar/scripts/probe-baltic-weekly.mjs
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baltic-weekly-${{ github.run_id }}
+          path: |
+            baltic-weekly-probe.json
+            baltic-weekly-report.md
+          retention-days: 60
+
+      - name: Publish or update GitHub issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const path = 'baltic-weekly-report.md'
+            if (!fs.existsSync(path)) {
+              core.warning('No report file — probe may have failed hard')
+              return
+            }
+            const body = fs.readFileSync(path, 'utf8')
+            const title = 'Event Radar · Baltic+PL weekly discovery'
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'event-radar,baltic-weekly',
+              per_page: 5,
+            })
+            const existing = issues.find((i) => i.title === title)
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: body,
+              })
+              core.info(`Commented on issue #${existing.number}`)
+            } else {
+              // Ensure labels exist (ignore errors if already present)
+              for (const name of ['event-radar', 'baltic-weekly']) {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name,
+                    color: name === 'baltic-weekly' ? '0E8A16' : '5319E7',
+                  })
+                } catch (_) {}
+              }
+              const { data: created } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['event-radar', 'baltic-weekly'],
+              })
+              core.info(`Opened issue #${created.number}`)
+            }
