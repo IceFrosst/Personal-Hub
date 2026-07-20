@@ -2,31 +2,7 @@
 
 import type { Hackathon, UserStatus } from '@/lib/types'
 import type { ScoredHackathon } from '@/lib/scoring'
-import { travelPriorityTierLabel } from '@/lib/travel-priority'
-import {
-  IconExternalLink,
-  IconStar,
-  IconSend,
-  IconChecks,
-  IconEyeOff,
-} from '@tabler/icons-react'
-
-const STATUS_META: Array<{
-  status: UserStatus
-  label: string
-  icon: typeof IconStar
-  active: string
-}> = [
-  { status: 'interested', label: 'Interested', icon: IconStar, active: 'text-blue border-blue/50 bg-blue/10' },
-  { status: 'applying', label: 'Applying', icon: IconSend, active: 'text-amber border-amber/50 bg-amber/10' },
-  { status: 'applied', label: 'Applied', icon: IconChecks, active: 'text-green border-green/50 bg-green/10' },
-  {
-    status: 'hidden',
-    label: 'Hide',
-    icon: IconEyeOff,
-    active: 'text-text-muted border-border-focus bg-surface-elevated',
-  },
-]
+import { IconExternalLink, IconStar, IconChecks, IconEyeOff } from '@tabler/icons-react'
 
 function formatDates(h: Hackathon): string | null {
   const fmt = (iso: string) =>
@@ -63,25 +39,33 @@ export default function HackathonCard({
       : [h.city ?? undefined, h.country ?? undefined].filter(Boolean).join(', ') ||
         h.location_raw ||
         'Location TBA'
-  const tierLabel = travelPriorityTierLabel(h)
+  const interested = status === 'interested'
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <button onClick={onOpen} className="min-w-0 flex-1 text-left">
-          <span className="flex flex-wrap items-center gap-1.5 font-medium leading-snug text-text">
-            <span className="break-words">{h.title}</span>
-            {tierLabel && (
-              <span className="shrink-0 rounded-md border border-amber/40 bg-amber/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber">
-                {tierLabel}
-              </span>
-            )}
-          </span>
+    <article className="relative flex flex-col gap-2.5 rounded-2xl bg-surface p-4">
+      {/* Interested star — corner control, not a full button row */}
+      <button
+        type="button"
+        onClick={() => onSetStatus('interested')}
+        className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 ease-out ${
+          interested
+            ? 'bg-blue/15 text-blue'
+            : 'text-text-low hover:bg-surface-elevated hover:text-text-muted'
+        }`}
+        aria-label={interested ? 'Remove interested' : 'Mark interested'}
+        aria-pressed={interested}
+      >
+        <IconStar size={18} stroke={1.5} fill={interested ? 'currentColor' : 'none'} />
+      </button>
+
+      <div className="flex items-start justify-between gap-3 pr-8">
+        <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
+          <span className="break-words font-medium leading-snug text-text">{h.title}</span>
           <span className="mt-1 block text-sm text-text-muted">
             {[place, dates, h.prize_pool ?? undefined].filter(Boolean).join(' · ')}
           </span>
         </button>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <div className="flex shrink-0 flex-col items-end gap-1">
           <span
             className={`rounded-md px-2 py-1 text-sm font-semibold tabular-nums ${scoreColor(scored.score)}`}
             title="Match score"
@@ -92,7 +76,7 @@ export default function HackathonCard({
             href={h.url}
             target="_blank"
             rel="noreferrer"
-            className="flex min-h-6 min-w-11 items-center justify-center text-text-low transition-colors duration-150 ease-out hover:text-text"
+            className="flex h-7 w-7 items-center justify-center text-text-low transition-colors duration-150 ease-out hover:text-text"
             aria-label={`Open ${h.title} site`}
           >
             <IconExternalLink size={16} stroke={1.5} />
@@ -100,34 +84,31 @@ export default function HackathonCard({
         </div>
       </div>
 
-      {scored.reasons.length > 0 && (
-        <button onClick={onOpen} className="flex flex-wrap gap-1.5 text-left">
-          {scored.reasons.map((r) => (
-            <span
-              key={r.label}
-              className={`rounded-md px-2 py-0.5 text-xs ${
-                r.pts < 0 ? 'bg-coral/15 text-coral' : 'bg-surface-elevated text-text-muted'
-              }`}
-            >
-              {r.label} {r.pts > 0 ? `+${r.pts}` : r.pts}
-            </span>
-          ))}
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onSetStatus('applied')}
+          className={`flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs transition-colors duration-150 ease-out ${
+            status === 'applied'
+              ? 'border-green/50 bg-green/10 text-green'
+              : 'border-border text-text-low hover:border-border-focus'
+          }`}
+        >
+          <IconChecks size={14} stroke={1.5} />
+          Applied
         </button>
-      )}
-
-      <div className="flex gap-1.5">
-        {STATUS_META.map(({ status: s, label, icon: Icon, active }) => (
-          <button
-            key={s}
-            onClick={() => onSetStatus(s)}
-            className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-1 text-xs transition-colors duration-150 ease-out ${
-              status === s ? active : 'border-border text-text-low hover:border-border-focus'
-            }`}
-          >
-            <Icon size={16} stroke={1.5} />
-            {label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => onSetStatus('hidden')}
+          className={`flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs transition-colors duration-150 ease-out ${
+            status === 'hidden'
+              ? 'border-border-focus bg-surface-elevated text-text-muted'
+              : 'border-border text-text-low hover:border-border-focus'
+          }`}
+        >
+          <IconEyeOff size={14} stroke={1.5} />
+          Hide
+        </button>
       </div>
     </article>
   )

@@ -12,18 +12,10 @@ import {
   IconCheck,
   IconSparkles,
   IconStar,
-  IconSend,
   IconChecks,
   IconEyeOff,
 } from '@tabler/icons-react'
 import Link from 'next/link'
-
-const STATUS_META: Array<{ status: UserStatus; label: string; icon: typeof IconStar; active: string }> = [
-  { status: 'interested', label: 'Interested', icon: IconStar, active: 'text-blue border-blue/50 bg-blue/10' },
-  { status: 'applying', label: 'Applying', icon: IconSend, active: 'text-amber border-amber/50 bg-amber/10' },
-  { status: 'applied', label: 'Applied', icon: IconChecks, active: 'text-green border-green/50 bg-green/10' },
-  { status: 'hidden', label: 'Hide', icon: IconEyeOff, active: 'text-text-muted border-border-focus bg-surface-elevated' },
-]
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null
@@ -45,7 +37,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
           setCopied(true)
           setTimeout(() => setCopied(false), 1500)
         } catch {
-          // clipboard denied — nothing sensible to do
+          // clipboard denied
         }
       }}
       className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border border-border px-2 text-xs text-text-muted transition-colors duration-150 ease-out hover:border-border-focus"
@@ -82,7 +74,6 @@ export default function DetailSheet({
   const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [draftError, setDraftError] = useState<string | null>(null)
 
-  // Restore the last saved draft for this hackathon, if any.
   useEffect(() => {
     let cancelled = false
     supabase
@@ -105,7 +96,6 @@ export default function DetailSheet({
     }
   }, [supabase, h.id])
 
-  // Lock body scroll while the sheet is open.
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -163,9 +153,16 @@ export default function DetailSheet({
         h.location_raw ||
         'Location TBA'
 
+  const interested = status === 'interested'
+
   const meta: Array<[string, string | null]> = [
     ['Where', place],
-    ['When', h.starts_at ? `${fmtDate(h.starts_at)}${h.ends_at && h.ends_at !== h.starts_at ? ` – ${fmtDate(h.ends_at)}` : ''}` : null],
+    [
+      'When',
+      h.starts_at
+        ? `${fmtDate(h.starts_at)}${h.ends_at && h.ends_at !== h.starts_at ? ` – ${fmtDate(h.ends_at)}` : ''}`
+        : null,
+    ],
     ['Register by', fmtDate(h.registration_deadline)],
     ['Prize pool', h.prize_pool],
     ['Source', h.source],
@@ -187,13 +184,26 @@ export default function DetailSheet({
               Match score <span className="font-semibold text-text">{scored.score}</span>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors duration-150 ease-out hover:text-text"
-            aria-label="Close"
-          >
-            <IconX size={22} stroke={1.5} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onSetStatus('interested')}
+              className={`flex h-11 w-11 items-center justify-center rounded-md transition-colors duration-150 ease-out ${
+                interested ? 'text-blue' : 'text-text-muted hover:text-text'
+              }`}
+              aria-label={interested ? 'Remove interested' : 'Mark interested'}
+              aria-pressed={interested}
+            >
+              <IconStar size={22} stroke={1.5} fill={interested ? 'currentColor' : 'none'} />
+            </button>
+            <button
+              onClick={onClose}
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-text-muted transition-colors duration-150 ease-out hover:text-text"
+              aria-label="Close"
+            >
+              <IconX size={22} stroke={1.5} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6 safe-b">
@@ -218,34 +228,31 @@ export default function DetailSheet({
               ))}
           </div>
 
-          {scored.reasons.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-1.5">
-              {scored.reasons.map((r) => (
-                <span
-                  key={r.label}
-                  className={`rounded-md px-2 py-0.5 text-xs ${
-                    r.pts < 0 ? 'bg-coral/15 text-coral' : 'bg-surface-elevated text-text-muted'
-                  }`}
-                >
-                  {r.label} {r.pts > 0 ? `+${r.pts}` : r.pts}
-                </span>
-              ))}
-            </div>
-          )}
-
           <div className="mb-4 flex gap-1.5">
-            {STATUS_META.map(({ status: s, label, icon: Icon, active }) => (
-              <button
-                key={s}
-                onClick={() => onSetStatus(s)}
-                className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-1 text-xs transition-colors duration-150 ease-out ${
-                  status === s ? active : 'border-border text-text-low hover:border-border-focus'
-                }`}
-              >
-                <Icon size={16} stroke={1.5} />
-                {label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => onSetStatus('applied')}
+              className={`flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs transition-colors duration-150 ease-out ${
+                status === 'applied'
+                  ? 'border-green/50 bg-green/10 text-green'
+                  : 'border-border text-text-low hover:border-border-focus'
+              }`}
+            >
+              <IconChecks size={14} stroke={1.5} />
+              Applied
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetStatus('hidden')}
+              className={`flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs transition-colors duration-150 ease-out ${
+                status === 'hidden'
+                  ? 'border-border-focus bg-surface-elevated text-text-muted'
+                  : 'border-border text-text-low hover:border-border-focus'
+              }`}
+            >
+              <IconEyeOff size={14} stroke={1.5} />
+              Hide
+            </button>
           </div>
 
           <label className="mb-4 flex flex-col gap-1.5">

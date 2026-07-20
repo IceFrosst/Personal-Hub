@@ -1,2 +1,2 @@
-deploy 2026-07-20T14:35Z
-applied status → only Applied tab (removed from main IRL/Online feed)
+deploy 2026-07-20T14:42Z
+card UI: no Applying, no score chips, no tier badges, star corner + small Applied/Hide
