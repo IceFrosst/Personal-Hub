@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
-import { isTravelPriority } from '@/lib/travel-priority'
-import { isBalticOrPoland } from '@/lib/region-baltic'
+import { durationHours, isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
+import { isDormantCircuit, matchDormantCircuit } from '@/lib/dormant-tier-a'
 import {
   coerceNotificationSettings,
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -17,16 +16,14 @@ import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
-type FilterKey = 'all' | 'travel' | 'travel_tier' | 'baltic_pl' | 'online' | 'biz' | 'hidden'
+type FilterKey = 'irl' | 'online' | 'multiday' | 'applied' | 'dormant'
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'baltic_pl', label: 'Baltics+PL' },
-  { key: 'travel', label: 'Travel ✓' },
-  { key: 'travel_tier', label: 'Travel tier' },
+  { key: 'irl', label: 'IRL' },
   { key: 'online', label: 'Online' },
-  { key: 'biz', label: 'Open to biz' },
-  { key: 'hidden', label: 'Hidden' },
+  { key: 'multiday', label: 'Multi-day' },
+  { key: 'applied', label: 'Applied' },
+  { key: 'dormant', label: 'Dormant' },
 ]
 
 export default function Feed({ userId }: { userId: string }) {
@@ -35,7 +32,7 @@ export default function Feed({ userId }: { userId: string }) {
   const [statuses, setStatuses] = useState<Record<string, UserStatus>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [prefs, setPrefs] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS)
-  const [filter, setFilter] = useState<FilterKey>('all')
+  const [filter, setFilter] = useState<FilterKey>('irl')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -136,6 +133,36 @@ export default function Feed({ userId }: { userId: string }) {
   )
 
   const visible = useMemo(() => {
+    // Dormant tab: circuits between editions (may not pass isUpcomingAndOpen)
+    if (filter === 'dormant') {
+      const dormantRows = hackathons
+        .filter((h) => isDormantCircuit(h))
+        .map((h) => ({
+          h,
+          scored: scoreHackathon(h, new Date(), scoreOpts),
+          status: statuses[h.id] ?? null,
+        }))
+      // Always show registry entries even if no DB row yet
+      const seen = new Set(dormantRows.map((r) => r.h.id))
+      return dormantRows.sort((a, b) => a.h.title.localeCompare(b.h.title))
+    }
+
+    // Applied tab: user marked applied (even if event would otherwise filter out)
+    if (filter === 'applied') {
+      return hackathons
+        .filter((h) => statuses[h.id] === 'applied')
+        .map((h) => ({
+          h,
+          scored: scoreHackathon(h, new Date(), scoreOpts),
+          status: 'applied' as UserStatus,
+        }))
+        .sort((a, b) => {
+          const da = a.h.starts_at ?? '9999'
+          const db = b.h.starts_at ?? '9999'
+          return da < db ? -1 : 1
+        })
+    }
+
     const scored = hackathons
       .filter((h) => isUpcomingAndOpen(h))
       .map((h) => ({
@@ -145,13 +172,13 @@ export default function Feed({ userId }: { userId: string }) {
       }))
 
     const filtered = scored.filter(({ h, status }) => {
-      if (filter === 'hidden') return status === 'hidden'
       if (status === 'hidden') return false
-      if (filter === 'travel') return h.travel_covered === true
-      if (filter === 'travel_tier') return isTravelPriority(h)
-      if (filter === 'baltic_pl') return isBalticOrPoland(h)
+      if (filter === 'irl') return h.format !== 'online'
       if (filter === 'online') return h.format === 'online'
-      if (filter === 'biz') return h.open_to_business_students !== false
+      if (filter === 'multiday') {
+        const hours = durationHours(h)
+        return hours !== null && hours > 24
+      }
       return true
     })
 
@@ -209,17 +236,35 @@ export default function Feed({ userId }: { userId: string }) {
           <p className="text-sm text-text-muted">
             {hackathons.length === 0
               ? 'Nothing on the radar yet — the first sweep runs tonight.'
-              : filter === 'all'
-                ? 'No open events starting at least 1 week from now.'
-                : filter === 'travel_tier'
-                  ? 'No Tier A/B travel-priority events open right now.'
-                  : filter === 'baltic_pl'
-                    ? 'No Baltics / Poland events open right now.'
-                    : 'Nothing matches this filter.'}
+              : filter === 'irl'
+                ? 'No open in-person events starting at least 1 week from now.'
+                : filter === 'online'
+                  ? 'No open online events right now.'
+                  : filter === 'multiday'
+                    ? 'No multi-day events open right now.'
+                    : filter === 'applied'
+                      ? 'No applied events yet — mark one from a card.'
+                      : filter === 'dormant'
+                        ? 'No dormant circuit rows in the catalog. Weekly probe watches TreeHacks, PennApps, HackUPC, etc.'
+                        : 'Nothing matches this filter.'}
           </p>
+          {filter === 'dormant' && (
+            <p className="mt-2 max-w-xs text-xs text-text-low">
+              Dormant circuits are hidden from IRL until registration opens. Check the weekly GitHub
+              issue for promote candidates.
+            </p>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {filter === 'dormant' && (
+            <p className="text-xs text-text-muted">
+              Between editions — not on the main feed until reg opens.
+              {visible[0] && matchDormantCircuit(visible[0].h)
+                ? ` Watching ${visible.length} catalog row(s).`
+                : ''}
+            </p>
+          )}
           {visible.map(({ h, scored, status }) => (
             <HackathonCard
               key={h.id}

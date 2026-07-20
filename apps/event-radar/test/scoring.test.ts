@@ -122,3 +122,63 @@ test('fails closed when the start or registration deadline is malformed', () => 
 test('fails closed when the comparison time is invalid', () => {
   assert.equal(isUpcomingAndOpen(hackathon(), new Date('not-a-date')), false)
 })
+
+test('TreeHacks without open deadline is excluded even if start is far out', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({
+        title: 'TreeHacks 2027',
+        url: 'https://treehacks.com/',
+        starts_at: '2027-02-13T12:00:00.000Z',
+        registration_deadline: null,
+      }),
+      NOW
+    ),
+    false
+  )
+})
+
+test('PennApps without open deadline is excluded', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({
+        title: 'PennApps XXVII',
+        url: 'https://pennapps.com/',
+        starts_at: '2026-09-20T12:00:00.000Z',
+        registration_deadline: null,
+      }),
+      NOW
+    ),
+    false
+  )
+})
+
+test('TreeHacks with future registration deadline is allowed', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({
+        title: 'TreeHacks 2027',
+        url: 'https://treehacks.com/',
+        starts_at: '2027-02-13T12:00:00.000Z',
+        registration_deadline: '2026-11-15T23:59:59.000Z',
+      }),
+      NOW
+    ),
+    true
+  )
+})
+
+test('travel-priority circuit without deadline is excluded (no bypass)', () => {
+  assert.equal(
+    isUpcomingAndOpen(
+      hackathon({
+        title: 'HackMIT 2026',
+        url: 'https://hackmit.org/',
+        starts_at: '2026-09-19T12:00:00.000Z',
+        registration_deadline: null,
+      }),
+      NOW
+    ),
+    false
+  )
+})

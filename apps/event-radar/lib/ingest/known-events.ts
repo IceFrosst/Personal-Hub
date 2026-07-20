@@ -1,12 +1,30 @@
 import type { IngestRow } from './devpost'
 import { fetchTierAExtraSeeds } from './known-events-tier-a-extra'
+import promotedFromDormant from './promoted-from-dormant.json'
 
 /**
  * Only seed near-term events with open/credible registration deadlines.
+ * TreeHacks / PennApps stay in dormant-tier-a until promoted.
  */
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
   const horizon = now + 240 * 86400000
+
+  const promoted: IngestRow[] = (promotedFromDormant as Array<Record<string, unknown>>)
+    .filter((p) => p.registration_deadline && p.starts_at)
+    .map((p) => ({
+      source: 'known' as const,
+      source_id: String(p.id),
+      title: String(p.label ?? p.id),
+      url: String(p.siteUrl ?? 'https://example.com'),
+      starts_at: String(p.starts_at),
+      ends_at: p.ends_at ? String(p.ends_at) : null,
+      location_raw: p.location_raw ? String(p.location_raw) : null,
+      format: (p.format as 'in_person' | 'online' | 'hybrid' | null) ?? 'in_person',
+      prize_pool: null,
+      registration_deadline: String(p.registration_deadline),
+      themes: ['promoted-from-dormant'],
+    }))
 
   const rows: IngestRow[] = [
     {
@@ -61,7 +79,6 @@ export function fetchKnownEvents(): IngestRow[] {
       registration_deadline: '2026-09-30T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-    // Baltics + Poland confirmed
     {
       source: 'known',
       source_id: 'hackyeah-2026',
@@ -76,6 +93,7 @@ export function fetchKnownEvents(): IngestRow[] {
       themes: ['poland', 'europe', 'student'],
     },
     ...fetchTierAExtraSeeds(),
+    ...promoted,
   ]
 
   return rows.filter((r) => {

@@ -1,6 +1,7 @@
 import type { Hackathon, NotificationSettings } from './types'
 import { DEFAULT_NOTIFICATION_SETTINGS } from './types'
 import { isTravelPriority, matchTravelPriority } from './travel-priority'
+import { isDormantCircuit } from './dormant-tier-a'
 
 export type ScoreReason = { label: string; pts: number }
 export type ScoredHackathon = { score: number; reasons: ScoreReason[] }
@@ -144,6 +145,11 @@ export function scoreHackathon(
   return { score, reasons }
 }
 
+/**
+ * Main-feed eligibility. Fail-closed for missing deadlines (except Luma).
+ * Dormant circuits (TreeHacks, PennApps, …) never appear without a future reg deadline.
+ * Travel-priority no longer bypasses the deadline requirement.
+ */
 export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean {
   const nowTimestamp = now.getTime()
   if (!Number.isFinite(nowTimestamp)) return false
@@ -163,6 +169,11 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
 
   if (registrationDeadline !== null && registrationDeadline <= nowTimestamp) return false
 
+  // Dormant Tier A/B: only when we have a real open deadline
+  if (isDormantCircuit(h)) {
+    return registrationDeadline !== null && registrationDeadline > nowTimestamp
+  }
+
   if (h.source === 'known' || h.source === 'watch') {
     return registrationDeadline !== null && registrationDeadline > nowTimestamp
   }
@@ -173,9 +184,8 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
 
   if (registrationDeadline !== null) return registrationDeadline > nowTimestamp
 
-  if (isTravelPriority(h)) {
-    return startsAt - nowTimestamp <= 90 * 86400000
-  }
+  // No more travel-priority bypass without deadline — was letting TreeHacks/PennApps through
+  void isTravelPriority
 
   return false
 }

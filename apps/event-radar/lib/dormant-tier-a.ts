@@ -1,6 +1,7 @@
 /**
  * Circuits whose last edition is over — probe for next reg only.
- * Do not invent calendar rows.
+ * Do not invent calendar rows. Main feed hides these until registration
+ * has a future deadline (see isUpcomingAndOpen + isDormantCircuit).
  */
 export type DormantCircuit = {
   id: string
@@ -10,6 +11,9 @@ export type DormantCircuit = {
   lastEdition: string
   nextExpectedWindow: string
   reason: string
+  /** Title match for DB rows that should stay off the main feed */
+  titlePattern: RegExp
+  hostPatterns: RegExp[]
 }
 
 export const DORMANT_TIER_A: DormantCircuit[] = [
@@ -17,19 +21,23 @@ export const DORMANT_TIER_A: DormantCircuit[] = [
     id: 'treehacks',
     label: 'TreeHacks',
     siteUrl: 'https://treehacks.com/',
-    paths: ['/', '/faq'],
+    paths: ['/', '/faq', 'https://trunk.treehacks.com/'],
     lastEdition: '2026-02-13 (TreeHacks 2026 — completed)',
     nextExpectedWindow: 'Applications typically open fall (Sep–Nov) for Feb event',
     reason: 'Site still shows 2026; apps closed; wait for TreeHacks 2027 open',
+    titlePattern: /\btree\s*hacks\b/i,
+    hostPatterns: [/treehacks\.com$/i],
   },
   {
     id: 'pennapps',
     label: 'PennApps',
     siteUrl: 'https://pennapps.com/',
-    paths: ['/', '/faq'],
+    paths: ['/', '/faq', 'https://apply.pennapps.com/'],
     lastEdition: '2025-09-19 (PennApps XXVI — completed)',
     nextExpectedWindow: 'Historically late spring / summer apps for fall event',
     reason: 'Last public edition Sep 2025; do not show placeholder until apply opens',
+    titlePattern: /\bpenn\s*apps\b/i,
+    hostPatterns: [/pennapps\.com$/i],
   },
   {
     id: 'hackupc',
@@ -39,6 +47,8 @@ export const DORMANT_TIER_A: DormantCircuit[] = [
     lastEdition: '2026-04-24 (HackUPC 2026 — completed)',
     nextExpectedWindow: 'Winter/spring apps for spring Barcelona event',
     reason: '2026 over; strong EU travel policy historically',
+    titlePattern: /\bhack\s*upc\b/i,
+    hostPatterns: [/hackupc\.com$/i],
   },
   {
     id: 'jaunaragiai-make-it-real',
@@ -48,6 +58,8 @@ export const DORMANT_TIER_A: DormantCircuit[] = [
     lastEdition: '2026-05-14 (Vilnius — completed)',
     nextExpectedWindow: 'Typically Feb–Apr apps for mid-May event',
     reason: 'Nordic Council Prosperous Future; travel for internationals historically',
+    titlePattern: /\bmake\s*it\s*real\b|\bjaunaragiai\b/i,
+    hostPatterns: [/jaunaragiai\.lt$/i],
   },
   {
     id: 'garage48',
@@ -56,6 +68,43 @@ export const DORMANT_TIER_A: DormantCircuit[] = [
     paths: ['/'],
     lastEdition: 'Rolling series — check site for next edition',
     nextExpectedWindow: 'Multiple per year; watch garage48.org/events',
-    reason: 'Estonia flagship startup hack series',
+    reason: 'Estonia flagship startup hack series — only show when a concrete edition has open reg',
+    titlePattern: /\bgarage\s*48\b/i,
+    hostPatterns: [/garage48\.org$/i],
   },
 ]
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
+/** True when this row is a known dormant circuit (pre-reg / between editions). */
+export function isDormantCircuit(row: {
+  title?: string | null
+  url?: string | null
+}): boolean {
+  const title = row.title ?? ''
+  const host = row.url ? hostOf(row.url) : ''
+  for (const d of DORMANT_TIER_A) {
+    if (d.titlePattern.test(title)) return true
+    if (host && d.hostPatterns.some((re) => re.test(host))) return true
+  }
+  return false
+}
+
+export function matchDormantCircuit(row: {
+  title?: string | null
+  url?: string | null
+}): DormantCircuit | null {
+  const title = row.title ?? ''
+  const host = row.url ? hostOf(row.url) : ''
+  for (const d of DORMANT_TIER_A) {
+    if (d.titlePattern.test(title)) return d
+    if (host && d.hostPatterns.some((re) => re.test(host))) return d
+  }
+  return null
+}

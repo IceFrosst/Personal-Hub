@@ -1,0 +1,184 @@
+# Weekly dormant-circuit probe → GitHub issue
+# High-confidence candidates (regex + deadline parse) auto-commit promoted JSON
+# for agent/human one-click promote into known-events.
+
+name: Event Radar dormant weekly
+
+on:
+  schedule:
+    # Mondays 07:30 UTC (after baltic weekly)
+    - cron: '30 7 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: event-radar-dormant-weekly
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  dormant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe dormant Tier A circuits
+        run: node apps/event-radar/scripts/probe-dormant-tier-a.mjs
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dormant-weekly-${{ github.run_id }}
+          path: |
+            dormant-tier-a-probe.json
+            dormant-promote-candidates.json
+            dormant-weekly-report.md
+          retention-days: 60
+
+      - name: Publish or update GitHub issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const path = 'dormant-weekly-report.md'
+            if (!fs.existsSync(path)) {
+              core.warning('No report file')
+              return
+            }
+            const body = fs.readFileSync(path, 'utf8')
+            const title = 'Event Radar · Dormant circuit weekly'
+            const labels = ['event-radar', 'dormant-weekly']
+            for (const name of labels) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color: name === 'dormant-weekly' ? 'B60205' : '5319E7',
+                })
+              } catch (_) {}
+            }
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dormant-weekly',
+              per_page: 10,
+            })
+            const existing = issues.find((i) => i.title === title)
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              })
+              // refresh body
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              })
+              core.info(`Updated issue #${existing.number}`)
+              core.setOutput('issue_number', existing.number)
+            } else {
+              const { data: created } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels,
+              })
+              core.info(`Opened issue #${created.number}`)
+              core.setOutput('issue_number', created.number)
+            }
+
+            // Label auto-promote-ready when any high-confidence candidate exists
+            let candidates = { auto_promote: [] }
+            try {
+              candidates = JSON.parse(fs.readFileSync('dormant-promote-candidates.json', 'utf8'))
+            } catch (_) {}
+            if ((candidates.auto_promote || []).length > 0) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: 'auto-promote-ready',
+                  color: '0E8A16',
+                })
+              } catch (_) {}
+              const issueNum = existing?.number || null
+              if (issueNum) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNum,
+                  labels: ['auto-promote-ready'],
+                })
+              }
+            }
+
+      - name: Auto-promote high-confidence candidates to JSON seed file
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const path = 'dormant-promote-candidates.json'
+            if (!fs.existsSync(path)) return
+            const data = JSON.parse(fs.readFileSync(path, 'utf8'))
+            const auto = data.auto_promote || []
+            if (auto.length === 0) {
+              core.info('No auto-promote candidates')
+              return
+            }
+            const outPath = 'apps/event-radar/lib/ingest/promoted-from-dormant.json'
+            let existing = []
+            try {
+              const { data: file } = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: outPath,
+                ref: 'main',
+              })
+              const content = Buffer.from(file.content, 'base64').toString('utf8')
+              existing = JSON.parse(content)
+              if (!Array.isArray(existing)) existing = []
+            } catch (_) {
+              existing = []
+            }
+            const byId = new Map(existing.map((e) => [e.id, e]))
+            for (const c of auto) {
+              byId.set(c.id, {
+                ...c,
+                promoted_at: new Date().toISOString(),
+                source: 'auto-dormant-probe',
+              })
+            }
+            const merged = [...byId.values()]
+            const body = JSON.stringify(merged, null, 2) + '\n'
+            let sha
+            try {
+              const { data: file } = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: outPath,
+                ref: 'main',
+              })
+              sha = file.sha
+            } catch (_) {}
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: outPath,
+              message: `chore(event-radar): auto-promote dormant circuits (${auto.map((a) => a.id).join(', ')})`,
+              content: Buffer.from(body).toString('base64'),
+              branch: 'main',
+              sha,
+            })
+            core.info(`Committed promoted-from-dormant.json with ${auto.length} auto candidate(s)`)
