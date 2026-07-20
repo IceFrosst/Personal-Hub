@@ -3,11 +3,10 @@ import { fetchTierAExtraSeeds } from './known-events-tier-a-extra'
 
 /**
  * Only seed near-term events with open/credible registration deadlines.
- * No invented next-year placeholders. No Africa/AU seeds (out of scope).
  */
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
-  const horizon = now + 240 * 86400000 // ~8 months
+  const horizon = now + 240 * 86400000
 
   const rows: IngestRow[] = [
     {
@@ -62,6 +61,20 @@ export function fetchKnownEvents(): IngestRow[] {
       registration_deadline: '2026-09-30T23:59:59.000Z',
       themes: ['student', 'general'],
     },
+    // Baltics + Poland confirmed
+    {
+      source: 'known',
+      source_id: 'hackyeah-2026',
+      title: 'HackYeah 2026',
+      url: 'https://hackyeah.pl/',
+      starts_at: '2026-10-03T07:00:00.000Z',
+      ends_at: '2026-10-04T16:00:00.000Z',
+      location_raw: 'Kraków, Poland',
+      format: 'in_person',
+      prize_pool: null,
+      registration_deadline: '2026-09-25T21:59:59.000Z',
+      themes: ['poland', 'europe', 'student'],
+    },
     ...fetchTierAExtraSeeds(),
   ]
 
@@ -70,7 +83,6 @@ export function fetchKnownEvents(): IngestRow[] {
     const start = Date.parse(r.starts_at)
     const deadline = Date.parse(r.registration_deadline)
     if (!Number.isFinite(start) || !Number.isFinite(deadline)) return false
-    // Must still be open to register and not too far out
     return deadline > now && start > now && start <= horizon
   })
 }

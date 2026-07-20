@@ -1,13 +1,11 @@
 import type { IngestRow } from './devpost'
+import { LUMA_BALTIC_PL_QUERIES } from '@/lib/region-baltic'
 
 // Luma public discovery API — multi-query crawl for global + regional coverage.
-// Single "hackathon" query misses city-specific and Asia events; we run several
-// focused queries and dedupe by URL.
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 const API = 'https://api.lu.ma/discover/get-paginated-events'
 
-// Breadth queries — keep short; each query costs up to PAGES_PER_QUERY HTTP calls.
 const QUERIES = [
   'hackathon',
   'hackathon Singapore',
@@ -17,6 +15,8 @@ const QUERIES = [
   'hackathon "San Francisco"',
   'buildathon',
   'Junction hackathon',
+  // Baltics + Poland (A)
+  ...LUMA_BALTIC_PL_QUERIES,
 ] as const
 
 const PAGES_PER_QUERY = 2
@@ -74,7 +74,7 @@ export function parseLumaPage(page: LumaPage): IngestRow[] {
     const title = str(e.name)
     const slug = str(e.url)
     if (!title || !slug) continue
-    if (!/\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam|buildathon\b/i.test(title))
+    if (!/\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam|buildathon|hakaton|häkaton\b/i.test(title))
       continue
 
     const geo = e.geo_address_info
@@ -141,7 +141,6 @@ export async function fetchLuma(): Promise<IngestRow[]> {
   const seen = new Set<string>()
   const rows: IngestRow[] = []
 
-  // Primary query first (must succeed); regional queries degrade independently.
   const primary = await fetchLumaQuery('hackathon', seen)
   rows.push(...primary)
 
@@ -151,7 +150,7 @@ export async function fetchLuma(): Promise<IngestRow[]> {
       const batch = await fetchLumaQuery(q, seen)
       rows.push(...batch)
     } catch {
-      // non-primary query failure is non-fatal
+      /* non-primary failure non-fatal */
     }
   }
 

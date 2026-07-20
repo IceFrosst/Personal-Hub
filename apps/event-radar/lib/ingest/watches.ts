@@ -1,12 +1,7 @@
 import type { IngestRow } from './devpost'
 
-// Annual / government / no-API mega events. These rarely appear on Devpost/MLH
-// until late (or never). We emit a synthetic upcoming row when we're inside the
-// typical registration watch window so the radar surfaces "registration may be
-// opening" rather than missing the event entirely.
-//
-// Agent / human job: when real dates are confirmed, promote the row into
-// known-events.ts with exact starts_at + registration_deadline.
+// Local / annual events that often miss Devpost/MLH until late.
+// Emit only inside reg/event month windows AND only with a future deadline.
 
 export type Watch = {
   id: string
@@ -15,11 +10,8 @@ export type Watch = {
   location_raw: string | null
   format: 'online' | 'in_person' | 'hybrid' | null
   themes: string[]
-  // Month windows (1-12) when registration typically opens / event runs.
-  // If current month is in regMonths OR eventMonths, emit a placeholder row.
   regMonths: number[]
   eventMonths: number[]
-  // Approximate next event start (ISO) — update yearly.
   approxStartsAt: string
   approxEndsAt?: string
   approxRegDeadline?: string
@@ -28,32 +20,76 @@ export type Watch = {
 }
 
 export const WATCHES: Watch[] = [
+  // --- Baltics + Poland (B) ---
   {
-    id: 'smart-india-hackathon',
-    title: 'Smart India Hackathon',
-    url: 'https://www.sih.gov.in/',
-    location_raw: 'India (multiple cities)',
-    format: 'hybrid',
-    themes: ['india', 'government', 'student'],
-    regMonths: [7, 8, 9, 10],
-    eventMonths: [8, 9, 10, 11, 12],
-    approxStartsAt: '2026-08-15T00:00:00.000Z',
-    approxRegDeadline: '2026-08-01T00:00:00.000Z',
-    notes: 'Largest India student hackathon — confirm on sih.gov.in',
-  },
-  {
-    id: 'adventurex-china',
-    title: 'AdventureX',
-    url: 'https://adventure-x.org/en',
-    location_raw: 'Hangzhou, China',
+    id: 'hackyeah',
+    title: 'HackYeah',
+    url: 'https://hackyeah.pl/',
+    location_raw: 'Kraków, Poland',
     format: 'in_person',
-    themes: ['china', 'student', 'builder'],
-    regMonths: [4, 5, 6, 7],
-    eventMonths: [7],
-    approxStartsAt: '2026-07-20T00:00:00.000Z',
-    prize_pool: '150000+ USD',
-    notes: 'China largest builder hackathon',
+    themes: ['poland', 'europe', 'student'],
+    regMonths: [6, 7, 8, 9],
+    eventMonths: [10],
+    approxStartsAt: '2026-10-03T07:00:00.000Z',
+    approxEndsAt: '2026-10-04T16:00:00.000Z',
+    approxRegDeadline: '2026-09-25T21:59:59.000Z',
+    notes: 'Europe largest on-site — Tauron Arena Kraków; tickets via eventory',
   },
+  {
+    id: 'garage48',
+    title: 'Garage48',
+    url: 'https://garage48.org/',
+    location_raw: 'Estonia (rotating cities)',
+    format: 'in_person',
+    themes: ['estonia', 'baltic', 'startup'],
+    regMonths: [2, 3, 4, 5, 8, 9, 10],
+    eventMonths: [3, 5, 8, 10],
+    approxStartsAt: '2026-10-16T07:00:00.000Z',
+    approxEndsAt: '2026-10-18T16:00:00.000Z',
+    approxRegDeadline: '2026-10-05T21:59:59.000Z',
+    notes: 'Series of 48h startup hackathons across Estonia',
+  },
+  {
+    id: 'jaunaragiai-make-it-real',
+    title: 'MAKE IT REAL! (Jaunaragiai)',
+    url: 'https://www.jaunaragiai.lt/en/make-it-real',
+    location_raw: 'Vilnius, Lithuania',
+    format: 'in_person',
+    themes: ['lithuania', 'baltic', 'youth', 'nordic'],
+    regMonths: [2, 3, 4],
+    eventMonths: [5],
+    approxStartsAt: '2027-05-14T07:00:00.000Z',
+    approxEndsAt: '2027-05-16T16:00:00.000Z',
+    approxRegDeadline: '2027-04-20T21:59:59.000Z',
+    notes: 'Nordic Council funded; travel for internationals historically covered',
+  },
+  {
+    id: 'startup-day-hack',
+    title: 'sTARTUp Day side-hack / build events',
+    url: 'https://www.startupday.ee/',
+    location_raw: 'Tartu, Estonia',
+    format: 'in_person',
+    themes: ['estonia', 'startup'],
+    regMonths: [11, 12, 1],
+    eventMonths: [1],
+    approxStartsAt: '2027-01-28T08:00:00.000Z',
+    approxRegDeadline: '2027-01-10T21:59:59.000Z',
+    notes: 'Watch startupday.ee for official hackathon side-events',
+  },
+  {
+    id: 'eurodefense-circuit',
+    title: 'European Defense Tech Hackathon (circuit)',
+    url: 'https://lu.ma/eurodefensetech',
+    location_raw: 'Europe (rotating — Tallinn, Warsaw, …)',
+    format: 'in_person',
+    themes: ['defense', 'europe', 'baltic', 'poland'],
+    regMonths: [1, 2, 3, 4, 5, 6, 9, 10],
+    eventMonths: [2, 3, 4, 5, 6],
+    approxStartsAt: '2026-09-15T08:00:00.000Z',
+    approxRegDeadline: '2026-09-01T21:59:59.000Z',
+    notes: 'Multi-city; check lu.ma/eurodefensetech — travel usually self-funded',
+  },
+  // --- Global still useful ---
   {
     id: 'nasa-space-apps',
     title: 'NASA Space Apps Challenge',
@@ -67,62 +103,17 @@ export const WATCHES: Watch[] = [
     approxRegDeadline: '2026-09-20T00:00:00.000Z',
   },
   {
-    id: 'google-solution-challenge',
-    title: 'Google Solution Challenge',
-    url: 'https://developers.google.com/community/gdsc-solution-challenge',
-    location_raw: 'Global',
-    format: 'online',
-    themes: ['google', 'gdsc', 'student'],
-    regMonths: [1, 2, 3],
-    eventMonths: [2, 3, 4],
-    approxStartsAt: '2027-02-01T00:00:00.000Z',
-    approxRegDeadline: '2027-02-15T00:00:00.000Z',
-  },
-  {
-    id: 'singapore-india-hackathon',
-    title: 'Singapore–India Hackathon 2026',
-    url: 'https://iie.smu.edu.sg/singapore-india-hackathon-2026',
-    location_raw: 'Singapore (SMU)',
+    id: 'adventurex-china',
+    title: 'AdventureX',
+    url: 'https://adventure-x.org/en',
+    location_raw: 'Hangzhou, China',
     format: 'in_person',
-    themes: ['singapore', 'india', 'student'],
-    regMonths: [8, 9, 10, 11],
-    eventMonths: [11],
-    approxStartsAt: '2026-11-15T00:00:00.000Z',
-    approxEndsAt: '2026-11-17T00:00:00.000Z',
-    approxRegDeadline: '2026-10-15T00:00:00.000Z',
-  },
-  {
-    id: 'hackust',
-    title: 'HackUST',
-    url: 'https://hack.ust.hk/',
-    location_raw: 'Hong Kong (HKUST)',
-    format: 'in_person',
-    themes: ['hongkong', 'student'],
-    regMonths: [2, 3, 4],
-    eventMonths: [4],
-    approxStartsAt: '2027-04-01T00:00:00.000Z',
-  },
-  {
-    id: 'nus-hacknroll',
-    title: 'NUS Hack&Roll',
-    url: 'https://hacknroll.nushackers.org/',
-    location_raw: 'Singapore (NUS)',
-    format: 'in_person',
-    themes: ['singapore', 'student'],
-    regMonths: [12, 1],
-    eventMonths: [1],
-    approxStartsAt: '2027-01-17T00:00:00.000Z',
-  },
-  {
-    id: 'codefest-singapore',
-    title: 'CodeFest Singapore',
-    url: 'https://www.scs.org.sg/',
-    location_raw: 'Singapore',
-    format: 'in_person',
-    themes: ['singapore', 'youth'],
-    regMonths: [5, 6, 7],
-    eventMonths: [7, 8],
-    approxStartsAt: '2026-08-01T00:00:00.000Z',
+    themes: ['china', 'student', 'builder'],
+    regMonths: [4, 5, 6, 7],
+    eventMonths: [7],
+    approxStartsAt: '2027-07-15T00:00:00.000Z',
+    approxRegDeadline: '2027-06-01T00:00:00.000Z',
+    prize_pool: '150000+ USD',
   },
 ]
 
@@ -136,6 +127,8 @@ export function watchesToRows(now = new Date()): IngestRow[] {
     if (!inWindow) continue
     const starts = w.approxStartsAt
     if (Date.parse(starts) <= nowMs) continue
+    // Strict: need open registration deadline to appear in feed
+    if (!w.approxRegDeadline || Date.parse(w.approxRegDeadline) <= nowMs) continue
 
     rows.push({
       source: 'watch',
@@ -147,7 +140,7 @@ export function watchesToRows(now = new Date()): IngestRow[] {
       location_raw: w.location_raw,
       format: w.format,
       prize_pool: w.prize_pool ?? null,
-      registration_deadline: w.approxRegDeadline ?? null,
+      registration_deadline: w.approxRegDeadline,
       themes: w.themes,
     })
   }

@@ -1,8 +1,6 @@
 /**
- * High-value circuits whose last edition is over.
- * Do not invent next-year calendar rows.
- * Weekly probe watches these URLs; when reg-open language appears,
- * surface an alert — then seed real dates.
+ * Circuits whose last edition is over — probe for next reg only.
+ * Do not invent calendar rows.
  */
 export type DormantCircuit = {
   id: string
@@ -38,9 +36,26 @@ export const DORMANT_TIER_A: DormantCircuit[] = [
     label: 'HackUPC',
     siteUrl: 'https://hackupc.com/',
     paths: ['/', '/faq', 'https://my.hackupc.com/'],
-    lastEdition: '2026-04-24 (HackUPC 2026 Apr 24–26 Barcelona — completed)',
-    nextExpectedWindow: 'Typically winter/spring apps for spring event in Barcelona',
-    reason:
-      '2026 edition over (Jul 2026); site may still show Apply — do not seed until 2027 dates/reg confirmed. Strong EU travel policy historically.',
+    lastEdition: '2026-04-24 (HackUPC 2026 — completed)',
+    nextExpectedWindow: 'Winter/spring apps for spring Barcelona event',
+    reason: '2026 over; strong EU travel policy historically',
+  },
+  {
+    id: 'jaunaragiai-make-it-real',
+    label: 'MAKE IT REAL! (Jaunaragiai)',
+    siteUrl: 'https://www.jaunaragiai.lt/en/make-it-real',
+    paths: ['/', 'https://www.jaunaragiai.lt/en'],
+    lastEdition: '2026-05-14 (Vilnius — completed)',
+    nextExpectedWindow: 'Typically Feb–Apr apps for mid-May event',
+    reason: 'Nordic Council Prosperous Future; travel for internationals historically',
+  },
+  {
+    id: 'garage48',
+    label: 'Garage48',
+    siteUrl: 'https://garage48.org/',
+    paths: ['/'],
+    lastEdition: 'Rolling series — check site for next edition',
+    nextExpectedWindow: 'Multiple per year; watch garage48.org/events',
+    reason: 'Estonia flagship startup hack series',
   },
 ]

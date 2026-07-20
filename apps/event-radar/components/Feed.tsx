@@ -4,16 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { isTravelPriority } from '@/lib/travel-priority'
+import { isBalticOrPoland } from '@/lib/region-baltic'
 import type { Hackathon, UserStatus } from '@/lib/types'
 import HackathonCard from './HackathonCard'
 import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
-type FilterKey = 'all' | 'travel' | 'travel_tier' | 'online' | 'biz' | 'hidden'
+type FilterKey = 'all' | 'travel' | 'travel_tier' | 'baltic_pl' | 'online' | 'biz' | 'hidden'
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'all', label: 'All' },
+  { key: 'baltic_pl', label: 'Baltics+PL' },
   { key: 'travel', label: 'Travel ✓' },
   { key: 'travel_tier', label: 'Travel tier' },
   { key: 'online', label: 'Online' },
@@ -123,8 +125,8 @@ export default function Feed({ userId }: { userId: string }) {
       if (filter === 'hidden') return status === 'hidden'
       if (status === 'hidden') return false
       if (filter === 'travel') return h.travel_covered === true
-      // Travel tier = Tier A/B circuits (verify individually even if not yet confirmed)
       if (filter === 'travel_tier') return isTravelPriority(h)
+      if (filter === 'baltic_pl') return isBalticOrPoland(h)
       if (filter === 'online') return h.format === 'online'
       if (filter === 'biz') return h.open_to_business_students !== false
       return true
@@ -188,7 +190,9 @@ export default function Feed({ userId }: { userId: string }) {
                 ? 'No upcoming hackathons with registration open.'
                 : filter === 'travel_tier'
                   ? 'No Tier A/B travel-priority events open right now.'
-                  : 'Nothing matches this filter.'}
+                  : filter === 'baltic_pl'
+                    ? 'No Baltics / Poland events open right now.'
+                    : 'Nothing matches this filter.'}
           </p>
         </div>
       ) : (
