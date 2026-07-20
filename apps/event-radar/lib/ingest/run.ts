@@ -11,7 +11,6 @@ import { fetchHackQuest } from './hackquest'
 import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
-import { fetchUnstop } from './unstop'
 import { fetchTopcoder } from './topcoder'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
@@ -58,8 +57,6 @@ async function fetchBestPageText(row: {
   const main = await fetchPageText(row.url)
   const faqPaths = circuitFaqPaths(row)
 
-  // Travel-priority circuits: always crawl FAQ paths (policy often only there).
-  // Everyone else: only if the main page is thin.
   if (faqPaths.length === 0) return main
   if (main && main.length > 1500 && faqPaths.length === 0) return main
 
@@ -93,6 +90,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   }
 
   const gathered: IngestRow[] = []
+  // Unstop removed — India-heavy, out of scope for LT user
   const sources: Array<[string, () => Promise<IngestRow[]>]> = [
     ['devpost', () => fetchDevpost()],
     ['mlh', () => fetchMlh()],
@@ -104,7 +102,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['devfolio', () => fetchDevfolio()],
     ['taikai', () => fetchTaikai()],
     ['dorahacks', () => fetchDoraHacks()],
-    ['unstop', () => fetchUnstop()],
     ['topcoder', () => fetchTopcoder()],
     ['known', async () => fetchKnownEvents()],
     ['watch', async () => watchesToRows()],

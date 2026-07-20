@@ -1,19 +1,14 @@
 import type { IngestRow } from './devpost'
 
-// Devfolio — one of the largest hackathon platforms (global, India-heavy, plenty
-// of in-person events). Its web app calls an undocumented-but-stable Elasticsearch
-// proxy: POST https://api.devfolio.co/api/search/hackathons with a `type`. Only
-// forward-looking buckets are useful to the radar:
-//   - "application_open" — registration is live right now (the actionable set)
-//   - "upcoming"         — announced, registration not open yet
-// ("past" also exists — 1600+ ended events — deliberately never fetched.)
-// Each hit carries exact start/end plus a `hackathon_setting.reg_ends_at`
-// registration deadline, so these rows satisfy the fail-closed eligibility rule
-// without waiting on enrichment.
+// Devfolio — only pull registration-open events (not "upcoming" pre-announce).
+// India-located events are dropped (user not targeting India).
 
 const API = 'https://api.devfolio.co/api/search/hackathons'
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
-const TYPES = ['application_open', 'upcoming'] as const
+// application_open only — "upcoming" is exactly the dormant pre-reg bucket
+const TYPES = ['application_open'] as const
+
+const INDIA = /\b(india|indian|bengaluru|bangalore|mumbai|delhi|hyderabad|chennai|pune|kolkata|noida|gurgaon|gurugram)\b/i
 
 type DevfolioSetting = {
   reg_ends_at?: string | null
@@ -45,13 +40,17 @@ function toISO(v: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }
 
-// Themes arrive as [] in most payloads, but tolerate both a string list and a
-// {name} object list in case the shape firms up later.
 function parseThemes(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return raw
     .map((t) => (typeof t === 'string' ? t : str((t as { name?: unknown })?.name)))
     .filter((t): t is string => !!t)
+}
+
+function isIndiaRow(h: DevfolioSource, location: string | null): boolean {
+  const country = str(h.country) ?? ''
+  const city = str(h.city) ?? ''
+  return INDIA.test(country) || INDIA.test(city) || INDIA.test(location ?? '')
 }
 
 export function parseDevfolioHits(hits: DevfolioHit[]): IngestRow[] {
@@ -66,11 +65,12 @@ export function parseDevfolioHits(hits: DevfolioHit[]): IngestRow[] {
     const location =
       str(h.location) ?? ([str(h.city), str(h.country)].filter(Boolean).join(', ') || null)
 
+    if (isIndiaRow(h, location)) continue
+
     rows.push({
       source: 'devfolio',
       source_id: str(h.uuid) ?? slug,
       title,
-      // Every Devfolio hackathon lives on its own <slug>.devfolio.co subdomain.
       url: `https://${slug}.devfolio.co`,
       starts_at: toISO(h.starts_at),
       ends_at: toISO(h.ends_at),
@@ -98,7 +98,6 @@ export async function fetchDevfolio(): Promise<IngestRow[]> {
     if (!res.ok) throw new Error(`devfolio ${type} -> ${res.status}`)
     const body = (await res.json()) as { hits?: { hits?: DevfolioHit[] } }
     for (const row of parseDevfolioHits(body.hits?.hits ?? [])) {
-      // The same hackathon can surface in both buckets around the reg-open flip.
       if (seen.has(row.url)) continue
       seen.add(row.url)
       rows.push(row)

@@ -1,34 +1,9 @@
 import type { IngestRow } from './devpost'
 
+/** Near-term Tier A only — no speculative 2027 placeholders. */
 export function fetchTierAExtraSeeds(): IngestRow[] {
   const now = Date.now()
   const rows: IngestRow[] = [
-    {
-      source: 'known',
-      source_id: 'yhack-2027',
-      title: 'YHack',
-      url: 'https://yhack.org/',
-      starts_at: '2027-03-27T12:00:00.000Z',
-      ends_at: '2027-03-29T00:00:00.000Z',
-      location_raw: 'Yale University, CT, USA',
-      format: 'in_person',
-      prize_pool: null,
-      registration_deadline: '2027-03-01T23:59:59.000Z',
-      themes: ['student', 'general'],
-    },
-    {
-      source: 'known',
-      source_id: 'conuhacks-2027',
-      title: 'ConUHacks',
-      url: 'https://www.conuhacks.io/',
-      starts_at: '2027-01-24T14:00:00.000Z',
-      ends_at: '2027-01-25T22:00:00.000Z',
-      location_raw: 'Montreal, Canada',
-      format: 'in_person',
-      prize_pool: null,
-      registration_deadline: '2027-01-10T23:59:59.000Z',
-      themes: ['student', 'general'],
-    },
     {
       source: 'known',
       source_id: 'technica-2026',
@@ -70,20 +45,6 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
     },
     {
       source: 'known',
-      source_id: 'adventurex-2027',
-      title: 'AdventureX',
-      url: 'https://adventure-x.org/',
-      starts_at: '2027-07-15T02:00:00.000Z',
-      ends_at: '2027-07-20T10:00:00.000Z',
-      location_raw: 'Hangzhou, China',
-      format: 'in_person',
-      prize_pool: null,
-      registration_deadline: '2027-06-01T23:59:59.000Z',
-      themes: ['china', 'international', 'youth', 'ai'],
-    },
-    // Confirmed on hackrice.com 2026-07-19
-    {
-      source: 'known',
       source_id: 'hackrice-2026',
       title: 'HackRice 16',
       url: 'https://hackrice.com/',
@@ -95,7 +56,12 @@ export function fetchTierAExtraSeeds(): IngestRow[] {
       registration_deadline: '2026-08-20T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-    // VTHacks: Tier A matcher only — no invented dates until site publishes them
   ]
-  return rows.filter((r) => r.starts_at && Date.parse(r.starts_at) > now)
+  return rows.filter(
+    (r) =>
+      r.starts_at &&
+      r.registration_deadline &&
+      Date.parse(r.starts_at) > now &&
+      Date.parse(r.registration_deadline) > now
+  )
 }

@@ -6,10 +6,39 @@ export type ScoredHackathon = { score: number; reasons: ScoreReason[] }
 
 const NEIGHBOR_COUNTRIES = ['latvia', 'estonia', 'poland']
 const HOME_COUNTRY = 'lithuania'
+const INDIA_MARKERS = [
+  'india',
+  'indian',
+  'bengaluru',
+  'bangalore',
+  'mumbai',
+  'delhi',
+  'hyderabad',
+  'chennai',
+  'pune',
+  'kolkata',
+  'noida',
+  'gurgaon',
+  'gurugram',
+  'jaipur',
+  'ahmedabad',
+  'kerala',
+  'tamil nadu',
+  'maharashtra',
+]
 
 function matchesCountry(h: Hackathon, names: string[]): boolean {
-  const haystack = `${h.country ?? ''} ${h.location_raw ?? ''}`.toLowerCase()
+  const haystack = `${h.country ?? ''} ${h.location_raw ?? ''} ${h.city ?? ''}`.toLowerCase()
   return names.some((n) => haystack.includes(n))
+}
+
+/** User is not targeting India — exclude from feed and scoring. */
+export function isIndiaFocused(h: Pick<Hackathon, 'country' | 'location_raw' | 'city' | 'source' | 'title'>): boolean {
+  if (h.source === 'unstop') return true
+  if (matchesCountry(h as Hackathon, INDIA_MARKERS)) return true
+  const title = (h.title ?? '').toLowerCase()
+  if (/\b(sih|smart india|india hackathon)\b/i.test(title)) return true
+  return false
 }
 
 function prizeNumber(prize: string | null): number {
@@ -24,14 +53,16 @@ export function scoreHackathon(h: Hackathon, now: Date = new Date()): ScoredHack
     if (pts !== 0) reasons.push({ label, pts })
   }
 
+  if (isIndiaFocused(h)) {
+    return { score: -100, reasons: [{ label: 'India-focused — filtered', pts: -100 }] }
+  }
+
   const online = h.format === 'online'
 
   if (!online) {
-    // Confirmed travel: largest single boost (was 40 → 50)
     if (h.travel_covered === true) add('Travel covered', 50)
     else if (h.travel_covered === null) add('Travel coverage unknown', 8)
 
-    // Tier A/B circuit — still valuable even before enrichment confirms
     const circuit = matchTravelPriority(h)
     if (circuit && h.travel_covered !== true) {
       add(`Travel tier ${circuit.tier} · ${circuit.label}`, 18)
@@ -70,26 +101,46 @@ function validTimestamp(value: string | null): number | null {
   return Number.isFinite(timestamp) ? timestamp : null
 }
 
+/**
+ * Feed eligibility: future start + registration still open (or about to be).
+ * Deliberately strict so dormant / pre-announce / invented next-year rows stay out.
+ */
 export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean {
   const nowTimestamp = now.getTime()
   if (!Number.isFinite(nowTimestamp)) return false
 
+  if (isIndiaFocused(h)) return false
+
   const startsAt = validTimestamp(h.starts_at)
   if (startsAt === null || startsAt <= nowTimestamp) return false
 
-  // Luma / known / watch / travel-priority seeds often lack a hard deadline.
-  if (
-    (h.source === 'luma' || h.source === 'known' || h.source === 'watch') &&
-    h.registration_deadline == null
-  ) {
-    return true
-  }
-
-  // Travel-priority domains: show if start is future even without deadline
-  if (isTravelPriority(h) && h.registration_deadline == null) {
-    return true
-  }
+  // Don't surface events more than ~8 months out (stops 2027 placeholders)
+  const maxHorizonMs = 240 * 86400000
+  if (startsAt - nowTimestamp > maxHorizonMs) return false
 
   const registrationDeadline = validTimestamp(h.registration_deadline)
-  return registrationDeadline !== null && registrationDeadline > nowTimestamp
+
+  // Hard rule: if we know the deadline and it's passed → hide
+  if (registrationDeadline !== null && registrationDeadline <= nowTimestamp) return false
+
+  // known / watch seeds: only when a real deadline is still open
+  // (no more "show forever because start is future")
+  if (h.source === 'known' || h.source === 'watch') {
+    return registrationDeadline !== null && registrationDeadline > nowTimestamp
+  }
+
+  // Luma community events often lack deadlines — allow if start is within 4 months
+  if (h.source === 'luma' && registrationDeadline === null) {
+    return startsAt - nowTimestamp <= 120 * 86400000
+  }
+
+  // Everything else needs an open registration deadline
+  if (registrationDeadline !== null) return registrationDeadline > nowTimestamp
+
+  // Last resort: travel-priority without deadline only if start ≤ 90 days
+  if (isTravelPriority(h)) {
+    return startsAt - nowTimestamp <= 90 * 86400000
+  }
+
+  return false
 }

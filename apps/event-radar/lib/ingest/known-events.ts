@@ -1,14 +1,14 @@
 import type { IngestRow } from './devpost'
 import { fetchTierAExtraSeeds } from './known-events-tier-a-extra'
-import { fetchAfricaAuSeeds } from './known-events-africa-au'
 
 /**
- * Only seed events with confirmed or near-term credible dates.
- * Do NOT invent next-year TreeHacks / PennApps rows — those stay
- * dormant until the travel-priority probe sees reg-open language.
+ * Only seed near-term events with open/credible registration deadlines.
+ * No invented next-year placeholders. No Africa/AU seeds (out of scope).
  */
 export function fetchKnownEvents(): IngestRow[] {
   const now = Date.now()
+  const horizon = now + 240 * 86400000 // ~8 months
+
   const rows: IngestRow[] = [
     {
       source: 'known',
@@ -62,15 +62,15 @@ export function fetchKnownEvents(): IngestRow[] {
       registration_deadline: '2026-09-30T23:59:59.000Z',
       themes: ['student', 'general'],
     },
-    // TreeHacks + PennApps: intentionally NOT seeded.
-    // Last cycles: TreeHacks Feb 13–15 2026 (done), PennApps XXVI Sep 19–21 2025 (done).
-    // Next cycle appears only after probe detects registration open.
     ...fetchTierAExtraSeeds(),
-    ...fetchAfricaAuSeeds(),
   ]
 
   return rows.filter((r) => {
-    if (!r.starts_at) return false
-    return Date.parse(r.starts_at) > now
+    if (!r.starts_at || !r.registration_deadline) return false
+    const start = Date.parse(r.starts_at)
+    const deadline = Date.parse(r.registration_deadline)
+    if (!Number.isFinite(start) || !Number.isFinite(deadline)) return false
+    // Must still be open to register and not too far out
+    return deadline > now && start > now && start <= horizon
   })
 }
