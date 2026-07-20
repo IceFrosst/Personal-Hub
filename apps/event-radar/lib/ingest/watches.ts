@@ -17,7 +17,6 @@ export type Watch = {
 }
 
 export const WATCHES: Watch[] = [
-  // --- Poland ---
   {
     id: 'hackyeah',
     title: 'HackYeah',
@@ -30,9 +29,7 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2026-10-03T07:00:00.000Z',
     approxEndsAt: '2026-10-04T16:00:00.000Z',
     approxRegDeadline: '2026-09-25T21:59:59.000Z',
-    notes: 'Europe largest on-site — Tauron Arena Kraków',
   },
-  // --- Finland ---
   {
     id: 'junction-main',
     title: 'Junction',
@@ -47,7 +44,6 @@ export const WATCHES: Watch[] = [
     approxRegDeadline: '2026-10-15T23:59:59.000Z',
     prize_pool: '100000+ EUR',
   },
-  // --- Germany ---
   {
     id: 'junction-platform-de',
     title: 'Junction platform events (DE satellites)',
@@ -60,7 +56,6 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2026-09-20T08:00:00.000Z',
     approxRegDeadline: '2026-09-05T21:59:59.000Z',
   },
-  // --- Netherlands ---
   {
     id: 'edth-netherlands',
     title: 'European Defense Tech Hackathon — Netherlands',
@@ -73,8 +68,6 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2027-04-10T08:00:00.000Z',
     approxRegDeadline: '2027-03-20T21:59:59.000Z',
   },
-  // --- Denmark (batch 2) ---
-  // RoyalHacks Apr 18–19 2026 already past as of Jul 2026 — watch next cycle
   {
     id: 'royalhacks',
     title: 'RoyalHacks',
@@ -87,9 +80,7 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2027-04-17T08:00:00.000Z',
     approxEndsAt: '2027-04-18T20:00:00.000Z',
     approxRegDeadline: '2027-04-01T21:59:59.000Z',
-    notes: 'Denmark national student hackathon — 2026 was Apr 18–19; next cycle spring',
   },
-  // --- Norway (batch 2) ---
   {
     id: 'nasa-space-apps-oslo',
     title: 'NASA Space Apps Challenge — Oslo',
@@ -102,7 +93,33 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2026-11-14T08:00:00.000Z',
     approxEndsAt: '2026-11-15T18:00:00.000Z',
     approxRegDeadline: '2026-11-01T21:59:59.000Z',
-    notes: 'Local NASA Space Apps via Tekna Oslo',
+  },
+  // --- Batch 3 ---
+  {
+    id: 'cultural-hackathon-austria',
+    title: 'Cultural Hackathon Austria',
+    url: 'https://openglam.at/en/',
+    location_raw: 'Austria',
+    format: 'in_person',
+    themes: ['austria', 'culture', 'open-data'],
+    regMonths: [6, 7, 8],
+    eventMonths: [9],
+    approxStartsAt: '2026-09-15T08:00:00.000Z',
+    approxRegDeadline: '2026-09-01T21:59:59.000Z',
+    notes: 'OpenGLAM cultural hackathon — typically September',
+  },
+  {
+    id: 'edth-prague-next',
+    title: 'European Defense Tech Hackathon — Prague',
+    url: 'https://lu.ma/eurodefensetech',
+    location_raw: 'Prague, Czechia',
+    format: 'in_person',
+    themes: ['czechia', 'defense', 'europe'],
+    regMonths: [2, 3, 4, 5],
+    eventMonths: [5],
+    approxStartsAt: '2027-05-15T10:00:00.000Z',
+    approxRegDeadline: '2027-05-01T21:59:59.000Z',
+    notes: '2026 Prague edition May 15–17 done; watch EDTH calendar for next CZ stop',
   },
   // --- Baltics ---
   {

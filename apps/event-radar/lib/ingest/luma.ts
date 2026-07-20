@@ -2,8 +2,7 @@ import type { IngestRow } from './devpost'
 import { LUMA_BALTIC_PL_QUERIES } from '@/lib/region-baltic'
 import { LUMA_BATCH1_QUERIES } from '@/lib/region-priority-batch1'
 import { LUMA_BATCH2_QUERIES } from '@/lib/region-priority-batch2'
-
-// Luma public discovery API — multi-query crawl for global + regional coverage.
+import { LUMA_BATCH3_QUERIES } from '@/lib/region-priority-batch3'
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 const API = 'https://api.lu.ma/discover/get-paginated-events'
@@ -12,7 +11,6 @@ const QUERIES = [
   'hackathon',
   'hackathon Singapore',
   'hackathon "Hong Kong"',
-  'hackathon London',
   'hackathon Paris',
   'hackathon "San Francisco"',
   'buildathon',
@@ -20,6 +18,7 @@ const QUERIES = [
   ...LUMA_BALTIC_PL_QUERIES,
   ...LUMA_BATCH1_QUERIES,
   ...LUMA_BATCH2_QUERIES,
+  ...LUMA_BATCH3_QUERIES,
 ] as const
 
 const PAGES_PER_QUERY = 2
