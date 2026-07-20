@@ -10,6 +10,8 @@
 - Vercel project `icefrosst-event-radar` (`prj_HMJPGoTi3Etml4iGk6gxLOX9gFyf`), Root
   Directory `apps/event-radar`, Ignored Build Step `npx turbo-ignore`, production = `main`
 - Daily cron (`vercel.json`): `GET /api/cron/ingest` at 05:00 UTC ±59min (Hobby tier limit)
+- Extra cadence: GitHub Actions workflows under `.github/workflows/event-radar-*.yml`
+  (ingest, probe, watch-agent, dormant-weekly, baltic/priority-country weekly)
 
 ## Conventions
 
@@ -19,13 +21,24 @@
 - **Online events get zero points** from the travel/location section. Being online is
   neutral, not a bonus. We prioritise confirmed travel-covered in-person events and
   strong eligibility signals.
+- Scoring boosts (approx): travel_covered +30–50, travel tier A +8, priority_countries +30,
+  multi-day (>24h) +25, accommodation +20, open_to_business_students +15, big prize pool +5.
+  Defaults for `priority_countries` come from cheap RT flights from Lithuania (<~70€):
+  LT/LV/EE + PL, FI, DE, NL, SE, DK, NO, IT, CZ, UK, BE, AT, HU, GE (see flight screenshots
+  in conversation history / settings defaults in types).
 - Feed and notification eligibility (`isUpcomingAndOpen` in `lib/scoring.ts`) is
   **fail-closed** for most sources: both `starts_at` and `registration_deadline` must
-  parse as valid timestamps and must be strictly later than now. Missing, malformed,
-  already-started, or closed-registration rows never qualify.
+  parse as valid timestamps and must be strictly later than now; feed also requires
+  **≥7 days** until start. Missing, malformed, already-started, or closed-registration
+  rows never qualify.
   **Luma exception:** the discovery API never supplies a registration deadline (RSVPs
   stay open until the event starts). For `source === 'luma'` with a null deadline, a
   strictly future `starts_at` is enough to qualify.
+- **Dormant circuits** (`lib/dormant-tier-a.ts`): TreeHacks, PennApps, HackUPC, etc.
+  Hard-hidden from main feed via `isDormantCircuit` until registration is open.
+  Weekly GH Action (`event-radar-dormant-weekly.yml`) probes sites, opens a GitHub
+  issue with candidates + parsed deadlines; high-confidence can auto-commit
+  `promoted-from-dormant.json`.
 - **Travel ✓ filter** = only `travel_covered === true` (confirmed reimbursement).
   Online is a separate filter.
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
@@ -40,9 +53,9 @@
   provides one (handled by the eligibility exception above).
 - The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. Newly inserted
   rows are enriched in the same run (priority), and rows that still have critical nulls
-  (`format` / `travel_covered`) are also retried. The scheduled cron calls it with
-  notifications enabled; the owner-only manual route (`POST /api/ingest/refresh`) calls
-  it with notifications disabled.
+  (`format` / `travel_covered`) are also retried. Chunked `.in()` queries for DB stability.
+  The scheduled cron calls it with notifications enabled; the owner-only manual route
+  (`POST /api/ingest/refresh`) calls it with notifications disabled.
 - Manual refresh authorization is checked against the verified Supabase user email via
   `lib/owner.ts`; `EVENT_RADAR_ADMIN_EMAIL` can override the portfolio-owner default.
 - Global `hackathons` writes use the service-role client (`lib/supabase/admin.ts`). RLS has
@@ -59,6 +72,12 @@
   come back as inline `[TODO: …]` markers.
 - Notes ride on the `user_hackathon_status` row (status is NOT NULL): saving a note with
   no status starts one at `interested`; clearing a status deletes the row, notes included.
+- **Feed UI filters** (`components/Feed.tsx`):
+  - IRL ↔ Online: mutually exclusive switch
+  - Multi-day: independent on/off toggle (`durationHours > 24`)
+  - Applied / Dormant: override lists — ignore format + multi-day
+  - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
+    (Applied only in Applied tab; hidden nowhere)
 
 ## Data model
 
@@ -77,9 +96,9 @@ From 0001:
   `city`, `country`, `registration_deadline`, `raw_description`) + `enriched_at`,
   `notified_at` markers.
 - `user_hackathon_status` — PK `(user_id, hackathon_id)`, status
-  `interested|applying|applied|hidden`.
+  `interested|applying|applied|hidden`, optional `notes`.
 - `user_preferences` — `filters` jsonb (reserved), `notification_settings` jsonb
-  (`{enabled, min_score}`, default threshold 60).
+  (`{enabled, min_score, priority_countries: string[]}`, default threshold 60).
 - `push_subscriptions` — one row per browser endpoint, `endpoint` unique.
 
 Schema is in PostgREST's exposed list (`db_schema` includes `hackathon`) and granted to
@@ -114,45 +133,55 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
   shell, not JSON.
 - Luma: `api.lu.ma/discover/get-paginated-events?query=hackathon` is a public,
-  no-auth, cursor-paginated feed. The query is **fuzzy** — it returns some non-hackathon
-  meetups, so `parseLumaPage` keeps only name-matched entries. Format detection is
-  aggressive: any useful geo data → `in_person`. Do NOT use `api.lu.ma/search/get-results`
-  (401, signed-in only). The entry `url` is a bare slug → the page is `lu.ma/<slug>`.
-  Luma never supplies `registration_deadline`; eligibility special-cases it.
+  no-auth, cursor-paginated feed. Expanded with city queries for priority regions
+  (`lib/region-priority-batch1..4.ts`, Baltic/PL helpers). The query is **fuzzy** —
+  keep only name-matched hackathons. Format detection is aggressive: any useful geo →
+  `in_person`. Do NOT use `api.lu.ma/search/get-results` (401). Entry `url` is a bare
+  slug → page is `lu.ma/<slug>`. Luma never supplies `registration_deadline`.
 - HackQuest: GraphQL introspection is **disabled**, so `lib/ingest/hackquest.ts`
   hard-codes the `getAllHackathonInfo` operation lifted from the site bundle and
   POSTs it to `api.hackquest.io/graphql` (no auth). Map only `status:"publish"`
   rows; it provides an exact `registrationClose` → passed through as
   `registration_deadline` (like ETHGlobal). Detail page: `www.hackquest.io/hackathon/<alias>`.
+- India noise: Unstop removed; Devfolio/India scoring filtered — user not travelling there.
 - The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
   dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
 - Enrichment throughput is capped by two ceilings: Vercel Hobby's 60s `maxDuration`, and
   free LLM RPM limits. The runner self-budgets to 50s and enriches up to 30 rows per run
   in concurrency 4. Newly inserted rows are prioritised; rows that still have critical
   nulls are also retried.
-- Cadence: Vercel Hobby cron = once/day max. A free GitHub Actions workflow adds 3 more
-  runs (every 6h ≈ 4x/day). Needs repo secret `EVENT_RADAR_CRON_SECRET`.
+- Cadence: Vercel Hobby cron = once/day max. GitHub Actions add more runs (ingest ~4×/day,
+  dormant weekly, priority-country probes). Needs repo secrets as documented in workflows.
+- **Vercel Hobby: 100 deployments/day account-wide.** Monorepo has 4 Vercel projects;
+  every push can burn 4 deploys. Prefer `DEPLOY_STAMP.txt` sparingly; set Ignored Build
+  Step on unused projects so only event-radar rebuilds when its files change.
 - Push payload URLs must stay relative (`'/'`) — iron rule #1.
 - `sendPush` returns `'gone'` for 404/410 → the cron deletes those subscription rows.
 - iOS requires the PWA to be installed to home screen before push permission can be asked.
+- `turbo.json` lists secrets under `globalEnv` so Turbo does not strip them at build.
 
 ## Current state
 
-**Live in production** — ships from `main`.
+**Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
-Recent changes (2026-07-19):
-- Removed the +35 Online score bonus entirely. Online is now neutral.
-- Travel ✓ filter tightened to only `travel_covered === true`.
-- Luma format detection made aggressive (any useful geo → in_person).
-- Enrichment now prioritises newly inserted rows in the same run and retries rows that
-  still have critical nulls (format / travel_covered).
+- Feed filters: IRL ↔ Online switch, Multi-day on/off, Applied tab, Dormant tab.
+- Applied + Hidden excluded from main feed (Applied only under Applied).
+- Dormant Tier A circuits hard-hidden until reg open; weekly probe → GH issue +
+  optional auto-promote JSON.
+- Priority countries + multi-day (+25) scoring live; 4 phased region packs
+  (`lib/region-priority-batch1..4.ts`) for PL/FI/DE/NL → SE/DK/NO/IT → CZ/UK/BE/AT → HU/GE.
+- TreeHacks / PennApps etc. in dormant list, not main feed.
+- India sources removed/filtered.
 
 ## Next
 
-- Trigger a manual refresh and verify that in-person Luma events (London, Dubai, etc.)
-  are no longer mis-tagged as Online and that the Travel filter only shows confirmed
-  travel-covered events.
-- Watch enrichment success rate on the new priority queue.
-- Add repo secret `EVENT_RADAR_CRON_SECRET` so the 4×/day GitHub Actions workflow works.
-- Re-probe Topcoder / Junction / Hackster from production egress.
+- **Handoff:** UI/dormant/priority-country work is on main. Verify latest deploy on
+  Vercel (Hobby deploy quota may delay). No open code bugs known; remaining work is
+  product polish + enrichment quality.
+- Confirm Applied-only-in-Applied-tab after deploy; hard-refresh PWA if stale.
+- Watch dormant weekly GH issue for first promote candidates; review high-confidence
+  auto-promotes if any.
+- Optionally tighten Ignored Build Step on non-event-radar Vercel projects to save
+  the 100 deploys/day quota.
+- Re-probe Topcoder / Junction / Hackster from production egress if needed.
 - Roadmap: more EU travel-reimbursing sources, approval-gated auto-fill, night agents.
