@@ -18,7 +18,11 @@ import { enrich, fetchPageText } from './enrich'
 import { circuitTravelCovered, circuitFaqPaths } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
-import { DEFAULT_NOTIFICATION_SETTINGS, type Hackathon } from '@/lib/types'
+import {
+  coerceNotificationSettings,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  type Hackathon,
+} from '@/lib/types'
 
 const ENRICH_BATCH = 30
 const ENRICH_CONCURRENCY = 4
@@ -90,7 +94,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   }
 
   const gathered: IngestRow[] = []
-  // Unstop removed — India-heavy, out of scope for LT user
   const sources: Array<[string, () => Promise<IngestRow[]>]> = [
     ['devpost', () => fetchDevpost()],
     ['mlh', () => fetchMlh()],
@@ -286,16 +289,18 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       const preferencesByUser = new Map(
         (preferences ?? []).map((p) => [
           p.user_id,
-          { ...DEFAULT_NOTIFICATION_SETTINGS, ...p.notification_settings },
+          coerceNotificationSettings(p.notification_settings),
         ])
       )
 
       for (const hackathon of freshRows) {
         if (outOfTime()) break
-        const { score, reasons } = scoreHackathon(hackathon)
         for (const subscription of subscriptions ?? []) {
           const settings =
             preferencesByUser.get(subscription.user_id) ?? DEFAULT_NOTIFICATION_SETTINGS
+          const { score, reasons } = scoreHackathon(hackathon, new Date(), {
+            priority_country: settings.priority_country,
+          })
           if (!settings.enabled || score < settings.min_score) continue
           const topReasons = reasons
             .filter((r) => r.pts > 0)
