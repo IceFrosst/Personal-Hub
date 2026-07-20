@@ -1,5 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "CRON_SECRET",
+    "GROQ_API_KEY",
+    "GEMINI_API_KEY",
+    "VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+    "VAPID_SUBJECT",
+    "EVENT_RADAR_ADMIN_EMAIL",
+    "EVENT_RADAR_CRON_SECRET"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

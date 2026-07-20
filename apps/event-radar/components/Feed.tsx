@@ -16,15 +16,8 @@ import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
-type FilterKey = 'irl' | 'online' | 'multiday' | 'applied' | 'dormant'
-
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: 'irl', label: 'IRL' },
-  { key: 'online', label: 'Online' },
-  { key: 'multiday', label: 'Multi-day' },
-  { key: 'applied', label: 'Applied' },
-  { key: 'dormant', label: 'Dormant' },
-]
+type FormatMode = 'irl' | 'online'
+type ListMode = 'feed' | 'applied' | 'dormant'
 
 export default function Feed({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), [])
@@ -32,7 +25,12 @@ export default function Feed({ userId }: { userId: string }) {
   const [statuses, setStatuses] = useState<Record<string, UserStatus>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [prefs, setPrefs] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS)
-  const [filter, setFilter] = useState<FilterKey>('irl')
+  /** IRL ↔ Online switch (ignored when Applied/Dormant is active) */
+  const [formatMode, setFormatMode] = useState<FormatMode>('irl')
+  /** Multi-day on/off (ignored when Applied/Dormant is active) */
+  const [multiDayOnly, setMultiDayOnly] = useState(false)
+  /** Applied / Dormant override the format + multi-day filters */
+  const [listMode, setListMode] = useState<ListMode>('feed')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -132,23 +130,27 @@ export default function Feed({ userId }: { userId: string }) {
     [prefs.priority_countries]
   )
 
+  const chipClass = (active: boolean) =>
+    `min-h-11 shrink-0 rounded-md border px-3 text-sm transition-colors duration-150 ease-out ${
+      active
+        ? 'border-purple/50 bg-purple/15 text-purple'
+        : 'border-border text-text-muted hover:border-border-focus'
+    }`
+
   const visible = useMemo(() => {
-    // Dormant tab: circuits between editions (may not pass isUpcomingAndOpen)
-    if (filter === 'dormant') {
-      const dormantRows = hackathons
+    // Applied / Dormant override format + multi-day entirely
+    if (listMode === 'dormant') {
+      return hackathons
         .filter((h) => isDormantCircuit(h))
         .map((h) => ({
           h,
           scored: scoreHackathon(h, new Date(), scoreOpts),
           status: statuses[h.id] ?? null,
         }))
-      // Always show registry entries even if no DB row yet
-      const seen = new Set(dormantRows.map((r) => r.h.id))
-      return dormantRows.sort((a, b) => a.h.title.localeCompare(b.h.title))
+        .sort((a, b) => a.h.title.localeCompare(b.h.title))
     }
 
-    // Applied tab: user marked applied (even if event would otherwise filter out)
-    if (filter === 'applied') {
+    if (listMode === 'applied') {
       return hackathons
         .filter((h) => statuses[h.id] === 'applied')
         .map((h) => ({
@@ -163,6 +165,7 @@ export default function Feed({ userId }: { userId: string }) {
         })
     }
 
+    // Main feed: isUpcomingAndOpen + IRL/Online switch + optional Multi-day
     const scored = hackathons
       .filter((h) => isUpcomingAndOpen(h))
       .map((h) => ({
@@ -173,11 +176,11 @@ export default function Feed({ userId }: { userId: string }) {
 
     const filtered = scored.filter(({ h, status }) => {
       if (status === 'hidden') return false
-      if (filter === 'irl') return h.format !== 'online'
-      if (filter === 'online') return h.format === 'online'
-      if (filter === 'multiday') {
+      if (formatMode === 'irl' && h.format === 'online') return false
+      if (formatMode === 'online' && h.format !== 'online') return false
+      if (multiDayOnly) {
         const hours = durationHours(h)
-        return hours !== null && hours > 24
+        if (hours === null || hours <= 24) return false
       }
       return true
     })
@@ -188,13 +191,23 @@ export default function Feed({ userId }: { userId: string }) {
       const db = b.h.registration_deadline ?? b.h.starts_at ?? '9999'
       return da < db ? -1 : 1
     })
-  }, [hackathons, statuses, filter, scoreOpts])
+  }, [hackathons, statuses, listMode, formatMode, multiDayOnly, scoreOpts])
 
   const selected = useMemo(() => {
     if (!selectedId) return null
     const h = hackathons.find((x) => x.id === selectedId)
     return h ? { h, scored: scoreHackathon(h, new Date(), scoreOpts) } : null
   }, [selectedId, hackathons, scoreOpts])
+
+  const emptyMessage = (() => {
+    if (hackathons.length === 0) return 'Nothing on the radar yet — the first sweep runs tonight.'
+    if (listMode === 'applied') return 'No applied events yet — mark one from a card.'
+    if (listMode === 'dormant')
+      return 'No dormant circuit rows in the catalog. Weekly probe watches TreeHacks, PennApps, HackUPC, etc.'
+    if (formatMode === 'online') return 'No open online events right now.'
+    if (multiDayOnly) return 'No multi-day events match the current filters.'
+    return 'No open in-person events starting at least 1 week from now.'
+  })()
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6 safe-b safe-t">
@@ -213,19 +226,56 @@ export default function Feed({ userId }: { userId: string }) {
       </header>
 
       <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
-        {FILTERS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`min-h-11 shrink-0 rounded-md border px-3 text-sm transition-colors duration-150 ease-out ${
-              filter === key
-                ? 'border-purple/50 bg-purple/15 text-purple'
-                : 'border-border text-text-muted hover:border-border-focus'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {/* IRL ↔ Online switch */}
+        <button
+          type="button"
+          onClick={() => {
+            setListMode('feed')
+            setFormatMode('irl')
+          }}
+          className={chipClass(listMode === 'feed' && formatMode === 'irl')}
+        >
+          IRL
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setListMode('feed')
+            setFormatMode('online')
+          }}
+          className={chipClass(listMode === 'feed' && formatMode === 'online')}
+        >
+          Online
+        </button>
+
+        {/* Multi-day on/off */}
+        <button
+          type="button"
+          onClick={() => {
+            setListMode('feed')
+            setMultiDayOnly((v) => !v)
+          }}
+          className={chipClass(listMode === 'feed' && multiDayOnly)}
+          aria-pressed={multiDayOnly}
+        >
+          Multi-day{multiDayOnly ? ' ✓' : ''}
+        </button>
+
+        {/* Override lists */}
+        <button
+          type="button"
+          onClick={() => setListMode(listMode === 'applied' ? 'feed' : 'applied')}
+          className={chipClass(listMode === 'applied')}
+        >
+          Applied
+        </button>
+        <button
+          type="button"
+          onClick={() => setListMode(listMode === 'dormant' ? 'feed' : 'dormant')}
+          className={chipClass(listMode === 'dormant')}
+        >
+          Dormant
+        </button>
       </div>
 
       {loading ? (
@@ -233,31 +283,17 @@ export default function Feed({ userId }: { userId: string }) {
       ) : visible.length === 0 ? (
         <div className="mt-16 flex flex-col items-center gap-2 text-center">
           <IconRadar2 size={40} stroke={1.5} className="text-text-low" />
-          <p className="text-sm text-text-muted">
-            {hackathons.length === 0
-              ? 'Nothing on the radar yet — the first sweep runs tonight.'
-              : filter === 'irl'
-                ? 'No open in-person events starting at least 1 week from now.'
-                : filter === 'online'
-                  ? 'No open online events right now.'
-                  : filter === 'multiday'
-                    ? 'No multi-day events open right now.'
-                    : filter === 'applied'
-                      ? 'No applied events yet — mark one from a card.'
-                      : filter === 'dormant'
-                        ? 'No dormant circuit rows in the catalog. Weekly probe watches TreeHacks, PennApps, HackUPC, etc.'
-                        : 'Nothing matches this filter.'}
-          </p>
-          {filter === 'dormant' && (
+          <p className="text-sm text-text-muted">{emptyMessage}</p>
+          {listMode === 'dormant' && (
             <p className="mt-2 max-w-xs text-xs text-text-low">
-              Dormant circuits are hidden from IRL until registration opens. Check the weekly GitHub
-              issue for promote candidates.
+              Dormant circuits are hidden from the main feed until registration opens. Check the
+              weekly GitHub issue for promote candidates.
             </p>
           )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filter === 'dormant' && (
+          {listMode === 'dormant' && (
             <p className="text-xs text-text-muted">
               Between editions — not on the main feed until reg opens.
               {visible[0] && matchDormantCircuit(visible[0].h)

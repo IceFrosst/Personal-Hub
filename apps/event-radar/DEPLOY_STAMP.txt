@@ -1,4 +1,4 @@
-FINAL deploy stamp 2026-07-20T13:00Z
-- feed UI: IRL|Online|Multi-day|Applied|Dormant
-- dormant hard-hide + weekly issue + auto-promote
-- TreeHacks/PennApps hidden from main feed
+deploy 2026-07-20T14:28Z
+Feed toggles: IRL/Online switch + Multi-day on/off + Applied/Dormant override
+Lint: removed unused `seen`
+turbo.json: globalEnv for Vercel secrets
