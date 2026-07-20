@@ -1,3 +1,1 @@
-deploy 2026-07-20T18:16Z Europe/Vilnius
-force rebuild — simplified HackathonCard + DetailSheet must be production
-no Applying · no score reason chips · no TRAVEL A badge · star corner + Applied/Hide only
+deploy 2026-07-20T18:20Z force-build exit 1 — ship simplified card UI

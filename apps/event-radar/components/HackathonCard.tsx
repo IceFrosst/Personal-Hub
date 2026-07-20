@@ -43,7 +43,7 @@ export default function HackathonCard({
 
   return (
     <article className="relative flex flex-col gap-2.5 rounded-2xl bg-surface p-4">
-      {/* Interested star — corner control, not a full button row */}
+      {/* Interested star — corner, not a full-width button */}
       <button
         type="button"
         onClick={() => onSetStatus('interested')}
