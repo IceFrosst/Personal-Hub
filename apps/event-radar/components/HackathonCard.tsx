@@ -2,6 +2,7 @@
 
 import type { Hackathon, UserStatus } from '@/lib/types'
 import type { ScoredHackathon } from '@/lib/scoring'
+import { durationHours } from '@/lib/scoring'
 import { IconExternalLink, IconStar, IconChecks, IconEyeOff } from '@tabler/icons-react'
 
 function formatDates(h: Hackathon): string | null {
@@ -17,6 +18,15 @@ function scoreColor(score: number): string {
   if (score >= 60) return 'bg-purple text-white'
   if (score >= 30) return 'bg-purple/25 text-purple'
   return 'bg-surface-elevated text-text-muted'
+}
+
+function featureTags(h: Hackathon): string[] {
+  const tags: string[] = []
+  if (h.travel_covered === true) tags.push('Travel')
+  if (h.accommodation_covered === true) tags.push('Accommodation')
+  const hours = durationHours(h)
+  if (hours !== null && hours > 24) tags.push('Multi-day')
+  return tags
 }
 
 export default function HackathonCard({
@@ -40,25 +50,11 @@ export default function HackathonCard({
         h.location_raw ||
         'Location TBA'
   const interested = status === 'interested'
+  const tags = featureTags(h)
 
   return (
-    <article className="relative flex flex-col gap-2.5 rounded-2xl bg-surface p-4">
-      {/* Interested star — corner, not a full-width button */}
-      <button
-        type="button"
-        onClick={() => onSetStatus('interested')}
-        className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 ease-out ${
-          interested
-            ? 'bg-blue/15 text-blue'
-            : 'text-text-low hover:bg-surface-elevated hover:text-text-muted'
-        }`}
-        aria-label={interested ? 'Remove interested' : 'Mark interested'}
-        aria-pressed={interested}
-      >
-        <IconStar size={18} stroke={1.5} fill={interested ? 'currentColor' : 'none'} />
-      </button>
-
-      <div className="flex items-start justify-between gap-3 pr-8">
+    <article className="flex flex-col gap-2.5 rounded-2xl bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
         <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
           <span className="break-words font-medium leading-snug text-text">{h.title}</span>
           <span className="mt-1 block text-sm text-text-muted">
@@ -84,6 +80,19 @@ export default function HackathonCard({
         </div>
       </div>
 
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-md border border-border bg-surface-elevated px-2 py-0.5 text-[11px] font-medium text-text-muted"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5">
         <button
           type="button"
@@ -108,6 +117,21 @@ export default function HackathonCard({
         >
           <IconEyeOff size={14} stroke={1.5} />
           Hide
+        </button>
+
+        {/* Interested star — bottom-right of action row, away from score */}
+        <button
+          type="button"
+          onClick={() => onSetStatus('interested')}
+          className={`ml-auto flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-150 ease-out ${
+            interested
+              ? 'bg-blue/15 text-blue'
+              : 'text-text-low hover:bg-surface-elevated hover:text-text-muted'
+          }`}
+          aria-label={interested ? 'Remove interested' : 'Mark interested'}
+          aria-pressed={interested}
+        >
+          <IconStar size={18} stroke={1.5} fill={interested ? 'currentColor' : 'none'} />
         </button>
       </div>
     </article>

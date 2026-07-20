@@ -165,10 +165,11 @@ export default function Feed({ userId }: { userId: string }) {
         })
     }
 
-    // Main feed: isUpcomingAndOpen + IRL/Online + Multi-day
+    // Main feed: never show dormant circuits (TreeHacks, PennApps, …) — Dormant tab only
+    // + isUpcomingAndOpen + IRL/Online + Multi-day
     // Exclude applied + hidden so they only live in their own tabs
     const scored = hackathons
-      .filter((h) => isUpcomingAndOpen(h))
+      .filter((h) => !isDormantCircuit(h) && isUpcomingAndOpen(h))
       .map((h) => ({
         h,
         scored: scoreHackathon(h, new Date(), scoreOpts),
