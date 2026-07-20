@@ -35,50 +35,83 @@ export type UserHackathonStatus = {
   updated_at: string
 }
 
+/**
+ * Countries reachable from Lithuania on a typical budget airline deal
+ * (screenshot-based, ~Jul 2026) with estimated RT under ~70 EUR, plus
+ * home + Baltic neighbours (bus/train often cheaper than flights).
+ */
+export const CHEAP_FROM_LT_COUNTRIES: Array<{ value: string; label: string; note?: string }> = [
+  { value: 'lithuania', label: 'Lithuania', note: 'Home' },
+  { value: 'latvia', label: 'Latvia', note: 'Bus/train' },
+  { value: 'estonia', label: 'Estonia', note: '~36€ flight / bus' },
+  { value: 'finland', label: 'Finland', note: '~25€ OW' },
+  { value: 'norway', label: 'Norway', note: '~26€ OW' },
+  { value: 'poland', label: 'Poland', note: '~29€ OW' },
+  { value: 'denmark', label: 'Denmark', note: '~30€ OW' },
+  { value: 'sweden', label: 'Sweden', note: '~30€ OW' },
+  { value: 'italy', label: 'Italy', note: '~30€ OW' },
+  { value: 'czechia', label: 'Czechia', note: '~35€ OW' },
+  { value: 'czech', label: 'Czech Republic', note: 'alias' },
+  { value: 'netherlands', label: 'Netherlands', note: '~36€ OW — borderline 70€ RT' },
+  // Optional / slightly over 70€ RT — available to toggle on
+  { value: 'united kingdom', label: 'United Kingdom', note: '~37€ OW' },
+  { value: 'germany', label: 'Germany', note: '~39€ OW' },
+  { value: 'belgium', label: 'Belgium', note: '~44€ OW' },
+  { value: 'hungary', label: 'Hungary', note: '~47€ OW' },
+  { value: 'georgia', label: 'Georgia', note: '~50€ OW' },
+  { value: 'austria', label: 'Austria', note: '~56€ OW' },
+]
+
+/** Default priority set: clear under-~70€ RT + Baltics. */
+export const DEFAULT_PRIORITY_COUNTRIES = [
+  'lithuania',
+  'latvia',
+  'estonia',
+  'finland',
+  'norway',
+  'poland',
+  'denmark',
+  'sweden',
+  'italy',
+  'czechia',
+]
+
 /** Stored in user_preferences.notification_settings JSON (no migration). */
 export type NotificationSettings = {
   enabled: boolean
   min_score: number
-  /** ISO-ish country name fragment, e.g. "lithuania", "poland". Empty = none. */
-  priority_country: string
+  /**
+   * Countries that get the priority-country score boost.
+   * Legacy `priority_country` (string) is migrated in coerceNotificationSettings.
+   */
+  priority_countries: string[]
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
   min_score: 60,
-  priority_country: 'lithuania',
+  priority_countries: DEFAULT_PRIORITY_COUNTRIES,
 }
-
-/** Common priority-country choices for the settings UI. */
-export const PRIORITY_COUNTRY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'None' },
-  { value: 'lithuania', label: 'Lithuania' },
-  { value: 'latvia', label: 'Latvia' },
-  { value: 'estonia', label: 'Estonia' },
-  { value: 'poland', label: 'Poland' },
-  { value: 'finland', label: 'Finland' },
-  { value: 'germany', label: 'Germany' },
-  { value: 'sweden', label: 'Sweden' },
-  { value: 'denmark', label: 'Denmark' },
-  { value: 'netherlands', label: 'Netherlands' },
-  { value: 'spain', label: 'Spain' },
-  { value: 'france', label: 'France' },
-  { value: 'united kingdom', label: 'United Kingdom' },
-  { value: 'united states', label: 'United States' },
-  { value: 'canada', label: 'Canada' },
-]
 
 export function coerceNotificationSettings(raw: unknown): NotificationSettings {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+
+  let countries: string[] = DEFAULT_PRIORITY_COUNTRIES
+  if (Array.isArray(o.priority_countries)) {
+    countries = o.priority_countries
+      .filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+      .map((c) => c.toLowerCase().trim())
+  } else if (typeof o.priority_country === 'string' && o.priority_country.trim()) {
+    // Migrate old single-country setting
+    countries = [o.priority_country.toLowerCase().trim()]
+  }
+
   return {
     enabled: typeof o.enabled === 'boolean' ? o.enabled : DEFAULT_NOTIFICATION_SETTINGS.enabled,
     min_score:
       typeof o.min_score === 'number' && Number.isFinite(o.min_score)
         ? o.min_score
         : DEFAULT_NOTIFICATION_SETTINGS.min_score,
-    priority_country:
-      typeof o.priority_country === 'string'
-        ? o.priority_country.toLowerCase().trim()
-        : DEFAULT_NOTIFICATION_SETTINGS.priority_country,
+    priority_countries: countries,
   }
 }

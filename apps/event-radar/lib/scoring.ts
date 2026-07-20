@@ -28,12 +28,12 @@ const INDIA_MARKERS = [
   'maharashtra',
 ]
 
-/** Minimum days until start for an event to appear in the feed. */
 export const MIN_LEAD_DAYS = 7
 
-/** Points: travel covered is 50; priority country is intentionally smaller. */
+/** Travel covered = 50; priority country is intentionally smaller. */
 export const PRIORITY_COUNTRY_BOOST = 30
-export const MULTI_DAY_BOOST = 15
+/** Multi-day (>24h) events — raised to 25 per user request. */
+export const MULTI_DAY_BOOST = 25
 
 function matchesCountry(h: Hackathon, names: string[]): boolean {
   const haystack = `${h.country ?? ''} ${h.location_raw ?? ''} ${h.city ?? ''}`.toLowerCase()
@@ -62,7 +62,6 @@ function validTimestamp(value: string | null): number | null {
   return Number.isFinite(timestamp) ? timestamp : null
 }
 
-/** Duration in hours from starts_at → ends_at; null if unknown. */
 export function durationHours(h: Pick<Hackathon, 'starts_at' | 'ends_at'>): number | null {
   const s = validTimestamp(h.starts_at)
   const e = validTimestamp(h.ends_at)
@@ -73,7 +72,7 @@ export function durationHours(h: Pick<Hackathon, 'starts_at' | 'ends_at'>): numb
 export function scoreHackathon(
   h: Hackathon,
   now: Date = new Date(),
-  prefs: Pick<NotificationSettings, 'priority_country'> = DEFAULT_NOTIFICATION_SETTINGS
+  prefs: Pick<NotificationSettings, 'priority_countries'> = DEFAULT_NOTIFICATION_SETTINGS
 ): ScoredHackathon {
   const reasons: ScoreReason[] = []
   const add = (label: string, pts: number) => {
@@ -85,7 +84,18 @@ export function scoreHackathon(
   }
 
   const online = h.format === 'online'
-  const priority = (prefs.priority_country ?? '').toLowerCase().trim()
+  const priorityList = (prefs.priority_countries ?? [])
+    .map((c) => c.toLowerCase().trim())
+    .filter(Boolean)
+
+  // Normalize czech aliases for matching
+  const priorityExpanded = priorityList.flatMap((c) =>
+    c === 'czechia' || c === 'czech' || c === 'czech republic'
+      ? ['czechia', 'czech', 'czech republic']
+      : [c]
+  )
+
+  const inPriority = priorityExpanded.length > 0 && matchesCountry(h, priorityExpanded)
 
   if (!online) {
     if (h.travel_covered === true) add('Travel covered', 50)
@@ -98,21 +108,17 @@ export function scoreHackathon(
       add(`Travel tier ${circuit.tier}`, 8)
     }
 
-    // Priority country (settings) — smaller than travel covered
-    if (priority && matchesCountry(h, [priority])) {
-      add(`Priority country (${priority})`, PRIORITY_COUNTRY_BOOST)
+    if (inPriority) {
+      add('Priority country (cheap from LT)', PRIORITY_COUNTRY_BOOST)
     } else if (matchesCountry(h, [HOME_COUNTRY])) {
-      // Fallback home boost only if not already counted as priority
       add('In Lithuania', 25)
     } else if (matchesCountry(h, NEIGHBOR_COUNTRIES) && h.travel_covered !== true) {
       add('Neighbor country — cheap to reach', 15)
     }
-  } else if (priority && matchesCountry(h, [priority])) {
-    // Online events in priority country still get a smaller nod
-    add(`Priority country (${priority})`, Math.floor(PRIORITY_COUNTRY_BOOST / 2))
+  } else if (inPriority) {
+    add('Priority country (cheap from LT)', Math.floor(PRIORITY_COUNTRY_BOOST / 2))
   }
 
-  // Multi-day events (> 24h) are more worth traveling for
   const hours = durationHours(h)
   if (hours !== null && hours > 24) {
     add('Multi-day event', MULTI_DAY_BOOST)
@@ -138,9 +144,6 @@ export function scoreHackathon(
   return { score, reasons }
 }
 
-/**
- * Feed eligibility: start ≥ 1 week away, reg still open, within horizon.
- */
 export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean {
   const nowTimestamp = now.getTime()
   if (!Number.isFinite(nowTimestamp)) return false
@@ -150,11 +153,9 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
   const startsAt = validTimestamp(h.starts_at)
   if (startsAt === null) return false
 
-  // At least 1 week of lead time — no last-minute / this-weekend spam
   const minStart = nowTimestamp + MIN_LEAD_DAYS * 86400000
   if (startsAt < minStart) return false
 
-  // Don't surface events more than ~8 months out
   const maxHorizonMs = 240 * 86400000
   if (startsAt - nowTimestamp > maxHorizonMs) return false
 

@@ -131,8 +131,8 @@ export default function Feed({ userId }: { userId: string }) {
   }
 
   const scoreOpts = useMemo(
-    () => ({ priority_country: prefs.priority_country }),
-    [prefs.priority_country]
+    () => ({ priority_countries: prefs.priority_countries }),
+    [prefs.priority_countries]
   )
 
   const visible = useMemo(() => {

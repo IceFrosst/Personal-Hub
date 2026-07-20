@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
+  CHEAP_FROM_LT_COUNTRIES,
   coerceNotificationSettings,
   DEFAULT_NOTIFICATION_SETTINGS,
-  PRIORITY_COUNTRY_OPTIONS,
   type NotificationSettings,
 } from '@/lib/types'
 import PushToggle from './PushToggle'
 import ManualRefresh from './ManualRefresh'
 import { IconArrowLeft, IconChevronRight, IconFileText } from '@tabler/icons-react'
 import Link from 'next/link'
+
+// Hide internal alias rows from the UI
+const UI_COUNTRIES = CHEAP_FROM_LT_COUNTRIES.filter((c) => c.value !== 'czech')
 
 export default function SettingsPanel({
   userId,
@@ -54,6 +57,23 @@ export default function SettingsPanel({
     setTimeout(() => setSaved(false), 1500)
   }
 
+  const toggleCountry = (value: string) => {
+    const set = new Set(settings.priority_countries)
+    if (set.has(value)) set.delete(value)
+    else set.add(value)
+    // Keep czech aliases in sync
+    if (value === 'czechia') {
+      if (set.has('czechia')) {
+        set.add('czech')
+        set.add('czech republic')
+      } else {
+        set.delete('czech')
+        set.delete('czech republic')
+      }
+    }
+    persist({ ...settings, priority_countries: [...set] })
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
     location.href = '/'
@@ -72,31 +92,42 @@ export default function SettingsPanel({
         <h1 className="text-2xl font-semibold">Settings</h1>
       </header>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-medium">Priorities</h2>
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Priority countries</h2>
+          {saved && <span className="text-xs text-green">saved</span>}
+        </div>
+        <p className="text-xs text-text-muted">
+          Events in selected countries get <span className="font-medium text-text">+30</span>{' '}
+          (travel covered is +50). Defaults = cheap direct deals from LT under ~70€ return.
+        </p>
         {loaded && (
-          <label className="flex flex-col gap-2 text-sm text-text-muted">
-            <span className="flex items-center justify-between">
-              <span>Priority country</span>
-              {saved && <span className="text-green">saved</span>}
-            </span>
-            <select
-              value={settings.priority_country}
-              onChange={(e) =>
-                persist({ ...settings, priority_country: e.target.value.toLowerCase() })
-              }
-              className="min-h-11 rounded-md border border-border bg-surface px-3 text-base text-text focus:border-border-focus focus:outline-none"
-            >
-              {PRIORITY_COUNTRY_OPTIONS.map((o) => (
-                <option key={o.value || 'none'} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-text-low">
-              Events in this country get a +30 score boost (travel covered is +50).
-            </span>
-          </label>
+          <div className="flex flex-col gap-1.5">
+            {UI_COUNTRIES.map((c) => {
+              const checked = settings.priority_countries.includes(c.value)
+              return (
+                <label
+                  key={c.value}
+                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3 text-sm transition-colors ${
+                    checked
+                      ? 'border-purple/40 bg-purple/10 text-text'
+                      : 'border-border text-text-muted'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleCountry(c.value)}
+                    className="h-4 w-4 accent-[#8e4ec6]"
+                  />
+                  <span className="flex flex-1 flex-col">
+                    <span className="font-medium">{c.label}</span>
+                    {c.note && <span className="text-xs text-text-low">{c.note}</span>}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
         )}
       </section>
 
