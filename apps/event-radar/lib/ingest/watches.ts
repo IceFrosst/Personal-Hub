@@ -46,7 +46,6 @@ export const WATCHES: Watch[] = [
     approxEndsAt: '2026-11-15T18:00:00.000Z',
     approxRegDeadline: '2026-10-15T23:59:59.000Z',
     prize_pool: '100000+ EUR',
-    notes: 'Europe flagship 48h — also seeded in known-events',
   },
   // --- Germany ---
   {
@@ -60,7 +59,6 @@ export const WATCHES: Watch[] = [
     eventMonths: [3, 4, 5, 6, 9, 10, 11],
     approxStartsAt: '2026-09-20T08:00:00.000Z',
     approxRegDeadline: '2026-09-05T21:59:59.000Z',
-    notes: 'Probe hackjunction.app for open DE/EU editions',
   },
   // --- Netherlands ---
   {
@@ -74,9 +72,39 @@ export const WATCHES: Watch[] = [
     eventMonths: [4, 5],
     approxStartsAt: '2027-04-10T08:00:00.000Z',
     approxRegDeadline: '2027-03-20T21:59:59.000Z',
-    notes: '2026 NL edition was Apr; watch Luma calendar for next',
   },
-  // --- Baltics (kept) ---
+  // --- Denmark (batch 2) ---
+  // RoyalHacks Apr 18–19 2026 already past as of Jul 2026 — watch next cycle
+  {
+    id: 'royalhacks',
+    title: 'RoyalHacks',
+    url: 'https://royalhacks.io/',
+    location_raw: 'Copenhagen, Denmark',
+    format: 'in_person',
+    themes: ['denmark', 'student', 'national'],
+    regMonths: [1, 2, 3],
+    eventMonths: [4],
+    approxStartsAt: '2027-04-17T08:00:00.000Z',
+    approxEndsAt: '2027-04-18T20:00:00.000Z',
+    approxRegDeadline: '2027-04-01T21:59:59.000Z',
+    notes: 'Denmark national student hackathon — 2026 was Apr 18–19; next cycle spring',
+  },
+  // --- Norway (batch 2) ---
+  {
+    id: 'nasa-space-apps-oslo',
+    title: 'NASA Space Apps Challenge — Oslo',
+    url: 'https://www.tekna.no/en/events/',
+    location_raw: 'Oslo, Norway',
+    format: 'in_person',
+    themes: ['norway', 'space', 'nasa'],
+    regMonths: [8, 9, 10],
+    eventMonths: [10, 11],
+    approxStartsAt: '2026-11-14T08:00:00.000Z',
+    approxEndsAt: '2026-11-15T18:00:00.000Z',
+    approxRegDeadline: '2026-11-01T21:59:59.000Z',
+    notes: 'Local NASA Space Apps via Tekna Oslo',
+  },
+  // --- Baltics ---
   {
     id: 'garage48',
     title: 'Garage48',

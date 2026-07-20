@@ -1,6 +1,7 @@
 import type { IngestRow } from './devpost'
 import { LUMA_BALTIC_PL_QUERIES } from '@/lib/region-baltic'
 import { LUMA_BATCH1_QUERIES } from '@/lib/region-priority-batch1'
+import { LUMA_BATCH2_QUERIES } from '@/lib/region-priority-batch2'
 
 // Luma public discovery API — multi-query crawl for global + regional coverage.
 
@@ -16,13 +17,11 @@ const QUERIES = [
   'hackathon "San Francisco"',
   'buildathon',
   'Junction hackathon',
-  // Baltics + Poland cities
   ...LUMA_BALTIC_PL_QUERIES,
-  // Batch 1: PL / FI / DE / NL deep city queries
   ...LUMA_BATCH1_QUERIES,
+  ...LUMA_BATCH2_QUERIES,
 ] as const
 
-// Cap pages — more queries × pages burns the ingest budget
 const PAGES_PER_QUERY = 2
 
 type LumaGeo = {
@@ -148,7 +147,6 @@ export async function fetchLuma(): Promise<IngestRow[]> {
   const primary = await fetchLumaQuery('hackathon', seen)
   rows.push(...primary)
 
-  // Dedupe query list (batch1 overlaps Baltic PL slightly)
   const unique = [...new Set(QUERIES.filter((q) => q !== 'hackathon'))]
 
   for (const q of unique) {
