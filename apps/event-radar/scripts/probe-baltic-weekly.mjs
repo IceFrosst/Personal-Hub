@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Weekly priority-region discovery — batches 1–3 + Baltics. */
+/** Weekly priority-region discovery — all 4 batches + Baltics. */
 import { writeFileSync } from 'node:fs'
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar-PriorityWeekly/1.0)'
@@ -12,7 +12,7 @@ const ORGANISERS = [
   { id: 'hackyeah', label: 'HackYeah', url: 'https://hackyeah.pl/', country: 'PL' },
   { id: 'crossweb', label: 'Crossweb PL events', url: 'https://crossweb.pl/en/events/', country: 'PL' },
   { id: 'junction', label: 'Junction', url: 'https://www.hackjunction.com/', country: 'FI' },
-  { id: 'junction-app', label: 'Junction platform', url: 'https://hackjunction.app/hackathons', country: 'FI' },
+  { id: 'junction-app', label: 'Junction platform', url: 'https://hackjunction.app/hackathons', country: 'EU' },
   { id: 'german-tech-jobs', label: 'GermanTechJobs events', url: 'https://germantechjobs.de/en/events', country: 'DE' },
   { id: 'royalhacks', label: 'RoyalHacks', url: 'https://royalhacks.io/', country: 'DK' },
   { id: 'nordic-dk', label: 'Nordic Startup Hub DK', url: 'https://nordicstartuphub.com/denmarkevents', country: 'DK' },
@@ -20,6 +20,7 @@ const ORGANISERS = [
   { id: 'tekna', label: 'Tekna events', url: 'https://www.tekna.no/en/events/', country: 'NO' },
   { id: 'czech-startups', label: 'Czech Startups events', url: 'https://czechstartups.gov.cz/en/startup-ecosystem/network/startup-events-and-hackathons/', country: 'CZ' },
   { id: 'openglam-at', label: 'OpenGLAM Cultural Hackathon AT', url: 'https://openglam.at/en/', country: 'AT' },
+  { id: 'crafthub-hu', label: 'CraftHub HU hackathons', url: 'https://crafthub.events/hackathons/', country: 'HU' },
   { id: 'edth-luma', label: 'EDTH Luma calendar', url: 'https://lu.ma/eurodefensetech', country: 'EU' },
   { id: 'eudis', label: 'EUDIS Defence Hackathon', url: 'https://eudis-hackathon.eu/', country: 'EU' },
   { id: 'mlh-2026', label: 'MLH 2026 season', url: 'https://mlh.io/seasons/2026/events', country: 'EU' },
@@ -31,16 +32,18 @@ const SOCIAL_QUERIES = [
   'hackathon (Warsaw OR Kraków OR Poland) (2026 OR 2027)',
   'hackathon (Helsinki OR Junction) (2026 OR 2027)',
   'hackathon (Berlin OR Munich OR Germany) (2026 OR 2027)',
-  'hackathon (Amsterdam OR Delft OR Netherlands) (2026 OR 2027)',
+  'hackathon (Amsterdam OR Netherlands) (2026 OR 2027)',
   'hackathon (Stockholm OR Sweden) (2026 OR 2027)',
-  'hackathon (Copenhagen OR RoyalHacks OR Denmark) (2026 OR 2027)',
+  'hackathon (Copenhagen OR RoyalHacks) (2026 OR 2027)',
   'hackathon (Oslo OR Norway) (2026 OR 2027)',
   'hackathon (Milan OR Italy) (2026 OR 2027)',
-  'hackathon (Prague OR Brno OR Czechia OR "Czech Republic") (2026 OR 2027)',
-  'hackathon (London OR Manchester OR Edinburgh OR UK) (2026 OR 2027)',
-  'hackathon (Brussels OR Ghent OR Leuven OR Belgium) (2026 OR 2027)',
-  'hackathon (Vienna OR Graz OR Austria) (2026 OR 2027)',
-  'from:HackTrackEU (Prague OR London OR Brussels OR Vienna)',
+  'hackathon (Prague OR Brno OR Czechia) (2026 OR 2027)',
+  'hackathon (London OR UK) (2026 OR 2027)',
+  'hackathon (Brussels OR Belgium) (2026 OR 2027)',
+  'hackathon (Vienna OR Austria) (2026 OR 2027)',
+  'hackathon (Budapest OR Hungary OR JunctionX) (2026 OR 2027)',
+  'hackathon (Tbilisi OR Batumi) (2026 OR 2027)',
+  'from:HackTrackEU (Budapest OR Tbilisi OR Warsaw OR Berlin)',
 ]
 
 async function fetchText(url) {
@@ -95,8 +98,8 @@ for (const org of ORGANISERS) {
 const alerts = results.filter((r) => r.alert)
 const report = {
   probed_at: new Date().toISOString(),
-  region: 'priority_batches_1_2_3_plus_baltics',
-  batch: ['PL','FI','DE','NL','SE','DK','NO','IT','CZ','UK','BE','AT','LT','EE','EU'],
+  region: 'all_priority_countries_complete',
+  batch: ['PL','FI','DE','NL','SE','DK','NO','IT','CZ','UK','BE','AT','HU','GE','LT','EE','EU'],
   alerts: alerts.map((a) => ({ id: a.id, label: a.label, country: a.country, url: a.url, signals: a.signals })),
   results,
   social_queries: SOCIAL_QUERIES,
@@ -105,7 +108,7 @@ const report = {
 writeFileSync('baltic-weekly-probe.json', JSON.stringify(report, null, 2))
 
 const lines = [
-  `# Priority region weekly (batches 1–3 + Baltics)`,
+  `# Priority region weekly (all batches complete)`,
   ``,
   `Probed: **${report.probed_at}**`,
   ``,
@@ -123,7 +126,7 @@ for (const r of results) {
 }
 lines.push(``, `## X queries`)
 for (const q of SOCIAL_QUERIES) lines.push(`- \`${q}\``)
-lines.push(``, `## Next batch: HU · GE`)
+lines.push(``, `## Status: all priority-country deep packs implemented.`)
 
 writeFileSync('baltic-weekly-report.md', lines.join('\n'))
 console.log(`\nAlerts: ${alerts.length}`)

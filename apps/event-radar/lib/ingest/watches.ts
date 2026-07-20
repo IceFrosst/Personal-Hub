@@ -46,11 +46,11 @@ export const WATCHES: Watch[] = [
   },
   {
     id: 'junction-platform-de',
-    title: 'Junction platform events (DE satellites)',
+    title: 'Junction platform events (EU satellites)',
     url: 'https://hackjunction.app/hackathons',
-    location_raw: 'Germany / Europe',
+    location_raw: 'Europe',
     format: 'in_person',
-    themes: ['germany', 'europe'],
+    themes: ['europe'],
     regMonths: [1, 2, 3, 4, 5, 6, 9, 10, 11],
     eventMonths: [3, 4, 5, 6, 9, 10, 11],
     approxStartsAt: '2026-09-20T08:00:00.000Z',
@@ -94,7 +94,6 @@ export const WATCHES: Watch[] = [
     approxEndsAt: '2026-11-15T18:00:00.000Z',
     approxRegDeadline: '2026-11-01T21:59:59.000Z',
   },
-  // --- Batch 3 ---
   {
     id: 'cultural-hackathon-austria',
     title: 'Cultural Hackathon Austria',
@@ -106,7 +105,6 @@ export const WATCHES: Watch[] = [
     eventMonths: [9],
     approxStartsAt: '2026-09-15T08:00:00.000Z',
     approxRegDeadline: '2026-09-01T21:59:59.000Z',
-    notes: 'OpenGLAM cultural hackathon — typically September',
   },
   {
     id: 'edth-prague-next',
@@ -119,7 +117,33 @@ export const WATCHES: Watch[] = [
     eventMonths: [5],
     approxStartsAt: '2027-05-15T10:00:00.000Z',
     approxRegDeadline: '2027-05-01T21:59:59.000Z',
-    notes: '2026 Prague edition May 15–17 done; watch EDTH calendar for next CZ stop',
+  },
+  // --- Batch 4: Hungary ---
+  {
+    id: 'junctionx-budapest',
+    title: 'JunctionX Budapest',
+    url: 'https://hackjunction.app/hackathons',
+    location_raw: 'Budapest, Hungary',
+    format: 'in_person',
+    themes: ['hungary', 'junction'],
+    regMonths: [1, 2, 3, 4, 9, 10],
+    eventMonths: [3, 4, 10, 11],
+    approxStartsAt: '2026-10-10T08:00:00.000Z',
+    approxRegDeadline: '2026-09-25T21:59:59.000Z',
+    notes: 'Junction satellite in Budapest — check hackjunction.app for open editions',
+  },
+  {
+    id: 'crafthub-hu',
+    title: 'CraftHub Hungary hackathons',
+    url: 'https://crafthub.events/hackathons/',
+    location_raw: 'Budapest, Hungary',
+    format: 'in_person',
+    themes: ['hungary', 'student'],
+    regMonths: [2, 3, 4, 5, 9, 10, 11],
+    eventMonths: [3, 4, 5, 10, 11],
+    approxStartsAt: '2026-10-01T08:00:00.000Z',
+    approxRegDeadline: '2026-09-15T21:59:59.000Z',
+    notes: 'Aggregator of HU student/industry hacks',
   },
   // --- Baltics ---
   {
