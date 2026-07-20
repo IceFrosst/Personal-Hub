@@ -1,8 +1,5 @@
 import type { IngestRow } from './devpost'
 
-// Local / annual events that often miss Devpost/MLH until late.
-// Emit only inside reg/event month windows AND only with a future deadline.
-
 export type Watch = {
   id: string
   title: string
@@ -20,7 +17,7 @@ export type Watch = {
 }
 
 export const WATCHES: Watch[] = [
-  // --- Baltics + Poland (B) ---
+  // --- Poland ---
   {
     id: 'hackyeah',
     title: 'HackYeah',
@@ -33,8 +30,53 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2026-10-03T07:00:00.000Z',
     approxEndsAt: '2026-10-04T16:00:00.000Z',
     approxRegDeadline: '2026-09-25T21:59:59.000Z',
-    notes: 'Europe largest on-site — Tauron Arena Kraków; tickets via eventory',
+    notes: 'Europe largest on-site — Tauron Arena Kraków',
   },
+  // --- Finland ---
+  {
+    id: 'junction-main',
+    title: 'Junction',
+    url: 'https://www.hackjunction.com/',
+    location_raw: 'Espoo / Helsinki, Finland',
+    format: 'in_person',
+    themes: ['finland', 'europe', 'hardware', 'ai'],
+    regMonths: [8, 9, 10],
+    eventMonths: [11],
+    approxStartsAt: '2026-11-13T08:00:00.000Z',
+    approxEndsAt: '2026-11-15T18:00:00.000Z',
+    approxRegDeadline: '2026-10-15T23:59:59.000Z',
+    prize_pool: '100000+ EUR',
+    notes: 'Europe flagship 48h — also seeded in known-events',
+  },
+  // --- Germany ---
+  {
+    id: 'junction-platform-de',
+    title: 'Junction platform events (DE satellites)',
+    url: 'https://hackjunction.app/hackathons',
+    location_raw: 'Germany / Europe',
+    format: 'in_person',
+    themes: ['germany', 'europe'],
+    regMonths: [1, 2, 3, 4, 5, 6, 9, 10, 11],
+    eventMonths: [3, 4, 5, 6, 9, 10, 11],
+    approxStartsAt: '2026-09-20T08:00:00.000Z',
+    approxRegDeadline: '2026-09-05T21:59:59.000Z',
+    notes: 'Probe hackjunction.app for open DE/EU editions',
+  },
+  // --- Netherlands ---
+  {
+    id: 'edth-netherlands',
+    title: 'European Defense Tech Hackathon — Netherlands',
+    url: 'https://lu.ma/eurodefensetech',
+    location_raw: 'Netherlands',
+    format: 'in_person',
+    themes: ['netherlands', 'defense', 'europe'],
+    regMonths: [2, 3, 4, 5],
+    eventMonths: [4, 5],
+    approxStartsAt: '2027-04-10T08:00:00.000Z',
+    approxRegDeadline: '2027-03-20T21:59:59.000Z',
+    notes: '2026 NL edition was Apr; watch Luma calendar for next',
+  },
+  // --- Baltics (kept) ---
   {
     id: 'garage48',
     title: 'Garage48',
@@ -47,7 +89,6 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2026-10-16T07:00:00.000Z',
     approxEndsAt: '2026-10-18T16:00:00.000Z',
     approxRegDeadline: '2026-10-05T21:59:59.000Z',
-    notes: 'Series of 48h startup hackathons across Estonia',
   },
   {
     id: 'jaunaragiai-make-it-real',
@@ -61,7 +102,6 @@ export const WATCHES: Watch[] = [
     approxStartsAt: '2027-05-14T07:00:00.000Z',
     approxEndsAt: '2027-05-16T16:00:00.000Z',
     approxRegDeadline: '2027-04-20T21:59:59.000Z',
-    notes: 'Nordic Council funded; travel for internationals historically covered',
   },
   {
     id: 'startup-day-hack',
@@ -74,22 +114,19 @@ export const WATCHES: Watch[] = [
     eventMonths: [1],
     approxStartsAt: '2027-01-28T08:00:00.000Z',
     approxRegDeadline: '2027-01-10T21:59:59.000Z',
-    notes: 'Watch startupday.ee for official hackathon side-events',
   },
   {
     id: 'eurodefense-circuit',
     title: 'European Defense Tech Hackathon (circuit)',
     url: 'https://lu.ma/eurodefensetech',
-    location_raw: 'Europe (rotating — Tallinn, Warsaw, …)',
+    location_raw: 'Europe (rotating)',
     format: 'in_person',
-    themes: ['defense', 'europe', 'baltic', 'poland'],
+    themes: ['defense', 'europe'],
     regMonths: [1, 2, 3, 4, 5, 6, 9, 10],
     eventMonths: [2, 3, 4, 5, 6],
     approxStartsAt: '2026-09-15T08:00:00.000Z',
     approxRegDeadline: '2026-09-01T21:59:59.000Z',
-    notes: 'Multi-city; check lu.ma/eurodefensetech — travel usually self-funded',
   },
-  // --- Global still useful ---
   {
     id: 'nasa-space-apps',
     title: 'NASA Space Apps Challenge',
@@ -101,19 +138,6 @@ export const WATCHES: Watch[] = [
     eventMonths: [10],
     approxStartsAt: '2026-10-04T00:00:00.000Z',
     approxRegDeadline: '2026-09-20T00:00:00.000Z',
-  },
-  {
-    id: 'adventurex-china',
-    title: 'AdventureX',
-    url: 'https://adventure-x.org/en',
-    location_raw: 'Hangzhou, China',
-    format: 'in_person',
-    themes: ['china', 'student', 'builder'],
-    regMonths: [4, 5, 6, 7],
-    eventMonths: [7],
-    approxStartsAt: '2027-07-15T00:00:00.000Z',
-    approxRegDeadline: '2027-06-01T00:00:00.000Z',
-    prize_pool: '150000+ USD',
   },
 ]
 
@@ -127,7 +151,6 @@ export function watchesToRows(now = new Date()): IngestRow[] {
     if (!inWindow) continue
     const starts = w.approxStartsAt
     if (Date.parse(starts) <= nowMs) continue
-    // Strict: need open registration deadline to appear in feed
     if (!w.approxRegDeadline || Date.parse(w.approxRegDeadline) <= nowMs) continue
 
     rows.push({

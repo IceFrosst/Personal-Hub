@@ -36,33 +36,31 @@ export type UserHackathonStatus = {
 }
 
 /**
- * Countries reachable from Lithuania on a typical budget airline deal
- * (screenshot-based, ~Jul 2026) with estimated RT under ~70 EUR, plus
- * home + Baltic neighbours (bus/train often cheaper than flights).
+ * Screenshot deals from LT (Jul 2026) treated as return-capable under ~70€.
+ * All listed countries are available in Settings; defaults include the full set.
  */
 export const CHEAP_FROM_LT_COUNTRIES: Array<{ value: string; label: string; note?: string }> = [
   { value: 'lithuania', label: 'Lithuania', note: 'Home' },
   { value: 'latvia', label: 'Latvia', note: 'Bus/train' },
-  { value: 'estonia', label: 'Estonia', note: '~36€ flight / bus' },
-  { value: 'finland', label: 'Finland', note: '~25€ OW' },
-  { value: 'norway', label: 'Norway', note: '~26€ OW' },
-  { value: 'poland', label: 'Poland', note: '~29€ OW' },
-  { value: 'denmark', label: 'Denmark', note: '~30€ OW' },
-  { value: 'sweden', label: 'Sweden', note: '~30€ OW' },
-  { value: 'italy', label: 'Italy', note: '~30€ OW' },
-  { value: 'czechia', label: 'Czechia', note: '~35€ OW' },
+  { value: 'estonia', label: 'Estonia', note: 'Flight / bus' },
+  { value: 'finland', label: 'Finland', note: 'Screenshot deal' },
+  { value: 'norway', label: 'Norway', note: 'Screenshot deal' },
+  { value: 'poland', label: 'Poland', note: 'Screenshot deal' },
+  { value: 'denmark', label: 'Denmark', note: 'Screenshot deal' },
+  { value: 'sweden', label: 'Sweden', note: 'Screenshot deal' },
+  { value: 'italy', label: 'Italy', note: 'Screenshot deal' },
+  { value: 'czechia', label: 'Czechia', note: 'Screenshot deal' },
   { value: 'czech', label: 'Czech Republic', note: 'alias' },
-  { value: 'netherlands', label: 'Netherlands', note: '~36€ OW — borderline 70€ RT' },
-  // Optional / slightly over 70€ RT — available to toggle on
-  { value: 'united kingdom', label: 'United Kingdom', note: '~37€ OW' },
-  { value: 'germany', label: 'Germany', note: '~39€ OW' },
-  { value: 'belgium', label: 'Belgium', note: '~44€ OW' },
-  { value: 'hungary', label: 'Hungary', note: '~47€ OW' },
-  { value: 'georgia', label: 'Georgia', note: '~50€ OW' },
-  { value: 'austria', label: 'Austria', note: '~56€ OW' },
+  { value: 'netherlands', label: 'Netherlands', note: 'Screenshot deal' },
+  { value: 'united kingdom', label: 'United Kingdom', note: 'Screenshot deal' },
+  { value: 'germany', label: 'Germany', note: 'Screenshot deal' },
+  { value: 'belgium', label: 'Belgium', note: 'Screenshot deal' },
+  { value: 'hungary', label: 'Hungary', note: 'Screenshot deal' },
+  { value: 'georgia', label: 'Georgia', note: 'Screenshot deal' },
+  { value: 'austria', label: 'Austria', note: 'Screenshot deal' },
 ]
 
-/** Default priority set: clear under-~70€ RT + Baltics. */
+/** Full screenshot set + Baltics — user confirmed RT deals. */
 export const DEFAULT_PRIORITY_COUNTRIES = [
   'lithuania',
   'latvia',
@@ -74,16 +72,18 @@ export const DEFAULT_PRIORITY_COUNTRIES = [
   'sweden',
   'italy',
   'czechia',
+  'netherlands',
+  'united kingdom',
+  'germany',
+  'belgium',
+  'hungary',
+  'georgia',
+  'austria',
 ]
 
-/** Stored in user_preferences.notification_settings JSON (no migration). */
 export type NotificationSettings = {
   enabled: boolean
   min_score: number
-  /**
-   * Countries that get the priority-country score boost.
-   * Legacy `priority_country` (string) is migrated in coerceNotificationSettings.
-   */
   priority_countries: string[]
 }
 
@@ -102,7 +102,6 @@ export function coerceNotificationSettings(raw: unknown): NotificationSettings {
       .filter((c): c is string => typeof c === 'string' && c.trim() !== '')
       .map((c) => c.toLowerCase().trim())
   } else if (typeof o.priority_country === 'string' && o.priority_country.trim()) {
-    // Migrate old single-country setting
     countries = [o.priority_country.toLowerCase().trim()]
   }
 
