@@ -165,7 +165,8 @@ export default function Feed({ userId }: { userId: string }) {
         })
     }
 
-    // Main feed: isUpcomingAndOpen + IRL/Online switch + optional Multi-day
+    // Main feed: isUpcomingAndOpen + IRL/Online + Multi-day
+    // Exclude applied + hidden so they only live in their own tabs
     const scored = hackathons
       .filter((h) => isUpcomingAndOpen(h))
       .map((h) => ({
@@ -175,7 +176,7 @@ export default function Feed({ userId }: { userId: string }) {
       }))
 
     const filtered = scored.filter(({ h, status }) => {
-      if (status === 'hidden') return false
+      if (status === 'hidden' || status === 'applied') return false
       if (formatMode === 'irl' && h.format === 'online') return false
       if (formatMode === 'online' && h.format !== 'online') return false
       if (multiDayOnly) {
@@ -226,7 +227,6 @@ export default function Feed({ userId }: { userId: string }) {
       </header>
 
       <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
-        {/* IRL ↔ Online switch */}
         <button
           type="button"
           onClick={() => {
@@ -248,7 +248,6 @@ export default function Feed({ userId }: { userId: string }) {
           Online
         </button>
 
-        {/* Multi-day on/off */}
         <button
           type="button"
           onClick={() => {
@@ -261,7 +260,6 @@ export default function Feed({ userId }: { userId: string }) {
           Multi-day{multiDayOnly ? ' ✓' : ''}
         </button>
 
-        {/* Override lists */}
         <button
           type="button"
           onClick={() => setListMode(listMode === 'applied' ? 'feed' : 'applied')}

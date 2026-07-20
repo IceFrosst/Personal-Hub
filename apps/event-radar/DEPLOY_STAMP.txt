@@ -1,4 +1,2 @@
-deploy 2026-07-20T14:28Z
-Feed toggles: IRL/Online switch + Multi-day on/off + Applied/Dormant override
-Lint: removed unused `seen`
-turbo.json: globalEnv for Vercel secrets
+deploy 2026-07-20T14:35Z
+applied status → only Applied tab (removed from main IRL/Online feed)
