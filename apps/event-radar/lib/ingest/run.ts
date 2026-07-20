@@ -299,7 +299,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
           const settings =
             preferencesByUser.get(subscription.user_id) ?? DEFAULT_NOTIFICATION_SETTINGS
           const { score, reasons } = scoreHackathon(hackathon, new Date(), {
-            priority_country: settings.priority_country,
+            priority_countries: settings.priority_countries,
           })
           if (!settings.enabled || score < settings.min_score) continue
           const topReasons = reasons
