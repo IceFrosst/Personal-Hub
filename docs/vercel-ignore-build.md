@@ -4,37 +4,30 @@ Hobby plan allows **100 deployments / day** account-wide. This monorepo has
 multiple Vercel projects on the same GitHub repo, so a push can burn one deploy
 per project unless each project skips when its files are unchanged.
 
-## One-time setup (dashboard, ~1 min per project)
+## Configured in-repo (preferred)
 
-For **each** Vercel project linked to `Personal-Hub`:
+Each app has `ignoreCommand` in its `vercel.json`:
 
-1. Open **Project → Settings → Git**
-2. **Ignored Build Step** → set exactly (match the app folder):
+```json
+"ignoreCommand": "bash $(git rev-parse --show-toplevel)/scripts/vercel-ignore.sh <app-folder>"
+```
 
-| Vercel project | Ignored Build Step command |
-|----------------|----------------------------|
-| `icefrosst-event-radar` | `bash scripts/vercel-ignore.sh event-radar` |
-| `icefrosst-hub` | `bash scripts/vercel-ignore.sh hub` |
-| `icefrosst-lock-in` (or similar) | `bash scripts/vercel-ignore.sh lock-in` |
-| `icefrosst-focus-gate-personal-app` | `bash scripts/vercel-ignore.sh focus-gate` |
-| `icefrosst-cookie-jar` | `bash scripts/vercel-ignore.sh cookie-jar` |
+Script: `scripts/vercel-ignore.sh`
 
-3. Save. Root Directory stays `apps/<name>` as already configured.
+- Change only `apps/event-radar/**` → only event-radar builds
+- Change `package.json` / lockfile / `turbo.json` → all apps rebuild
 
-## Behaviour
+No dashboard “Ignored Build Step” needed unless you want to override.
 
-- Change only `apps/event-radar/**` → only event-radar builds; others skip.
-- Change `package.json` / lockfile / `turbo.json` → all apps rebuild (shared deps).
-- Script lives at `scripts/vercel-ignore.sh`.
+## Optional dashboard override
 
-## Why not only `npx turbo-ignore`?
+**Project → Settings → Build and Deployment** (not the Git webhooks page):
 
-`turbo-ignore` is deprecated in favour of Vercel’s built-in monorepo skipping and
-can still rebuild more often than needed. Path-based ignore is predictable and
-works even when Turbo’s graph is noisy.
+Look for **Ignored Build Step** under build settings. Same command as above.
 
-## Rate limit today
+The screen with “Connected Git Repository / Pull Request Comments” is **not** the place.
 
-If GitHub checks say **Deployment rate limited — retry in 24 hours**, the daily
-quota is exhausted. Wait for the rolling window, then the ignore step keeps you
-under the limit going forward.
+## Rate limit
+
+If checks say **Deployment rate limited — retry in 24 hours**, wait for the rolling
+window. After that, ignoreCommand keeps you under the limit.

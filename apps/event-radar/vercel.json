@@ -1,4 +1,6 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "bash $(git rev-parse --show-toplevel)/scripts/vercel-ignore.sh event-radar",
   "crons": [
     {
       "path": "/api/cron/ingest",
