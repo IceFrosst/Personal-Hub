@@ -44,10 +44,11 @@ export function formatRefreshSummary(value: unknown): RefreshResult {
     return { tone: 'warning', message: 'Refresh response was incomplete — try again.' }
   }
 
-  const dbErrors: string[] = []
-  if (typeof summary.gather_error === 'string') dbErrors.push(`lookup: ${summary.gather_error}`)
-  if (typeof summary.insert_error === 'string') dbErrors.push(`insert: ${summary.insert_error}`)
-  if (dbErrors.length > 0) failures.push(...dbErrors)
+  // Mask raw DB error text from the user-facing summary — the full message is
+  // logged server-side (Vercel logs) for debugging. This surface may be shared.
+  if (typeof summary.gather_error === 'string' || typeof summary.insert_error === 'string') {
+    failures.push('database update')
+  }
 
   const inserted = count(summary.inserted)
   const enriched = count(summary.enriched)

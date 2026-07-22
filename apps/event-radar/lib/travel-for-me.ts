@@ -194,9 +194,14 @@ export function travelTagLabel(
     return 'Travel · check FAQ'
   }
   if (h.travel_covered === true || h.travel_scope === 'domestic' || h.travel_scope === 'regional') {
-    const regions = regionTokens(h.travel_regions)
-    if (regions.length > 0) {
-      const short = regions[0].length <= 12 ? regions[0] : regions[0].slice(0, 10) + '…'
+    // Display the region with its original casing (e.g. "US", "EU"); the
+    // lowercased regionTokens are for matching only, not for the label.
+    const rawRegions = (h.travel_regions ?? [])
+      .map((r) => (typeof r === 'string' ? r.trim() : ''))
+      .filter(Boolean)
+    if (rawRegions.length > 0) {
+      const first = rawRegions[0]
+      const short = first.length <= 12 ? first : first.slice(0, 10) + '…'
       return `Travel · ${short}`
     }
     if (h.travel_scope === 'domestic') return 'Travel · domestic'
