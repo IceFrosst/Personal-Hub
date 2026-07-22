@@ -18,6 +18,7 @@ import { enrich, fetchPageText } from './enrich'
 import { circuitTravelCovered, circuitFaqPaths } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
+import { encodeTravelPolicyThemes } from '@/lib/travel-policy-store'
 import {
   coerceHackathon,
   coerceNotificationSettings,
@@ -210,11 +211,24 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         ? extracted.travel_covered
         : circuitTravel
 
+    // Always encode policy into themes so scoring works without migration 0003.
+    const baseThemes =
+      extracted.themes.length > 0
+        ? extracted.themes
+        : row.themes ?? []
+    const themesWithPolicy = encodeTravelPolicyThemes(baseThemes, {
+      travel_scope: extracted.travel_scope,
+      travel_regions: extracted.travel_regions,
+      travel_cap: extracted.travel_cap,
+      travel_notes: extracted.travel_notes,
+    })
+
     const basePatch: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
       travel_covered: travel,
       accommodation_covered: extracted.accommodation_covered,
       open_to_business_students: extracted.open_to_business_students,
+      themes: themesWithPolicy,
     }
     if (text) basePatch.raw_description = text.slice(0, 4000)
     if (extracted.format) basePatch.format = extracted.format
@@ -222,8 +236,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     if (extracted.country) basePatch.country = extracted.country
     if (extracted.registration_deadline && !row.registration_deadline)
       basePatch.registration_deadline = extracted.registration_deadline
-    if (extracted.themes.length > 0 && (!row.themes || row.themes.length === 0))
-      basePatch.themes = extracted.themes
 
     if (
       (row.source === 'known' || row.source === 'watch') &&
@@ -233,7 +245,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       basePatch.travel_covered = true
     }
 
-    // Structured travel policy (migration 0003). Retry without these cols if missing.
+    // Prefer dedicated columns when migration 0003 is applied; themes remain the fallback.
     const policyPatch: Record<string, unknown> = {
       ...basePatch,
       travel_scope: extracted.travel_scope,
