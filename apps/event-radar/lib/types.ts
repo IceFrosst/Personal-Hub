@@ -1,3 +1,5 @@
+import { decodeTravelPolicyFromThemes } from './travel-policy-store'
+
 export type HackathonFormat = 'online' | 'in_person' | 'hybrid'
 
 /** Who the travel stipend/reimbursement is aimed at. */
@@ -24,7 +26,7 @@ export type Hackathon = {
   location_raw: string | null
   prize_pool: string | null
   travel_covered: boolean | null
-  /** Structured travel policy — null until enrichment / migration 0003. */
+  /** Structured travel policy — from columns (0003) or themes tokens. */
   travel_scope: TravelScope | null
   travel_regions: string[]
   travel_cap: string | null
@@ -141,8 +143,14 @@ export function coerceNotificationSettings(raw: unknown): NotificationSettings {
   }
 }
 
-/** Coerce DB row (pre- or post-migration 0003) into a full Hackathon. */
+/** Coerce DB row into a full Hackathon (columns or themes-encoded policy). */
 export function coerceHackathon(row: Record<string, unknown>): Hackathon {
+  const themes = Array.isArray(row.themes)
+    ? row.themes.filter((t): t is string => typeof t === 'string')
+    : []
+
+  const fromThemes = decodeTravelPolicyFromThemes(themes)
+
   const scopeRaw = typeof row.travel_scope === 'string' ? row.travel_scope : null
   const scopeOk =
     scopeRaw === 'none' ||
@@ -158,6 +166,17 @@ export function coerceHackathon(row: Record<string, unknown>): Hackathon {
   if (Array.isArray(row.travel_regions)) {
     regions = row.travel_regions.filter((r): r is string => typeof r === 'string')
   }
+
+  const travel_scope = scopeOk ?? fromThemes.travel_scope
+  const travel_regions = regions.length > 0 ? regions : fromThemes.travel_regions
+  const travel_cap =
+    row.travel_cap == null || row.travel_cap === ''
+      ? fromThemes.travel_cap
+      : String(row.travel_cap)
+  const travel_notes =
+    row.travel_notes == null || row.travel_notes === ''
+      ? fromThemes.travel_notes
+      : String(row.travel_notes)
 
   return {
     id: String(row.id),
@@ -178,17 +197,15 @@ export function coerceHackathon(row: Record<string, unknown>): Hackathon {
     location_raw: row.location_raw == null ? null : String(row.location_raw),
     prize_pool: row.prize_pool == null ? null : String(row.prize_pool),
     travel_covered: typeof row.travel_covered === 'boolean' ? row.travel_covered : null,
-    travel_scope: scopeOk,
-    travel_regions: regions,
-    travel_cap: row.travel_cap == null ? null : String(row.travel_cap),
-    travel_notes: row.travel_notes == null ? null : String(row.travel_notes),
+    travel_scope,
+    travel_regions,
+    travel_cap,
+    travel_notes,
     accommodation_covered:
       typeof row.accommodation_covered === 'boolean' ? row.accommodation_covered : null,
     open_to_business_students:
       typeof row.open_to_business_students === 'boolean' ? row.open_to_business_students : null,
-    themes: Array.isArray(row.themes)
-      ? row.themes.filter((t): t is string => typeof t === 'string')
-      : [],
+    themes,
     raw_description: row.raw_description == null ? null : String(row.raw_description),
     enriched_at: row.enriched_at == null ? null : String(row.enriched_at),
     notified_at: row.notified_at == null ? null : String(row.notified_at),
