@@ -92,8 +92,10 @@ export function scoreHackathon(
     if (pts !== 0) reasons.push({ label, pts })
   }
 
-  if (isIndiaFocused(h)) {
-    return { score: -100, reasons: [{ label: 'India-focused — filtered', pts: -100 }] }
+  // India-focused events are filtered UNLESS travel is confirmed covered —
+  // Ignas will fly to India for a fully-covered event, but not a local-only one.
+  if (isIndiaFocused(h) && h.travel_covered !== true) {
+    return { score: -100, reasons: [{ label: 'India-focused, travel not covered — filtered', pts: -100 }] }
   }
 
   const online = h.format === 'online'
@@ -185,7 +187,10 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
   const nowTimestamp = now.getTime()
   if (!Number.isFinite(nowTimestamp)) return false
 
-  if (isIndiaFocused(h)) return false
+  // India-focused events surface only once travel is confirmed covered (see note
+  // in scoreHackathon). A local-only Indian event stays hidden; ETHIndia-class
+  // fully-covered ones can appear.
+  if (isIndiaFocused(h) && h.travel_covered !== true) return false
 
   const startsAt = validTimestamp(h.starts_at)
   if (startsAt === null) return false

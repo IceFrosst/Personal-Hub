@@ -7,7 +7,13 @@ import { matchTravelPriority, travelPriorityFaqPaths } from '@/lib/travel-priori
 //
 // Registry lives in lib/travel-priority.ts (Tier A/B) so the app filter,
 // score boost, and FAQ enrichment share the same matchers.
-
+//
+// IMPORTANT: only **Tier A** (documented/confirmed reimbursement) sets the
+// travel_covered prior to true. Tier B is "monitor / unclear / winner-only /
+// region-gated" — being on the list is NOT evidence of travel, so it returns
+// null and lets the FAQ crawl + LLM confirm (or deny) per edition. This keeps
+// "sponsors travel" honest: an unconfirmed circuit never claims coverage it
+// hasn't been shown to offer.
 export function circuitTravelCovered(row: {
   source: string
   title: string
@@ -20,7 +26,7 @@ export function circuitTravelCovered(row: {
     title: row.title,
     url: row.url ?? null,
   })
-  return hit ? true : null
+  return hit && hit.tier === 'A' ? true : null
 }
 
 /** Extra FAQ-style paths when the main page is thin / SPA. */

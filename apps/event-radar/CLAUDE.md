@@ -41,6 +41,16 @@
   `promoted-from-dormant.json`.
 - **Travel ✓ filter** = only `travel_covered === true` (confirmed reimbursement).
   Online is a separate filter.
+- **Travel-priority tiers drive the prior honestly** (`circuitTravelCovered`): only
+  **Tier A** (documented reimbursement) sets `travel_covered = true` up front. **Tier B**
+  (unclear / winner-only / region-gated / monitor) returns `null` — being on the list is
+  not evidence; the FAQ crawl + LLM must confirm travel per edition. Add a circuit as Tier A
+  only with hard evidence; otherwise Tier B.
+- **India rule is travel-gated, not a blanket block** (`isIndiaFocused` in `scoring.ts`):
+  India-focused events (Unstop source, India location, "Smart India"…) are hidden from feed
+  and scored −100 **unless `travel_covered === true`**. A fully-covered Indian event
+  (e.g. ETHIndia, Tier A) surfaces; local-only ones stay hidden. Ignas will travel to India
+  for a covered event.
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
   structured extraction per root CLAUDE.md model guidance), Gemini Flash fallback, and a
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
