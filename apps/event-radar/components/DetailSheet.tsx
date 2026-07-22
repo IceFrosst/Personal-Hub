@@ -27,6 +27,17 @@ function fmtDate(iso: string | null): string | null {
   })
 }
 
+function travelSummary(h: Hackathon): string | null {
+  if (h.travel_covered === false || h.travel_scope === 'none') return 'Not covered'
+  const parts: string[] = []
+  if (h.travel_scope) parts.push(h.travel_scope)
+  if (h.travel_regions?.length) parts.push(h.travel_regions.join(', '))
+  if (h.travel_cap) parts.push(h.travel_cap)
+  if (parts.length > 0) return parts.join(' · ')
+  if (h.travel_covered === true) return 'Mentioned (scope unclear)'
+  return null
+}
+
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -164,6 +175,7 @@ export default function DetailSheet({
         : null,
     ],
     ['Register by', fmtDate(h.registration_deadline)],
+    ['Travel', travelSummary(h)],
     ['Prize pool', h.prize_pool],
     ['Source', h.source],
   ]
@@ -226,6 +238,11 @@ export default function DetailSheet({
                   <span className="text-right text-text">{v}</span>
                 </div>
               ))}
+            {h.travel_notes && (
+              <p className="mt-1 border-t border-border pt-2 text-xs text-text-muted">
+                {h.travel_notes}
+              </p>
+            )}
           </div>
 
           <div className="mb-4 flex gap-1.5">
