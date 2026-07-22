@@ -145,7 +145,22 @@ export const WATCHES: Watch[] = [
     approxRegDeadline: '2026-09-15T21:59:59.000Z',
     notes: 'Aggregator of HU student/industry hacks',
   },
-  // --- Baltics ---
+  // --- Baltics / Lithuania ---
+  {
+    id: 'hack4vilnius',
+    title: 'Hack4Vilnius',
+    url: 'https://hack4vilnius.lt/',
+    location_raw: 'Vilnius, Lithuania',
+    format: 'in_person',
+    themes: ['lithuania', 'baltic', 'city', 'vilnius'],
+    // Reg opens ~late Aug; keep active through event month
+    regMonths: [7, 8, 9, 10],
+    eventMonths: [10],
+    approxStartsAt: '2026-10-09T07:00:00.000Z',
+    approxEndsAt: '2026-10-11T16:00:00.000Z',
+    approxRegDeadline: '2026-10-07T20:59:59.000Z',
+    notes: 'City hackathon · VILNIUS TECH LinkMenų fabrikas · reg opens ~2026-08-24',
+  },
   {
     id: 'garage48',
     title: 'Garage48',

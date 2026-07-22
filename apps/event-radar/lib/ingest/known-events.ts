@@ -92,6 +92,20 @@ export function fetchKnownEvents(): IngestRow[] {
       registration_deadline: '2026-09-25T21:59:59.000Z',
       themes: ['poland', 'europe', 'student'],
     },
+    {
+      source: 'known',
+      source_id: 'hack4vilnius-2026',
+      title: 'Hack4Vilnius 2026',
+      url: 'https://hack4vilnius.lt/',
+      starts_at: '2026-10-09T07:00:00.000Z',
+      ends_at: '2026-10-11T16:00:00.000Z',
+      location_raw: 'Vilnius, Lithuania',
+      format: 'in_person',
+      prize_pool: null,
+      // Reg opens ~2026-08-24 (site countdown); close approx few days before event
+      registration_deadline: '2026-10-07T20:59:59.000Z',
+      themes: ['lithuania', 'baltic', 'city', 'vilnius'],
+    },
     ...fetchTierAExtraSeeds(),
     ...promoted,
   ]
