@@ -3,6 +3,7 @@
 import type { Hackathon, UserStatus } from '@/lib/types'
 import type { ScoredHackathon } from '@/lib/scoring'
 import { durationHours } from '@/lib/scoring'
+import { travelTagLabel } from '@/lib/travel-for-me'
 import { IconExternalLink, IconStar, IconChecks, IconEyeOff } from '@tabler/icons-react'
 
 function formatDates(h: Hackathon): string | null {
@@ -20,9 +21,10 @@ function scoreColor(score: number): string {
   return 'bg-surface-elevated text-text-muted'
 }
 
-function featureTags(h: Hackathon): string[] {
+function featureTags(h: Hackathon, homeBase: string): string[] {
   const tags: string[] = []
-  if (h.travel_covered === true) tags.push('Travel')
+  const travel = travelTagLabel(h, homeBase)
+  if (travel) tags.push(travel)
   if (h.accommodation_covered === true) tags.push('Accommodation')
   const hours = durationHours(h)
   if (hours !== null && hours > 24) tags.push('Multi-day')
@@ -33,12 +35,14 @@ export default function HackathonCard({
   hackathon: h,
   scored,
   status,
+  homeBase = 'lithuania',
   onSetStatus,
   onOpen,
 }: {
   hackathon: Hackathon
   scored: ScoredHackathon
   status: UserStatus | null
+  homeBase?: string
   onSetStatus: (status: UserStatus) => void
   onOpen: () => void
 }) {
@@ -50,7 +54,7 @@ export default function HackathonCard({
         h.location_raw ||
         'Location TBA'
   const interested = status === 'interested'
-  const tags = featureTags(h)
+  const tags = featureTags(h, homeBase)
 
   return (
     <article className="flex flex-col gap-2.5 rounded-2xl bg-surface p-4">
@@ -85,7 +89,13 @@ export default function HackathonCard({
           {tags.map((tag) => (
             <span
               key={tag}
-              className="rounded-md border border-border bg-surface-elevated px-2 py-0.5 text-[11px] font-medium text-text-muted"
+              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${
+                tag === 'Travel'
+                  ? 'border-purple/40 bg-purple/10 text-purple'
+                  : tag.startsWith('Travel')
+                    ? 'border-border bg-surface-elevated text-text-low'
+                    : 'border-border bg-surface-elevated text-text-muted'
+              }`}
             >
               {tag}
             </span>

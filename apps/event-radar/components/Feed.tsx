@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { durationHours, isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { isDormantCircuit, matchDormantCircuit } from '@/lib/dormant-tier-a'
 import {
+  coerceHackathon,
   coerceNotificationSettings,
   DEFAULT_NOTIFICATION_SETTINGS,
   type Hackathon,
@@ -53,7 +54,7 @@ export default function Feed({ userId }: { userId: string }) {
         .eq('user_id', userId)
         .maybeSingle(),
     ])
-    setHackathons((rows ?? []) as Hackathon[])
+    setHackathons((rows ?? []).map((r) => coerceHackathon(r as Record<string, unknown>)))
     setStatuses(
       Object.fromEntries((statusRows ?? []).map((r) => [r.hackathon_id, r.status as UserStatus]))
     )
@@ -126,8 +127,11 @@ export default function Feed({ userId }: { userId: string }) {
   }
 
   const scoreOpts = useMemo(
-    () => ({ priority_countries: prefs.priority_countries }),
-    [prefs.priority_countries]
+    () => ({
+      priority_countries: prefs.priority_countries,
+      home_base: prefs.home_base,
+    }),
+    [prefs.priority_countries, prefs.home_base]
   )
 
   const chipClass = (active: boolean) =>
@@ -306,6 +310,7 @@ export default function Feed({ userId }: { userId: string }) {
               hackathon={h}
               scored={scored}
               status={status}
+              homeBase={prefs.home_base}
               onSetStatus={(s) => setStatus(h.id, s)}
               onOpen={() => setSelectedId(h.id)}
             />

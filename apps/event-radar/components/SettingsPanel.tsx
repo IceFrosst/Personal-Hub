@@ -92,14 +92,40 @@ export default function SettingsPanel({
         <h1 className="text-2xl font-semibold">Settings</h1>
       </header>
 
+      <section className="mb-8 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Home base</h2>
+          {saved && <span className="text-xs text-green">saved</span>}
+        </div>
+        <p className="text-xs text-text-muted">
+          Travel reimbursements only boost your score when the policy covers someone based here
+          (not US-only / Africa-only / domestic-of-venue).
+        </p>
+        {loaded && (
+          <select
+            value={settings.home_base}
+            onChange={(e) => persist({ ...settings, home_base: e.target.value })}
+            className="min-h-11 rounded-md border border-border bg-bg px-3 text-sm text-text focus:border-border-focus focus:outline-none"
+          >
+            {UI_COUNTRIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+                {c.note ? ` — ${c.note}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+      </section>
+
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Priority countries</h2>
           {saved && <span className="text-xs text-green">saved</span>}
         </div>
         <p className="text-xs text-text-muted">
-          Events in selected countries get <span className="font-medium text-text">+30</span>{' '}
-          (travel covered is +50). Defaults = cheap direct deals from LT under ~70€ return.
+          Events in selected countries get <span className="font-medium text-text">+30</span>.
+          Confirmed travel <span className="font-medium text-text">for your home base</span> is{' '}
+          <span className="font-medium text-text">+50</span> (selective / unclear = +12).
         </p>
         {loaded && (
           <div className="flex flex-col gap-1.5">
