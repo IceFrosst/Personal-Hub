@@ -25,6 +25,7 @@ import {
   type Task,
   type TaskCategory,
 } from '@/lib/types'
+import AddTaskBar, { type RecurringDraft } from '@/components/AddTaskBar'
 import EditTaskSheet from '@/components/EditTaskSheet'
 import EditRecurringSheet, { type RecurringUpdate } from '@/components/EditRecurringSheet'
 
@@ -177,6 +178,61 @@ export default function GamePlanClient() {
     })
   }
 
+  // Create a one-off task from Game Plan → lands in the real to-do list.
+  const addTask = useCallback(
+    async (
+      title: string,
+      priority: Priority,
+      dueDate: string | null,
+      category: TaskCategory | null
+    ) => {
+      if (!userId) return
+      const { error: insertError } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .insert({
+          user_id: userId,
+          title,
+          priority,
+          due_date: dueDate,
+          category,
+          is_quick: false,
+        })
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+      setError(null)
+      setMessage(`“${title}” added to your list. Replan or use Replace to schedule it.`)
+    },
+    [supabase, userId]
+  )
+
+  // Create a routine from Game Plan → same table as the main list.
+  const addRecurring = useCallback(
+    async (title: string, draft: RecurringDraft) => {
+      if (!userId) return
+      const { error: insertError } = await supabase
+        .schema('lock_in')
+        .from('recurring_tasks')
+        .insert({
+          user_id: userId,
+          title,
+          weekdays: draft.weekdays,
+          time_mode: draft.timeMode,
+          fixed_time: draft.fixedTime,
+          duration_minutes: draft.durationMinutes,
+        })
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+      setError(null)
+      setMessage(`Routine “${title}” added. Replan to give it a slot.`)
+    },
+    [supabase, userId]
+  )
+
   async function planDay() {
     if (planning) return
     setPlanning(true)
@@ -203,7 +259,7 @@ export default function GamePlanClient() {
       if (data.scheduledCount === 0) {
         setMessage(
           data.totalTasks === 0
-            ? 'Nothing to schedule — add tasks or routines in Lock In.'
+            ? 'Nothing to schedule — add a task below or on the main list.'
             : `Nothing fit the free time ${when}.`
         )
       } else {
@@ -598,7 +654,7 @@ export default function GamePlanClient() {
 
             {day === 'yesterday' ? (
               <p className="text-text-low text-xs px-1 text-center">
-                Yesterday&apos;s plan — view only. You can still tick blocks off.
+                Yesterday's plan — view only. You can still tick blocks off.
               </p>
             ) : (
               <button
@@ -621,6 +677,13 @@ export default function GamePlanClient() {
               <p role="alert" className="text-priority-high text-xs px-1 -mt-1 leading-snug">
                 {error}
               </p>
+            )}
+
+            {/* Add task / routine directly from Game Plan → same tables as main list */}
+            {day !== 'yesterday' && (
+              <div className="mt-1">
+                <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
+              </div>
             )}
 
             {reordering && (
@@ -710,7 +773,7 @@ export default function GamePlanClient() {
             </p>
             {replaceOptions.length === 0 ? (
               <p className="text-text-low text-sm py-6 text-center">
-                No unscheduled tasks. Add one in Lock In first.
+                No unscheduled tasks. Add one above.
               </p>
             ) : (
               <div className="flex flex-col gap-2 overflow-y-auto min-h-0 -mx-1 px-1">
