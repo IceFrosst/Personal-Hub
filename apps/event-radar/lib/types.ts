@@ -1,5 +1,14 @@
 export type HackathonFormat = 'online' | 'in_person' | 'hybrid'
 
+/** Who the travel stipend/reimbursement is aimed at. */
+export type TravelScope =
+  | 'none'
+  | 'domestic'
+  | 'regional'
+  | 'international'
+  | 'selective'
+  | 'global'
+
 export type Hackathon = {
   id: string
   source: string
@@ -15,6 +24,11 @@ export type Hackathon = {
   location_raw: string | null
   prize_pool: string | null
   travel_covered: boolean | null
+  /** Structured travel policy — null until enrichment / migration 0003. */
+  travel_scope: TravelScope | null
+  travel_regions: string[]
+  travel_cap: string | null
+  travel_notes: string | null
   accommodation_covered: boolean | null
   open_to_business_students: boolean | null
   themes: string[]
@@ -81,16 +95,21 @@ export const DEFAULT_PRIORITY_COUNTRIES = [
   'austria',
 ]
 
+export const DEFAULT_HOME_BASE = 'lithuania'
+
 export type NotificationSettings = {
   enabled: boolean
   min_score: number
   priority_countries: string[]
+  /** Country the user is based in — drives travel-for-me scoring. */
+  home_base: string
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
   min_score: 60,
   priority_countries: DEFAULT_PRIORITY_COUNTRIES,
+  home_base: DEFAULT_HOME_BASE,
 }
 
 export function coerceNotificationSettings(raw: unknown): NotificationSettings {
@@ -105,6 +124,12 @@ export function coerceNotificationSettings(raw: unknown): NotificationSettings {
     countries = [o.priority_country.toLowerCase().trim()]
   }
 
+  let home_base = DEFAULT_HOME_BASE
+  if (typeof o.home_base === 'string' && o.home_base.trim()) {
+    home_base = o.home_base.toLowerCase().trim()
+    if (home_base === 'czech' || home_base === 'czech republic') home_base = 'czechia'
+  }
+
   return {
     enabled: typeof o.enabled === 'boolean' ? o.enabled : DEFAULT_NOTIFICATION_SETTINGS.enabled,
     min_score:
@@ -112,5 +137,62 @@ export function coerceNotificationSettings(raw: unknown): NotificationSettings {
         ? o.min_score
         : DEFAULT_NOTIFICATION_SETTINGS.min_score,
     priority_countries: countries,
+    home_base,
+  }
+}
+
+/** Coerce DB row (pre- or post-migration 0003) into a full Hackathon. */
+export function coerceHackathon(row: Record<string, unknown>): Hackathon {
+  const scopeRaw = typeof row.travel_scope === 'string' ? row.travel_scope : null
+  const scopeOk =
+    scopeRaw === 'none' ||
+    scopeRaw === 'domestic' ||
+    scopeRaw === 'regional' ||
+    scopeRaw === 'international' ||
+    scopeRaw === 'selective' ||
+    scopeRaw === 'global'
+      ? scopeRaw
+      : null
+
+  let regions: string[] = []
+  if (Array.isArray(row.travel_regions)) {
+    regions = row.travel_regions.filter((r): r is string => typeof r === 'string')
+  }
+
+  return {
+    id: String(row.id),
+    source: String(row.source ?? ''),
+    source_id: row.source_id == null ? null : String(row.source_id),
+    title: String(row.title ?? ''),
+    url: String(row.url ?? ''),
+    starts_at: row.starts_at == null ? null : String(row.starts_at),
+    ends_at: row.ends_at == null ? null : String(row.ends_at),
+    registration_deadline:
+      row.registration_deadline == null ? null : String(row.registration_deadline),
+    format:
+      row.format === 'online' || row.format === 'in_person' || row.format === 'hybrid'
+        ? row.format
+        : null,
+    city: row.city == null ? null : String(row.city),
+    country: row.country == null ? null : String(row.country),
+    location_raw: row.location_raw == null ? null : String(row.location_raw),
+    prize_pool: row.prize_pool == null ? null : String(row.prize_pool),
+    travel_covered: typeof row.travel_covered === 'boolean' ? row.travel_covered : null,
+    travel_scope: scopeOk,
+    travel_regions: regions,
+    travel_cap: row.travel_cap == null ? null : String(row.travel_cap),
+    travel_notes: row.travel_notes == null ? null : String(row.travel_notes),
+    accommodation_covered:
+      typeof row.accommodation_covered === 'boolean' ? row.accommodation_covered : null,
+    open_to_business_students:
+      typeof row.open_to_business_students === 'boolean' ? row.open_to_business_students : null,
+    themes: Array.isArray(row.themes)
+      ? row.themes.filter((t): t is string => typeof t === 'string')
+      : [],
+    raw_description: row.raw_description == null ? null : String(row.raw_description),
+    enriched_at: row.enriched_at == null ? null : String(row.enriched_at),
+    notified_at: row.notified_at == null ? null : String(row.notified_at),
+    last_seen_at: String(row.last_seen_at ?? new Date().toISOString()),
+    created_at: String(row.created_at ?? new Date().toISOString()),
   }
 }
