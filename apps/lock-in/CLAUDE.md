@@ -52,6 +52,12 @@ durations and time-blocks a realistic day around existing events, and the blocks
 real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggle in settings.
 A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
 
+**Add task from Game Plan** — the full `AddTaskBar` (one-off + recurring, voice, priority, due date,
+tag) now lives on the Game Plan page (today/tomorrow only). Creating a task or routine here writes
+to the same tables as the main list (`focus_gate.tasks` / `lock_in.recurring_tasks`), so it appears
+in the real to-do list immediately. After add, a short note tells you to replan or use Replace to
+schedule it into a time block.
+
 The planner (`lib/game-plan/planner.ts`) runs in **four phases so routines always win a slot before
 one-off tasks**: (1) **fixed-time routines** pinned to their clock time (slide to nearest free slot
 if busy); (2) **flexible routines reserved next, before any task, longest first** — so a big routine
