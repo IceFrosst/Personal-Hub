@@ -19,6 +19,7 @@ import { circuitTravelCovered, circuitFaqPaths } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import {
+  coerceHackathon,
   coerceNotificationSettings,
   DEFAULT_NOTIFICATION_SETTINGS,
   type Hackathon,
@@ -209,34 +210,55 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         ? extracted.travel_covered
         : circuitTravel
 
-    const patch: Record<string, unknown> = {
+    const basePatch: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
       travel_covered: travel,
       accommodation_covered: extracted.accommodation_covered,
       open_to_business_students: extracted.open_to_business_students,
     }
-    if (text) patch.raw_description = text.slice(0, 4000)
-    if (extracted.format) patch.format = extracted.format
-    if (extracted.city) patch.city = extracted.city
-    if (extracted.country) patch.country = extracted.country
+    if (text) basePatch.raw_description = text.slice(0, 4000)
+    if (extracted.format) basePatch.format = extracted.format
+    if (extracted.city) basePatch.city = extracted.city
+    if (extracted.country) basePatch.country = extracted.country
     if (extracted.registration_deadline && !row.registration_deadline)
-      patch.registration_deadline = extracted.registration_deadline
+      basePatch.registration_deadline = extracted.registration_deadline
     if (extracted.themes.length > 0 && (!row.themes || row.themes.length === 0))
-      patch.themes = extracted.themes
+      basePatch.themes = extracted.themes
 
     if (
       (row.source === 'known' || row.source === 'watch') &&
       travel === null &&
       circuitTravel === true
     ) {
-      patch.travel_covered = true
+      basePatch.travel_covered = true
     }
 
-    const { data: updated, error: updateError } = await db
+    // Structured travel policy (migration 0003). Retry without these cols if missing.
+    const policyPatch: Record<string, unknown> = {
+      ...basePatch,
+      travel_scope: extracted.travel_scope,
+      travel_regions: extracted.travel_regions,
+      travel_cap: extracted.travel_cap,
+      travel_notes: extracted.travel_notes,
+    }
+
+    let { data: updated, error: updateError } = await db
       .from('hackathons')
-      .update(patch)
+      .update(policyPatch)
       .eq('id', row.id)
       .select('id')
+
+    if (updateError) {
+      const msg = updateError.message.toLowerCase()
+      if (msg.includes('travel_scope') || msg.includes('travel_regions') || msg.includes('column')) {
+        ;({ data: updated, error: updateError } = await db
+          .from('hackathons')
+          .update(basePatch)
+          .eq('id', row.id)
+          .select('id'))
+      }
+    }
+
     return !updateError && (updated?.length ?? 0) > 0
   }
 
@@ -244,7 +266,9 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
 
   if (newlyInsertedIds.length > 0) {
     const { data: freshRows } = await db.from('hackathons').select('*').in('id', newlyInsertedIds)
-    if (freshRows) toEnrich.push(...(freshRows as Hackathon[]))
+    if (freshRows) {
+      toEnrich.push(...freshRows.map((r) => coerceHackathon(r as Record<string, unknown>)))
+    }
   }
 
   const { data: pending } = await db
@@ -255,9 +279,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     .limit(ENRICH_BATCH)
 
   const seenIds = new Set(toEnrich.map((r) => r.id))
-  for (const row of (pending ?? []) as Hackathon[]) {
-    if (seenIds.has(row.id)) continue
-    toEnrich.push(row)
+  for (const row of pending ?? []) {
+    const h = coerceHackathon(row as Record<string, unknown>)
+    if (seenIds.has(h.id)) continue
+    toEnrich.push(h)
     if (toEnrich.length >= ENRICH_BATCH) break
   }
 
@@ -280,7 +305,9 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       .order('created_at', { ascending: false })
       .limit(30)
 
-    const freshRows = ((fresh ?? []) as Hackathon[]).filter((h) => isUpcomingAndOpen(h))
+    const freshRows = (fresh ?? [])
+      .map((r) => coerceHackathon(r as Record<string, unknown>))
+      .filter((h) => isUpcomingAndOpen(h))
     if (freshRows.length > 0) {
       const [{ data: subscriptions }, { data: preferences }] = await Promise.all([
         db.from('push_subscriptions').select('id, user_id, subscription'),
@@ -300,6 +327,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
             preferencesByUser.get(subscription.user_id) ?? DEFAULT_NOTIFICATION_SETTINGS
           const { score, reasons } = scoreHackathon(hackathon, new Date(), {
             priority_countries: settings.priority_countries,
+            home_base: settings.home_base,
           })
           if (!settings.enabled || score < settings.min_score) continue
           const topReasons = reasons

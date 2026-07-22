@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isUpcomingAndOpen } from '../lib/scoring'
+import { isUpcomingAndOpen, scoreHackathon } from '../lib/scoring'
 import type { Hackathon } from '../lib/types'
 
 const NOW = new Date('2026-07-18T12:00:00.000Z')
@@ -22,6 +22,10 @@ function hackathon(overrides: Partial<Hackathon> = {}): Hackathon {
     location_raw: 'Vilnius, Lithuania',
     prize_pool: null,
     travel_covered: null,
+    travel_scope: null,
+    travel_regions: [],
+    travel_cap: null,
+    travel_notes: null,
     accommodation_covered: null,
     open_to_business_students: null,
     themes: [],
@@ -181,4 +185,34 @@ test('travel-priority circuit without deadline is excluded (no bypass)', () => {
     ),
     false
   )
+})
+
+test('full travel boost only when policy is useful for home base', () => {
+  const usOnly = scoreHackathon(
+    hackathon({
+      city: 'Boston',
+      country: 'United States',
+      location_raw: 'Boston, MA',
+      travel_covered: true,
+      travel_scope: 'domestic',
+      travel_regions: ['US'],
+    }),
+    NOW,
+    { priority_countries: [], home_base: 'lithuania' }
+  )
+  assert.ok(!usOnly.reasons.some((r) => r.label.includes('for you') && r.pts === 50))
+
+  const eu = scoreHackathon(
+    hackathon({
+      city: 'Barcelona',
+      country: 'Spain',
+      location_raw: 'Barcelona',
+      travel_covered: true,
+      travel_scope: 'international',
+      travel_regions: ['EU', 'Europe'],
+    }),
+    NOW,
+    { priority_countries: [], home_base: 'lithuania' }
+  )
+  assert.ok(eu.reasons.some((r) => r.pts === 50 && r.label.includes('for you')))
 })
