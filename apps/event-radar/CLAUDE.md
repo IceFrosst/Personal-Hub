@@ -44,6 +44,18 @@
 - Enrichment (`lib/ingest/enrich.ts`): Groq `llama-3.3-70b-versatile` primary (high-volume
   structured extraction per root CLAUDE.md model guidance), Gemini Flash fallback, and a
   hard rule that a failed extraction leaves fields `null` ("unknown") — never guessed.
+- **Second-hop travel/FAQ crawl (`fetchBestPageText` in `run.ts`):** the listing page
+  rarely states travel policy, so enrichment also reads FAQ pages. Two sources of extra
+  URLs: registry circuits' `circuitFaqPaths`, and — for the general population —
+  `genericTravelFaqUrls`, which probes `/faq · /travel · /logistics` on the event's own
+  origin **only for non-online, organizer-hosted events** (aggregator hosts like lu.ma /
+  devpost / hackquest are skipped — their page isn't the organizer's). Total extra fetches
+  are capped at 4 with a 5s timeout each. Limitation: plain fetch can't read JS-only SPA
+  sites (e.g. hackzurich.com returns a 46-word shell for every path); the no-headless rule
+  stands, so SPA organizers stay "unknown" until their policy is server-rendered.
+- Feed (`components/Feed.tsx`) fetches the newest **1000** catalog rows then filters with
+  `isUpcomingAndOpen` client-side. Raise this before the catalog outgrows it, or move the
+  future-start filter server-side (the limit is applied *before* eligibility filtering).
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Seven sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest

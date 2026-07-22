@@ -15,7 +15,7 @@ import { fetchTopcoder } from './topcoder'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
 import { enrich, fetchPageText } from './enrich'
-import { circuitTravelCovered, circuitFaqPaths } from './travel-circuits'
+import { circuitTravelCovered, circuitFaqPaths, genericTravelFaqUrls } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { sendPush } from '@/lib/push'
 import { encodeTravelPolicyThemes } from '@/lib/travel-policy-store'
@@ -59,18 +59,28 @@ async function fetchBestPageText(row: {
   url: string
   source: string
   title: string
+  format: Hackathon['format']
 }): Promise<string | null> {
   const main = await fetchPageText(row.url)
-  const faqPaths = circuitFaqPaths(row)
 
-  if (faqPaths.length === 0) return main
-  if (main && main.length > 1500 && faqPaths.length === 0) return main
-
+  // Second-hop travel/FAQ crawl. Two sources of candidate URLs:
+  //   1. Known circuits — their registered FAQ paths, appended to the event URL.
+  //   2. General population — organizer-hosted, non-online events get generic
+  //      /faq · /travel · /apply probes on their own origin (this is where MLH
+  //      member events and self-hosted hackathons actually state travel policy).
   const base = row.url.replace(/\/?$/, '')
+  const circuitUrls = circuitFaqPaths(row).map((path) => `${base}${path}`)
+  const genericUrls = genericTravelFaqUrls({ url: row.url, format: row.format })
+  // Dedupe and bound total extra fetches so a single row can't blow the budget.
+  const extraUrls = [...new Set([...circuitUrls, ...genericUrls])].slice(0, 4)
+
+  if (extraUrls.length === 0) return main
+
   const extras: string[] = []
-  for (const path of faqPaths.slice(0, 3)) {
+  for (const target of extraUrls) {
     try {
-      const extra = await fetchPageText(`${base}${path}`)
+      // Short timeout — these are best-effort guesses, many 404 instantly.
+      const extra = await fetchPageText(target, 5000)
       if (extra && extra.length > 200) extras.push(extra)
     } catch {
       /* ignore */
@@ -194,6 +204,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       url: row.url,
       source: row.source,
       title: row.title,
+      format: row.format,
     })
     const source = text ?? ([row.title, row.location_raw].filter(Boolean).join(' — ') || null)
     if (!source) return false

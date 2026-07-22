@@ -42,7 +42,7 @@ export default function Feed({ userId }: { userId: string }) {
         .from('hackathons')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(300),
+        .limit(1000),
       supabase
         .schema('hackathon')
         .from('user_hackathon_status')

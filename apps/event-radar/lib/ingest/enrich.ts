@@ -210,14 +210,16 @@ export async function enrich(pageText: string): Promise<Enrichment> {
 }
 
 // Fetch a hackathon's page and reduce it to text the models can read.
-export async function fetchPageText(url: string): Promise<string | null> {
+// `timeoutMs` is lowered for best-effort second-hop FAQ probes (most guessed
+// paths 404 fast; the few slow hosts shouldn't eat the enrichment time budget).
+export async function fetchPageText(url: string, timeoutMs = 8000): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)',
         Accept: 'text/html',
       },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(timeoutMs),
       redirect: 'follow',
     })
     if (!res.ok) return null
