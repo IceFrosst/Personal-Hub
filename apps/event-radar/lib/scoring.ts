@@ -2,12 +2,18 @@ import type { Hackathon, NotificationSettings } from './types'
 import { DEFAULT_NOTIFICATION_SETTINGS } from './types'
 import { isTravelPriority, matchTravelPriority } from './travel-priority'
 import { isDormantCircuit } from './dormant-tier-a'
+import { normalizeHomeBase, travelUsefulForMe } from './travel-for-me'
 
 export type ScoreReason = { label: string; pts: number }
 export type ScoredHackathon = { score: number; reasons: ScoreReason[] }
 
-const NEIGHBOR_COUNTRIES = ['latvia', 'estonia', 'poland']
-const HOME_COUNTRY = 'lithuania'
+const NEIGHBOR_OF: Record<string, string[]> = {
+  lithuania: ['latvia', 'estonia', 'poland'],
+  latvia: ['lithuania', 'estonia', 'poland'],
+  estonia: ['lithuania', 'latvia', 'finland'],
+  poland: ['lithuania', 'germany', 'czechia', 'czech', 'czech republic'],
+}
+
 const INDIA_MARKERS = [
   'india',
   'indian',
@@ -31,7 +37,11 @@ const INDIA_MARKERS = [
 
 export const MIN_LEAD_DAYS = 7
 
-/** Travel covered = 50; priority country is intentionally smaller. */
+/** Full boost only when travel policy is useful for the user's home base. */
+export const TRAVEL_USEFUL_BOOST = 50
+/** Ambiguous / selective travel — small nudge, not the full boost. */
+export const TRAVEL_MAYBE_BOOST = 12
+/** Priority country is intentionally smaller than confirmed useful travel. */
 export const PRIORITY_COUNTRY_BOOST = 30
 /** Multi-day (>24h) events — raised to 25 per user request. */
 export const MULTI_DAY_BOOST = 25
@@ -70,10 +80,12 @@ export function durationHours(h: Pick<Hackathon, 'starts_at' | 'ends_at'>): numb
   return (e - s) / 3600000
 }
 
+export type ScorePrefs = Pick<NotificationSettings, 'priority_countries' | 'home_base'>
+
 export function scoreHackathon(
   h: Hackathon,
   now: Date = new Date(),
-  prefs: Pick<NotificationSettings, 'priority_countries'> = DEFAULT_NOTIFICATION_SETTINGS
+  prefs: ScorePrefs = DEFAULT_NOTIFICATION_SETTINGS
 ): ScoredHackathon {
   const reasons: ScoreReason[] = []
   const add = (label: string, pts: number) => {
@@ -85,6 +97,7 @@ export function scoreHackathon(
   }
 
   const online = h.format === 'online'
+  const home = normalizeHomeBase(prefs.home_base)
   const priorityList = (prefs.priority_countries ?? [])
     .map((c) => c.toLowerCase().trim())
     .filter(Boolean)
@@ -97,27 +110,45 @@ export function scoreHackathon(
   )
 
   const inPriority = priorityExpanded.length > 0 && matchesCountry(h, priorityExpanded)
+  const neighbors = NEIGHBOR_OF[home] ?? []
 
   if (!online) {
-    if (h.travel_covered === true) add('Travel covered', 50)
-    else if (h.travel_covered === null) add('Travel coverage unknown', 8)
+    const useful = travelUsefulForMe(h, home)
+
+    if (useful === 'yes') {
+      add('Travel covered (for you)', TRAVEL_USEFUL_BOOST)
+    } else if (useful === 'maybe') {
+      add('Travel possible — check FAQ', TRAVEL_MAYBE_BOOST)
+    } else if (useful === 'no' && (h.travel_covered === true || h.travel_scope)) {
+      add('Travel not for your region', 0)
+    } else if (h.travel_covered === null && !h.travel_scope) {
+      add('Travel coverage unknown', 8)
+    }
 
     const circuit = matchTravelPriority(h)
-    if (circuit && h.travel_covered !== true) {
-      add(`Travel tier ${circuit.tier} · ${circuit.label}`, 18)
-    } else if (circuit && h.travel_covered === true) {
+    // Tier badge only when we do not already have a hard "yes" from the page
+    if (circuit && useful !== 'yes') {
+      // Don't boost US-only circuits for a Baltic home base
+      if (circuit.region === 'na' && home !== 'united states' && home !== 'canada') {
+        add(`Travel tier ${circuit.tier} · ${circuit.label} (NA)`, 4)
+      } else if (circuit.region === 'africa') {
+        add(`Travel tier ${circuit.tier} · ${circuit.label} (Africa)`, 4)
+      } else {
+        add(`Travel tier ${circuit.tier} · ${circuit.label}`, 18)
+      }
+    } else if (circuit && useful === 'yes') {
       add(`Travel tier ${circuit.tier}`, 8)
     }
 
     if (inPriority) {
-      add('Priority country (cheap from LT)', PRIORITY_COUNTRY_BOOST)
-    } else if (matchesCountry(h, [HOME_COUNTRY])) {
-      add('In Lithuania', 25)
-    } else if (matchesCountry(h, NEIGHBOR_COUNTRIES) && h.travel_covered !== true) {
+      add('Priority country (cheap from home)', PRIORITY_COUNTRY_BOOST)
+    } else if (matchesCountry(h, [home])) {
+      add(`In home country (${home})`, 25)
+    } else if (neighbors.length > 0 && matchesCountry(h, neighbors) && useful !== 'yes') {
       add('Neighbor country — cheap to reach', 15)
     }
   } else if (inPriority) {
-    add('Priority country (cheap from LT)', Math.floor(PRIORITY_COUNTRY_BOOST / 2))
+    add('Priority country (cheap from home)', Math.floor(PRIORITY_COUNTRY_BOOST / 2))
   }
 
   const hours = durationHours(h)

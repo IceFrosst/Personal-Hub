@@ -4,8 +4,14 @@
 // structured extraction; Gemini Flash is the fallback; total failure leaves
 // every field null ("unknown") — the feed still works, ranked conservatively.
 
+import type { TravelScope } from '@/lib/types'
+
 export type Enrichment = {
   travel_covered: boolean | null
+  travel_scope: TravelScope | null
+  travel_regions: string[]
+  travel_cap: string | null
+  travel_notes: string | null
   accommodation_covered: boolean | null
   open_to_business_students: boolean | null
   format: 'online' | 'in_person' | 'hybrid' | null
@@ -17,6 +23,10 @@ export type Enrichment = {
 
 const EMPTY: Enrichment = {
   travel_covered: null,
+  travel_scope: null,
+  travel_regions: [],
+  travel_cap: null,
+  travel_notes: null,
   accommodation_covered: null,
   open_to_business_students: null,
   format: null,
@@ -27,7 +37,18 @@ const EMPTY: Enrichment = {
 }
 
 const PROMPT = `You extract facts about a hackathon from its webpage text. Reply with ONLY a JSON object with exactly these keys:
-- travel_covered: true if organizers offer ANY participant travel support — reimbursement, travel stipend/scholarship/grant/bursary, covered or subsidised flights/train/airfare, "travel covered up to X", or travel support for accepted/selected hackers. false if the page explicitly says travel is NOT covered / at your own cost. null if travel is not mentioned at all. Partial or capped or selective support still counts as true.
+- travel_covered: true if organizers offer ANY participant travel support — reimbursement, travel stipend/scholarship/grant/bursary, covered or subsidised flights/train/airfare, "travel covered up to X", or travel support for accepted/selected hackers. false if the page explicitly says travel is NOT covered / at your own cost. null if travel is not mentioned at all.
+- travel_scope: one of "none", "domestic", "regional", "international", "selective", "global", or null.
+  - "none": explicitly no travel support
+  - "domestic": only within the host country / "continental US" / "within X miles of venue"
+  - "regional": limited to a named region (EU, Africa, MENA, APAC, etc.) — list it in travel_regions
+  - "international": explicitly covers travelers from other countries / abroad / international participants
+  - "global": open worldwide with no geography limit stated
+  - "selective": limited scholarships / need-based / "selected participants" with NO clear geography
+  - null: travel not discussed enough to classify
+- travel_regions: array of short strings naming WHO is eligible (e.g. ["US"], ["Africa"], ["EU", "Europe"], ["global"]). [] if unknown. Prefer region/country names over prose.
+- travel_cap: short string with amount/cap if stated (e.g. "€120 EU / €200 outside", "$500"), else null
+- travel_notes: one short quote (≤160 chars) from the page about travel policy, or null
 - accommodation_covered: true if sleeping arrangements are provided or subsidised — hotel, hostel, housing, lodging, "accommodation provided/covered". false if explicitly not provided. null if not mentioned.
 - open_to_business_students: true if non-engineering/business students may participate (open eligibility counts as true), false if it is explicitly restricted to developers/CS students, null if unclear
 - format: "online", "in_person", or "hybrid", or null if unclear
@@ -36,7 +57,8 @@ const PROMPT = `You extract facts about a hackathon from its webpage text. Reply
 - registration_deadline: "YYYY-MM-DD" or null if not stated
 - themes: array of short topic strings (max 6, [] if none)
 
-Never invent a fact that is not in the text — but travel/accommodation perks are the priority signal, so read the whole text (including any FAQ/Travel/Logistics section) before deciding they are absent. When the text truly does not state a fact, use null.`
+CRITICAL: Distinguish "travel exists for someone" from "travel exists for international participants". US-only, Africa-only, domestic-only, or "within 500 miles" must NOT be classified as international/global — use domestic or regional and put the limit in travel_regions.
+Never invent a fact that is not in the text. When the text truly does not state a fact, use null / [].`
 
 // Travel/accommodation coverage — the highest-value ranking signal — usually lives
 // in a FAQ / "Travel" / "Logistics" block far down a long page, past a naive head
@@ -44,7 +66,7 @@ Never invent a fact that is not in the text — but travel/accommodation perks a
 // always reach the model, then backfill with the page head for context. Pure and
 // deterministic so it can be unit-tested.
 const SIGNAL_RE =
-  /travel|reimburs|stipend|scholarship|bursary|\bgrant\b|flight|airfare|\bfares?\b|\btrain\b|\bvisa\b|accommodation|accomodation|lodging|hotel|hostel|housing|covered up to|we (?:cover|will cover|reimburse|provide)/gi
+  /travel|reimburs|stipend|scholarship|bursary|\bgrant\b|flight|airfare|\bfares?\b|\btrain\b|\bvisa\b|accommodation|accomodation|lodging|hotel|hostel|housing|covered up to|we (?:cover|will cover|reimburse|provide)|domestic|international|eligible|within \d+ (?:miles|km)/gi
 
 export function focusText(fullText: string, budget = 9000): string {
   const head = fullText.slice(0, 2500)
@@ -68,13 +90,48 @@ export function focusText(fullText: string, budget = 9000): string {
   return out.slice(0, budget)
 }
 
+function coerceScope(v: unknown): TravelScope | null {
+  if (typeof v !== 'string') return null
+  const s = v.toLowerCase().trim()
+  if (
+    s === 'none' ||
+    s === 'domestic' ||
+    s === 'regional' ||
+    s === 'international' ||
+    s === 'selective' ||
+    s === 'global'
+  )
+    return s
+  return null
+}
+
 function coerce(parsed: Record<string, unknown>): Enrichment {
   const bool = (v: unknown) => (typeof v === 'boolean' ? v : null)
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
   const fmt = str(parsed.format)
   const deadline = str(parsed.registration_deadline)
+  const regions = Array.isArray(parsed.travel_regions)
+    ? parsed.travel_regions
+        .filter((t): t is string => typeof t === 'string' && t.trim() !== '')
+        .map((t) => t.trim())
+        .slice(0, 8)
+    : []
+
+  let scope = coerceScope(parsed.travel_scope)
+  const covered = bool(parsed.travel_covered)
+
+  // Consistency: explicit false → none; true without scope stays null for conservative scoring
+  if (covered === false) scope = 'none'
+  if (scope === 'none' && covered === null) {
+    // keep covered null/false aligned
+  }
+
   return {
-    travel_covered: bool(parsed.travel_covered),
+    travel_covered: covered,
+    travel_scope: scope,
+    travel_regions: regions,
+    travel_cap: str(parsed.travel_cap),
+    travel_notes: str(parsed.travel_notes)?.slice(0, 200) ?? null,
     accommodation_covered: bool(parsed.accommodation_covered),
     open_to_business_students: bool(parsed.open_to_business_students),
     format: fmt === 'online' || fmt === 'in_person' || fmt === 'hybrid' ? fmt : null,
