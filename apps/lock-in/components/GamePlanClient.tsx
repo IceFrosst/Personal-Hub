@@ -654,7 +654,7 @@ export default function GamePlanClient() {
 
             {day === 'yesterday' ? (
               <p className="text-text-low text-xs px-1 text-center">
-                Yesterday's plan — view only. You can still tick blocks off.
+                Yesterday&apos;s plan — view only. You can still tick blocks off.
               </p>
             ) : (
               <button
@@ -1135,7 +1135,7 @@ function Timeline({
             }
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
-            <div className={`min-w-0 py-1.5 ${done || continued ? 'opacity-60' : ''`}>
+            <div className={`min-w-0 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
               <div
                 onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}
                 onPointerMove={b.locked ? undefined : onMove}
