@@ -13,11 +13,19 @@ test('matchesHackathon keeps hackathons and drops other startup events', () => {
   assert.equal(matchesHackathon('International Space Innovation Hackathon ActInSpace 2026'), true)
   assert.equal(matchesHackathon('AI Buildathon'), true)
   assert.equal(matchesHackathon('Vilniaus Hakatonas 2026'), true)
+  // "-athon" family — hackathons that don't say "hack".
+  assert.equal(matchesHackathon('Portathon 2026'), true)
+  assert.equal(matchesHackathon('Ideathon'), true)
+  assert.equal(matchesHackathon('Make-a-thon'.replace(/-/g, '')), true) // "Makeathon"
 
   assert.equal(matchesHackathon('Smart City Conference 2026'), false)
   assert.equal(matchesHackathon('Startup Fair'), false)
   assert.equal(matchesHackathon('Founders Hike'), false)
   assert.equal(matchesHackathon('Fundraising Bootcamp'), false)
+  // Endurance / charity "-athon" events are not hackathons.
+  assert.equal(matchesHackathon('Vilnius Marathon 2026'), false)
+  assert.equal(matchesHackathon('Charity Telethon'), false)
+  assert.equal(matchesHackathon('Spring Walkathon'), false)
 })
 
 test('extractDetailDate reads the event date from the article title, not related events', () => {

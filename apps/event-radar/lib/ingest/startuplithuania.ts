@@ -60,11 +60,23 @@ function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim()
 }
 
-// Same hackathon vocabulary as the Luma source, plus Lithuanian "hakatonas".
+// "-athon" words that are endurance / charity events, not hackathons.
+const ATHON_STOPWORDS =
+  /^(marathon|telethon|walkathon|swimathon|readathon|danceathon|bikeathon|jogathon|radiothon|phonathon|knitathon|saveathon)$/i
+
+// Same hackathon vocabulary as the Luma source, plus Lithuanian "hakatonas" and
+// the "-athon" family. Startup Lithuania names some hackathons without "hack"
+// (e.g. "Portathon", a 48h maritime hackathon), so we also catch a trailing
+// "…athon" — minus running/charity marathons and telethons.
 export function matchesHackathon(title: string): boolean {
-  return /\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam|buildathon|hakaton|häkaton\b/i.test(
-    title
+  if (
+    /\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam|buildathon|hakaton|häkaton\b/i.test(
+      title
+    )
   )
+    return true
+  const athon = title.match(/\b([A-Za-zÀ-ž]{3,}athon)\b/)
+  return !!athon && !ATHON_STOPWORDS.test(athon[1])
 }
 
 // Pull the event's own date out of the detail page. It's rendered inside the

@@ -203,16 +203,16 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - TreeHacks / PennApps etc. in dormant list, not main feed.
 - India sources removed/filtered.
 - **Startup Lithuania** wired in as an ingest source (`startuplithuania`), name-filtered
-  to hackathons, dates parsed from detail pages with publish-date year inference. Live via
-  the shared runner; currently 0 upcoming (all listed editions are past) — new editions
-  auto-ingest as the site publishes them.
+  to hackathons (incl. "-athon" names like Portathon), dates parsed from detail pages with
+  publish-date year inference. Live via the shared runner; currently 1 upcoming
+  (Portathon 2026, Sep 25–27, Klaipėda) — new editions auto-ingest as published.
 
 ## Next
 
 - **Handoff:** Startup Lithuania source added on this branch
   (`claude/startup-lithuania-events-pcl0f0`) — tests + typecheck + lint green, verified
-  live (5 hackathons matched & date-parsed, all past → 0 upcoming). Merge to `main` to
-  deploy; re-check after a real upcoming LT hackathon is published.
+  live (Portathon 2026 surfaces as the 1 upcoming; past editions correctly dropped).
+  Merge to `main` to deploy.
 - Verify latest deploy on Vercel (Hobby deploy quota may delay). No open code bugs known;
   remaining work is product polish + enrichment quality.
 - Confirm Applied-only-in-Applied-tab after deploy; hard-refresh PWA if stale.
