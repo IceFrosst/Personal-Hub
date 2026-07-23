@@ -16,7 +16,6 @@ const SOURCE_LABELS: Record<string, string> = {
   taikai: 'Taikai',
   dorahacks: 'DoraHacks',
   unstop: 'Unstop',
-  topcoder: 'Topcoder',
   startuplithuania: 'Startup Lithuania',
   known: 'Known',
   watch: 'Watches',
