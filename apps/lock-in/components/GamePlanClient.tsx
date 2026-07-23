@@ -51,6 +51,9 @@ export default function GamePlanClient() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  // A just-added one-off task, offered for a non-destructive "fit it in".
+  const [pendingFit, setPendingFit] = useState<{ id: string; title: string } | null>(null)
+  const [fitting, setFitting] = useState(false)
   // Long-press on a block opens an action sheet; Edit opens the shared editor.
   const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -162,6 +165,7 @@ export default function GamePlanClient() {
     setDay(next)
     setMessage(null)
     setError(null)
+    setPendingFit(null)
     if (userId) {
       await loadBlocks(userId, addDays(todayStr, DAY_OFFSET[next]))
     }
@@ -187,7 +191,7 @@ export default function GamePlanClient() {
       category: TaskCategory | null
     ) => {
       if (!userId) return
-      const { error: insertError } = await supabase
+      const { data, error: insertError } = await supabase
         .schema('focus_gate')
         .from('tasks')
         .insert({
@@ -198,15 +202,59 @@ export default function GamePlanClient() {
           category,
           is_quick: false,
         })
+        .select('id')
+        .single()
       if (insertError) {
         setError(insertError.message)
         return
       }
       setError(null)
-      setMessage(`“${title}” added to your list. Replan or use Replace to schedule it.`)
+      setMessage(`“${title}” added to your list.`)
+      // Offer to slot it into the current plan without a full replan.
+      if (data?.id) setPendingFit({ id: data.id as string, title })
     },
     [supabase, userId]
   )
+
+  // Slot a just-added task into the existing plan (no full replan; nothing else moves).
+  const fitInTask = useCallback(async () => {
+    if (!pendingFit || fitting) return
+    setFitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/game-plan/insert-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: pendingFit.id, day, providerToken }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.error === 'not_connected') setError('Connect your Google Calendar first.')
+        else if (data.error === 'reconnect_needed')
+          setError('Calendar access expired — reconnect to finish setup.')
+        else setError('Couldn’t fit it in. Try Replan instead.')
+        return
+      }
+      setBlocks((data.blocks ?? []) as PlanBlock[])
+      if (data.inserted) {
+        setMessage(
+          `Slotted “${data.inserted.title}” at ${data.inserted.start}–${data.inserted.end}${
+            data.pastHours ? ' (just past your work hours)' : ''
+          }.`
+        )
+        setPendingFit(null)
+      } else if (data.reason === 'already_scheduled') {
+        setMessage('That task is already in the plan.')
+        setPendingFit(null)
+      } else {
+        setMessage('Couldn’t fit it in — try Replan.')
+      }
+    } catch {
+      setError('Couldn’t fit it in. Try again.')
+    } finally {
+      setFitting(false)
+    }
+  }, [pendingFit, fitting, day, providerToken])
 
   // Create a routine from Game Plan → same table as the main list.
   const addRecurring = useCallback(
@@ -620,23 +668,6 @@ export default function GamePlanClient() {
           <ConnectCard onConnect={connectCalendar} />
         ) : (
           <>
-            <div className="flex justify-end -mt-1">
-              <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
-                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => switchDay(d)}
-                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
-                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {showSettings && settings && (
               <SettingsPanel settings={settings} onChange={saveSettings} />
             )}
@@ -658,6 +689,24 @@ export default function GamePlanClient() {
                   : `${blocks.length ? 'Replan' : 'Plan'} ${day === 'today' ? 'my day' : 'tomorrow'}`}
               </button>
             )}
+
+            {/* Day switcher, centered directly under the Replan button */}
+            <div className="flex justify-center -mt-1">
+              <div className="inline-flex items-center rounded-xl bg-surface border border-border p-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => switchDay(d)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted active:text-text'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {message && (
               <p className="text-text-muted text-xs px-1 -mt-1 leading-snug">{message}</p>
@@ -683,6 +732,29 @@ export default function GamePlanClient() {
             {day !== 'yesterday' && (
               <div className="mt-2 pt-4 border-t border-border">
                 <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
+
+                {pendingFit && (
+                  <div className="mt-3 flex items-center gap-2 rounded-xl bg-surface border border-border p-2.5">
+                    <p className="flex-1 min-w-0 text-xs text-text-muted truncate">
+                      Just added “{pendingFit.title}”
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setPendingFit(null)}
+                      className="shrink-0 min-h-9 px-2 text-xs text-text-low active:text-text-muted transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      type="button"
+                      onClick={fitInTask}
+                      disabled={fitting}
+                      className="lock-in-gold-button shrink-0 min-h-9 px-3.5 rounded-lg text-black text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+                    >
+                      {fitting ? 'Fitting…' : `Fit into ${day === 'tomorrow' ? 'tomorrow' : 'today'}`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

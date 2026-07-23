@@ -53,10 +53,21 @@ real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggl
 A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
 
 **Add task from Game Plan** — the full `AddTaskBar` (one-off + recurring, voice, priority, due date,
-tag) now lives on the Game Plan page (today/tomorrow only). Creating a task or routine here writes
-to the same tables as the main list (`focus_gate.tasks` / `lock_in.recurring_tasks`), so it appears
-in the real to-do list immediately. After add, a short note tells you to replan or use Replace to
-schedule it into a time block.
+tag) lives at the **bottom** of the Game Plan page (today/tomorrow only), below the planned day.
+Creating a task or routine here writes to the same tables as the main list (`focus_gate.tasks` /
+`lock_in.recurring_tasks`), so it appears in the real to-do list immediately.
+
+**Fit it in** (one-off tasks only) — after adding a task, a small panel under the add bar offers
+**"Fit into today/tomorrow"**: a *non-destructive* insert that slots just that task into the existing
+plan **without moving anything already there** (no full replan). `POST /api/game-plan/insert-task` →
+`insertTaskIntoPlan` (`lib/game-plan/insert.ts`): busy = the day's existing `plan_blocks` (planned +
+locked) **plus** a fresh `listDayEvents` read (covers a never-planned day); duration is
+`estimateTaskMinutes` (Gemini from the title, `planner.ts`; priority default fallback). It places the
+task in the **earliest free gap** after now inside the work window; if nothing fits, it **appends
+after the last block — even a little past `work_end`** (returns `pastHours` so the client notes it).
+Writes one calendar event + one `plan_blocks` row; existing blocks/events are untouched. Guards:
+missing/completed task → no-op; task already in the day → no duplicate. (Full **Replan** still rebuilds
+the whole day; **Fit it in** is the keep-everything alternative.)
 
 The planner (`lib/game-plan/planner.ts`) runs in **four phases so routines always win a slot before
 one-off tasks**: (1) **fixed-time routines** pinned to their clock time (slide to nearest free slot
@@ -98,10 +109,10 @@ to complete, and the status resets on the next replan since locked blocks are re
 calendar). **Yesterday / Today / Tomorrow** toggle (`DAY_OFFSET` −1/0/+1 from today) plans and
 views a day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
 window, today starts from now). The header shows the calendar-bolt logo + **Game Plan** title +
-settings gear; the day toggle sits on **its own right-aligned row directly below the header**, and the
-old date + connected-email subtitle rows were removed (the toggle already names the day). (Logo +
-title + the three word-toggle + gear don't fit one row at 375px, so the toggle gets its own row —
-verify at iPhone SE if you rework this.) **Yesterday is view-only** (no plan button — you don't schedule the
+settings gear; the day toggle is a **centered segmented control directly under the "Replan my day"
+button**, and the old date + connected-email subtitle rows were removed (the toggle already names the
+day). (Logo + title + gear fill the header row at 375px, so the toggle lives below the button, not in
+the header — verify at iPhone SE if you rework this.) **Yesterday is view-only** (no plan button — you don't schedule the
 past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
 still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).

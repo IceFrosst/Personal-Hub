@@ -236,7 +236,7 @@ function findNearestSlot(
 }
 
 /** Free intervals inside [winStart, winEnd] given occupied ranges. */
-function freeGaps(
+export function freeGaps(
   occupied: Array<[number, number]>,
   winStart: number,
   winEnd: number
@@ -386,6 +386,29 @@ const DEFAULT_MINUTES: Record<'low' | 'medium' | 'high', number> = {
   low: 30,
 }
 const GAP = 5
+
+/**
+ * Estimate one task's duration in minutes from its title — the same signal the
+ * full planner uses, but for a single task (used by the "fit it in" insert).
+ * Falls back to a priority default when there's no key or the model misbehaves.
+ */
+export async function estimateTaskMinutes(
+  title: string,
+  priority: 'low' | 'medium' | 'high' | null,
+  key = process.env.GEMINI_API_KEY
+): Promise<number> {
+  const fallback = DEFAULT_MINUTES[priority ?? 'medium']
+  if (!key) return fallback
+  try {
+    const prompt = `Estimate how many minutes this single to-do task realistically takes for one focused session. Reply ONLY JSON {"minutes": <integer 15-120>}. Task: "${title}"${priority ? ` (priority: ${priority})` : ''}.`
+    const text = await generateJson(prompt, key)
+    const n = Math.round(Number((JSON.parse(text) as { minutes?: unknown }).minutes))
+    if (Number.isFinite(n) && n >= 5) return Math.min(180, n)
+  } catch {
+    // fall through to the deterministic default
+  }
+  return fallback
+}
 
 /**
  * Deterministic fallback (used when the model is unavailable). Applies the same
