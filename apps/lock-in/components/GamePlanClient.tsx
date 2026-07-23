@@ -6,7 +6,6 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconBrandGoogle,
-  IconCalendarBolt,
   IconCheck,
   IconLock,
   IconPencil,
@@ -579,15 +578,6 @@ export default function GamePlanClient() {
   }
 
   const connected = !!connection
-  const dateLabel = useMemo(
-    () =>
-      new Date(`${activeDate}T12:00:00`).toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-      }),
-    [activeDate]
-  )
 
   return (
     <main
@@ -598,32 +588,27 @@ export default function GamePlanClient() {
       }}
     >
       <div className="w-full max-w-[420px] flex flex-col gap-4">
-        <header className="flex items-center gap-2.5 pt-2">
-          <Link
-            href="/"
-            aria-label="Back to tasks"
-            className="min-h-11 min-w-11 -ml-2 flex items-center justify-center text-text-muted active:text-text transition-colors"
-          >
-            <IconArrowLeft size={22} />
-          </Link>
-          <IconCalendarBolt size={26} className="text-gold" stroke={1.5} />
-          <h1 className="text-2xl font-semibold tracking-tight text-text">Game Plan</h1>
-        </header>
+        <header className="flex items-center justify-between gap-2 pt-2">
+          <div className="flex items-center gap-0.5 min-w-0">
+            <Link
+              href="/"
+              aria-label="Back to tasks"
+              className="min-h-11 min-w-11 -ml-2 flex items-center justify-center text-text-muted active:text-text transition-colors"
+            >
+              <IconArrowLeft size={22} />
+            </Link>
+            <h1 className="text-base font-semibold tracking-tight text-text truncate">Game Plan</h1>
+          </div>
 
-        {loading ? (
-          <p className="text-text-low text-sm py-12 text-center">Loading…</p>
-        ) : !connected ? (
-          <ConnectCard onConnect={connectCalendar} />
-        ) : (
-          <>
-            <div className="flex items-center justify-between">
+          {!loading && connected && (
+            <div className="flex items-center gap-1 shrink-0">
               <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
                 {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => switchDay(d)}
-                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                    className={`px-1.5 py-1 rounded-md text-[11px] font-medium capitalize transition-colors ${
                       day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
                     }`}
                   >
@@ -635,18 +620,20 @@ export default function GamePlanClient() {
                 type="button"
                 onClick={() => setShowSettings((s) => !s)}
                 aria-label="Settings"
-                className="min-h-11 min-w-11 flex items-center justify-center text-text-muted active:text-text transition-colors"
+                className="min-h-11 min-w-9 -mr-1.5 flex items-center justify-center text-text-muted active:text-text transition-colors"
               >
-                <IconSettings size={20} />
+                <IconSettings size={19} />
               </button>
             </div>
+          )}
+        </header>
 
-            <div>
-              <p className="text-text text-base font-medium">{dateLabel}</p>
-              <p className="text-text-low text-xs mt-0.5">
-                {connection?.google_email ?? 'Calendar connected'}
-              </p>
-            </div>
+        {loading ? (
+          <p className="text-text-low text-sm py-12 text-center">Loading…</p>
+        ) : !connected ? (
+          <ConnectCard onConnect={connectCalendar} />
+        ) : (
+          <>
 
             {showSettings && settings && (
               <SettingsPanel settings={settings} onChange={saveSettings} />

@@ -97,7 +97,10 @@ checked off** now, but it's **cosmetic only** (just `plan_blocks.status` — the
 to complete, and the status resets on the next replan since locked blocks are re-read from the
 calendar). **Yesterday / Today / Tomorrow** toggle (`DAY_OFFSET` −1/0/+1 from today) plans and
 views a day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
-window, today starts from now). **Yesterday is view-only** (no plan button — you don't schedule the
+window, today starts from now). The toggle sits in the **page header** (top-right, beside the
+settings gear); the old date + connected-email subtitle rows were removed (the toggle already names
+the day). Header sizing (title `text-base`, compact `text-[11px]` toggle) is tuned to fit one row at
+375px — verify at iPhone SE if you touch it. **Yesterday is view-only** (no plan button — you don't schedule the
 past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
 still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
