@@ -97,10 +97,11 @@ checked off** now, but it's **cosmetic only** (just `plan_blocks.status` — the
 to complete, and the status resets on the next replan since locked blocks are re-read from the
 calendar). **Yesterday / Today / Tomorrow** toggle (`DAY_OFFSET` −1/0/+1 from today) plans and
 views a day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
-window, today starts from now). The toggle sits in the **page header** (top-right, beside the
-settings gear); the old date + connected-email subtitle rows were removed (the toggle already names
-the day). Header sizing (title `text-base`, compact `text-[11px]` toggle) is tuned to fit one row at
-375px — verify at iPhone SE if you touch it. **Yesterday is view-only** (no plan button — you don't schedule the
+window, today starts from now). The header shows the calendar-bolt logo + **Game Plan** title +
+settings gear; the day toggle sits on **its own right-aligned row directly below the header**, and the
+old date + connected-email subtitle rows were removed (the toggle already names the day). (Logo +
+title + the three word-toggle + gear don't fit one row at 375px, so the toggle gets its own row —
+verify at iPhone SE if you rework this.) **Yesterday is view-only** (no plan button — you don't schedule the
 past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
 still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
@@ -110,8 +111,8 @@ border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link,
 reading so old GP events aren't re-read). Locked blocks show a small lock glyph, aren't draggable
 or editable, and no calendar event is written for them (they already exist) — but they **can** be
 checked off (cosmetic, see above) — and that checkmark **persists across replans**: `run.ts` carries
-a locked block's `done` status over by its stable `gcal_event_id` when it re-creates locked rows. Rows have **no left time gutter** (the
-start–end time lives in the card's meta line). **Press-and-hold anywhere on a movable block to pick
+a locked block's `done` status over by its stable `gcal_event_id` when it re-creates locked rows. Each row has a **left time gutter** (fixed `w-11`) showing the block's
+**start on top, end below**; the card's meta line then shows only the duration (`N min`) + tags. **Press-and-hold anywhere on a movable block to pick
 it up** (`Timeline`: a ~300 ms long-press arms the drag from any position; a pre-arm finger move
 >10 px is treated as a page scroll and lets go). Once armed, drag to reorder (neighbour-swap, follows
 the finger; a non-passive `touchmove` listener blocks page scroll while held); on drop, `POST

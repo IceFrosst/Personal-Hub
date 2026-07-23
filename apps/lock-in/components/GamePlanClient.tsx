@@ -6,6 +6,7 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconBrandGoogle,
+  IconCalendarBolt,
   IconCheck,
   IconLock,
   IconPencil,
@@ -589,7 +590,7 @@ export default function GamePlanClient() {
     >
       <div className="w-full max-w-[420px] flex flex-col gap-4">
         <header className="flex items-center justify-between gap-2 pt-2">
-          <div className="flex items-center gap-0.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             <Link
               href="/"
               aria-label="Back to tasks"
@@ -597,34 +598,19 @@ export default function GamePlanClient() {
             >
               <IconArrowLeft size={22} />
             </Link>
-            <h1 className="text-base font-semibold tracking-tight text-text truncate">Game Plan</h1>
+            <IconCalendarBolt size={26} className="text-gold shrink-0" stroke={1.5} />
+            <h1 className="text-2xl font-semibold tracking-tight text-text truncate">Game Plan</h1>
           </div>
 
           {!loading && connected && (
-            <div className="flex items-center gap-1 shrink-0">
-              <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
-                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => switchDay(d)}
-                    className={`px-1.5 py-1 rounded-md text-[11px] font-medium capitalize transition-colors ${
-                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSettings((s) => !s)}
-                aria-label="Settings"
-                className="min-h-11 min-w-9 -mr-1.5 flex items-center justify-center text-text-muted active:text-text transition-colors"
-              >
-                <IconSettings size={19} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowSettings((s) => !s)}
+              aria-label="Settings"
+              className="min-h-11 min-w-11 -mr-2 shrink-0 flex items-center justify-center text-text-muted active:text-text transition-colors"
+            >
+              <IconSettings size={20} />
+            </button>
           )}
         </header>
 
@@ -634,6 +620,22 @@ export default function GamePlanClient() {
           <ConnectCard onConnect={connectCalendar} />
         ) : (
           <>
+            <div className="flex justify-end -mt-1">
+              <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
+                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => switchDay(d)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize transition-colors ${
+                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {showSettings && settings && (
               <SettingsPanel settings={settings} onChange={saveSettings} />
@@ -1123,14 +1125,18 @@ function Timeline({
             }
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
-            <div className={`min-w-0 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
+            <div className={`flex gap-2 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
+              <div className="shrink-0 w-11 pt-3 text-right tabular-nums leading-tight">
+                <div className="text-text-muted text-xs">{b.start_local}</div>
+                <div className="text-text-low text-[11px]">{b.end_local}</div>
+              </div>
               <div
                 onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}
                 onPointerMove={b.locked ? undefined : onMove}
                 onPointerUp={b.locked ? undefined : onUp}
                 onPointerCancel={b.locked ? undefined : onUp}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`relative flex items-start gap-2 pl-5 pr-2 py-2.5 rounded-xl border overflow-hidden transition-[background-color,border-color,box-shadow] duration-150 ${
+                className={`relative flex-1 min-w-0 flex items-start gap-2 pl-5 pr-2 py-2.5 rounded-xl border overflow-hidden transition-[background-color,border-color,box-shadow] duration-150 ${
                   b.locked
                     ? 'bg-surface/60 border-border/70'
                     : dragging
@@ -1171,10 +1177,11 @@ function Timeline({
                     {b.locked && <IconLock size={12} className="text-text-low shrink-0" />}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-text-low text-xs tabular-nums">
-                      {b.start_local}–{b.end_local}
-                      {b.estimated_minutes ? ` · ${b.estimated_minutes} min` : ''}
-                    </span>
+                    {b.estimated_minutes ? (
+                      <span className="text-text-low text-xs tabular-nums">
+                        {b.estimated_minutes} min
+                      </span>
+                    ) : null}
                     {b.locked && <span className="text-text-low text-[11px]">calendar</span>}
                     {continued && <span className="text-gold/80 text-[11px]">→ tomorrow</span>}
                     {cat && (
