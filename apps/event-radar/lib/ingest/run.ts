@@ -11,7 +11,6 @@ import { fetchHackQuest } from './hackquest'
 import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
-import { fetchTopcoder } from './topcoder'
 import { fetchStartupLithuania } from './startuplithuania'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
@@ -118,7 +117,6 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['devfolio', () => fetchDevfolio()],
     ['taikai', () => fetchTaikai()],
     ['dorahacks', () => fetchDoraHacks()],
-    ['topcoder', () => fetchTopcoder()],
     ['startuplithuania', () => fetchStartupLithuania()],
     ['known', async () => fetchKnownEvents()],
     ['watch', async () => watchesToRows()],

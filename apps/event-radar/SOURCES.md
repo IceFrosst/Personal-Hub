@@ -34,7 +34,7 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 | `spaceappschallenge.org` · `www.` | ❌ no feed | Site loads (200) but is a plain marketing page — no `__NEXT_DATA__`, no JSON-LD, no API. NASA Space Apps is **one global annual event**; not worth a bespoke fragile scrape. |
 | `hackjunction.com` · `www.` · `api.hackjunction.com` | ❌ here | `www` loads (200) as a SPA; `api.hackjunction.com` → `000` (DNS/network-unreachable from this session, not a WAF). Junction runs an events API — **retry the api subdomain from production Vercel egress**; if it resolves there it's implementable. |
 | `kaggle.com` · `www.` | ❌ | Site 200, but `/competitions.json` → 404; listings need the **authenticated** official Kaggle API. Also: Kaggle competitions are ML contests, not really hackathons — deprioritize. |
-| `topcoder.com` · `www.` | ❌ here | `www` 200, but `api.topcoder.com/v5/challenges` → `000` (unreachable from this session). The v5 challenges API is public and JSON in general — **re-probe from production Vercel**, likely implementable there. |
+| `topcoder.com` · `www.` | ❌ removed | Was wired up as an ingest source on the bet that `api.topcoder.com/v5/challenges` (unreachable from dev sessions, `000`/`403`) would answer from production Vercel. It doesn't — it threw on **every** production sweep, and it was the sole cause of the persistent "Refresh finished with errors" banner. Removed 2026-07-23. Low value regardless: v5 challenges are online coding contests / SRMs / gig work, not the travel-covered in-person hackathons this radar targets (online scores 0 on travel). Re-add only if a reachable, hackathon-shaped feed turns up. |
 | `encode.club` · `encodeclub.com` · `www.encode.club` | ❌ (covered) | Marketing/Framer site, no event API. **Not needed** — Encode Club hackathons already surface through the Luma feed (e.g. "…London Encode Club"). |
 | `angelhack.com` · `www.` | ❌ | Marketing site (301 → home), no machine-readable event feed. |
 | `hackzurich.com` · `www.` | ❌ | Single annual event, marketing site. No feed. |
@@ -60,10 +60,10 @@ already-started / closed-registration entries either source returns.
 
 ## Next candidates (in rough effort order)
 
-1. **Topcoder** & **Junction** — public APIs that were only *unreachable from
-   this session* (`api.topcoder.com/v5/challenges`, `api.hackjunction.com` both
-   `000`). Re-probe from a production Vercel run; if they answer there, both are
-   clean JSON sources.
+1. **Junction** — `api.hackjunction.com` was only *unreachable from this session*
+   (`000`). Re-probe from a production Vercel run; if it answers there it's a
+   clean JSON source. (Topcoder was tried this way and removed — it threw from
+   production too; see the matrix row.)
 2. **AKINDO** — allowlist `app.akindo.io`, then lift its API paths from the app
    bundle the same way HackQuest's query was recovered.
 3. **Hackster** — retry from open egress; if still WAF-403, try the curl/proxy

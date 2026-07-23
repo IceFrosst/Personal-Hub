@@ -69,8 +69,9 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, topcoder, startuplithuania (`lib/ingest/*.ts`), plus known/watch.
-  **Domain/source status is tracked in `SOURCES.md`**.
+  taikai, dorahacks, startuplithuania (`lib/ingest/*.ts`), plus known/watch.
+  **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
+  threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
   enrichment fills it elsewhere and never overwrites a source-provided value. Luma never
   provides one (handled by the eligibility exception above).
@@ -202,16 +203,18 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   (`lib/region-priority-batch1..4.ts`) for PL/FI/DE/NL → SE/DK/NO/IT → CZ/UK/BE/AT → HU/GE.
 - TreeHacks / PennApps etc. in dormant list, not main feed.
 - India sources removed/filtered.
-- **Startup Lithuania** wired in as an ingest source (`startuplithuania`), name-filtered
-  to hackathons (incl. "-athon" names like Portathon), dates parsed from detail pages with
-  publish-date year inference. Live via the shared runner; currently 1 upcoming
-  (Portathon 2026, Sep 25–27, Klaipėda) — new editions auto-ingest as published.
+- **Startup Lithuania** live as an ingest source (`startuplithuania`), name-filtered to
+  hackathons (incl. "-athon" names like Portathon), dates parsed from detail pages with
+  publish-date year inference. Merged to `main` (PR #65); 1 upcoming (Portathon 2026,
+  Sep 25–27, Klaipėda) — new editions auto-ingest as published.
+- **Topcoder removed** — it threw on every production sweep (sole cause of the persistent
+  "Refresh finished with errors" banner) and was low-value for a travel/in-person radar.
 
 ## Next
 
-- **Handoff:** Startup Lithuania source added on this branch
-  (`claude/startup-lithuania-events-pcl0f0`) — tests + typecheck + lint green, verified
-  live (Portathon 2026 surfaces as the 1 upcoming; past editions correctly dropped).
+- **Handoff:** Topcoder removal on this branch
+  (`claude/startup-lithuania-events-pcl0f0`, restarted from merged `main`) — typecheck +
+  tests + lint green. Merge to `main` so refreshes go clean/green.
   Merge to `main` to deploy.
 - Verify latest deploy on Vercel (Hobby deploy quota may delay). No open code bugs known;
   remaining work is product polish + enrichment quality.
@@ -220,5 +223,5 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   auto-promotes if any.
 - Optionally tighten Ignored Build Step on non-event-radar Vercel projects to save
   the 100 deploys/day quota.
-- Re-probe Topcoder / Junction / Hackster from production egress if needed.
+- Re-probe Junction / Hackster from production egress if needed (Topcoder tried & removed).
 - Roadmap: more EU travel-reimbursing sources, approval-gated auto-fill, night agents.
