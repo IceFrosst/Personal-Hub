@@ -68,8 +68,9 @@
   future-start filter server-side (the limit is applied *before* eligibility filtering).
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
-  Seven sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest
-  (`lib/ingest/*.ts`). **Domain/source status is tracked in `SOURCES.md`**.
+  Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
+  taikai, dorahacks, topcoder, startuplithuania (`lib/ingest/*.ts`), plus known/watch.
+  **Domain/source status is tracked in `SOURCES.md`**.
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
   enrichment fills it elsewhere and never overwrites a source-provided value. Luma never
   provides one (handled by the eligibility exception above).
@@ -165,7 +166,14 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   POSTs it to `api.hackquest.io/graphql` (no auth). Map only `status:"publish"`
   rows; it provides an exact `registrationClose` → passed through as
   `registration_deadline` (like ETHGlobal). Detail page: `www.hackquest.io/hackathon/<alias>`.
-- India noise: Unstop removed; Devfolio/India scoring filtered — user not travelling there.
+- Startup Lithuania (`lib/ingest/startuplithuania.ts`): WP REST `cpstart_events` gives a
+  reliable event list but **no structured date** (ACF not exposed; `date` is the publish
+  time). The event date is only in the detail page's `single-article__title` as a **yearless**
+  `listing__date` ("Nov 24, 10:00 - Nov 28, 16:00"). The source fetches each hackathon's
+  detail page and infers the year by anchoring to the REST publish date (event is published
+  shortly before it runs) — so past editions resolve to the past and fail-closed drops them
+  instead of inventing fake future events. Name-filtered to hackathons; 0 upcoming is a
+  legitimate empty (it throws only if the REST endpoint returns 0 events at all).
 - The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
   dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
 - Enrichment throughput is capped by two ceilings: Vercel Hobby's 60s `maxDuration`, and
@@ -194,12 +202,19 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   (`lib/region-priority-batch1..4.ts`) for PL/FI/DE/NL → SE/DK/NO/IT → CZ/UK/BE/AT → HU/GE.
 - TreeHacks / PennApps etc. in dormant list, not main feed.
 - India sources removed/filtered.
+- **Startup Lithuania** wired in as an ingest source (`startuplithuania`), name-filtered
+  to hackathons, dates parsed from detail pages with publish-date year inference. Live via
+  the shared runner; currently 0 upcoming (all listed editions are past) — new editions
+  auto-ingest as the site publishes them.
 
 ## Next
 
-- **Handoff:** UI/dormant/priority-country work is on main. Verify latest deploy on
-  Vercel (Hobby deploy quota may delay). No open code bugs known; remaining work is
-  product polish + enrichment quality.
+- **Handoff:** Startup Lithuania source added on this branch
+  (`claude/startup-lithuania-events-pcl0f0`) — tests + typecheck + lint green, verified
+  live (5 hackathons matched & date-parsed, all past → 0 upcoming). Merge to `main` to
+  deploy; re-check after a real upcoming LT hackathon is published.
+- Verify latest deploy on Vercel (Hobby deploy quota may delay). No open code bugs known;
+  remaining work is product polish + enrichment quality.
 - Confirm Applied-only-in-Applied-tab after deploy; hard-refresh PWA if stale.
 - Watch dormant weekly GH issue for first promote candidates; review high-confidence
   auto-promotes if any.
