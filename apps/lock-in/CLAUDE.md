@@ -111,9 +111,12 @@ calendar). **Yesterday / Today / Tomorrow** toggle (`DAY_OFFSET` −1/0/+1 from 
 views a day (route takes `day`; `run.ts` takes `targetDate` — future days use the full work
 window, today starts from now). The header is **one row**: calendar-bolt logo + **Game Plan** title
 (left), then a compact day toggle + settings gear (top-right). The old date + connected-email subtitle
-rows were removed (the toggle already names the day). To fit all of that at 375px the toggle uses
-`text-[10px]`/`px-1` and the title is `text-base` — verify at iPhone SE if you rework this.
-**Yesterday is view-only** (no plan button — you don't schedule the
+rows were removed (the toggle already names the day). The header is **width-responsive** via a
+`min-[390px]:` breakpoint: below 390px (iPhone SE) it's compact (`text-base` title, `text-[10px]`
+toggle, 20px logo / 18px gear) so it fits; at ≥390px (most phones) it scales up (`text-lg` title,
+`text-[11px]` toggle, 22px logo / 20px gear) to fill the wider screen. 18px is the ceiling with the
+toggle on the row — 20px truncates even at ~411px. Verify at iPhone SE **and** ~411px if you rework
+this. **Yesterday is view-only** (no plan button — you don't schedule the
 past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
 still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).

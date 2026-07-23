@@ -631,7 +631,7 @@ export default function GamePlanClient() {
     >
       <div className="w-full max-w-[420px] flex flex-col gap-4">
         <header className="flex items-center justify-between gap-1.5 pt-2">
-          <div className="flex items-center gap-1 min-w-0">
+          <div className="flex items-center gap-1 min-[390px]:gap-1.5 min-w-0">
             <Link
               href="/"
               aria-label="Back to tasks"
@@ -639,8 +639,14 @@ export default function GamePlanClient() {
             >
               <IconArrowLeft size={22} />
             </Link>
-            <IconCalendarBolt size={20} className="text-gold shrink-0" stroke={1.5} />
-            <h1 className="text-base font-semibold tracking-tight text-text truncate">Game Plan</h1>
+            <IconCalendarBolt
+              size={20}
+              stroke={1.5}
+              className="text-gold shrink-0 min-[390px]:w-[22px] min-[390px]:h-[22px]"
+            />
+            <h1 className="text-base min-[390px]:text-lg font-semibold tracking-tight text-text truncate">
+              Game Plan
+            </h1>
           </div>
 
           {!loading && connected && (
@@ -651,7 +657,7 @@ export default function GamePlanClient() {
                     key={d}
                     type="button"
                     onClick={() => switchDay(d)}
-                    className={`px-1 py-1 rounded-md text-[10px] font-medium capitalize transition-colors ${
+                    className={`px-1 min-[390px]:px-1.5 py-1 rounded-md text-[10px] min-[390px]:text-[11px] font-medium capitalize transition-colors ${
                       day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
                     }`}
                   >
@@ -663,9 +669,9 @@ export default function GamePlanClient() {
                 type="button"
                 onClick={() => setShowSettings((s) => !s)}
                 aria-label="Settings"
-                className="min-h-11 min-w-8 -mr-2 flex items-center justify-center text-text-muted active:text-text transition-colors"
+                className="min-h-11 min-w-8 min-[390px]:min-w-9 -mr-2 flex items-center justify-center text-text-muted active:text-text transition-colors"
               >
-                <IconSettings size={18} />
+                <IconSettings size={18} className="min-[390px]:w-5 min-[390px]:h-5" />
               </button>
             </div>
           )}
