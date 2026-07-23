@@ -1166,9 +1166,9 @@ function Timeline({
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
             <div className={`flex gap-2 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
-              <div className="shrink-0 w-11 pt-3 text-right tabular-nums leading-tight">
-                <div className="text-text-muted text-xs">{b.start_local}</div>
-                <div className="text-text-low text-[11px]">{b.end_local}</div>
+              <div className="shrink-0 w-11 self-stretch flex flex-col justify-between items-end py-2.5 tabular-nums">
+                <span className="text-text-muted text-xs leading-none">{b.start_local}</span>
+                <span className="text-text-muted text-xs leading-none">{b.end_local}</span>
               </div>
               <div
                 onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}

@@ -123,8 +123,10 @@ border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link,
 reading so old GP events aren't re-read). Locked blocks show a small lock glyph, aren't draggable
 or editable, and no calendar event is written for them (they already exist) — but they **can** be
 checked off (cosmetic, see above) — and that checkmark **persists across replans**: `run.ts` carries
-a locked block's `done` status over by its stable `gcal_event_id` when it re-creates locked rows. Each row has a **left time gutter** (fixed `w-11`) showing the block's
-**start on top, end below**; the card's meta line then shows only the duration (`N min`) + tags. **Press-and-hold anywhere on a movable block to pick
+a locked block's `done` status over by its stable `gcal_event_id` when it re-creates locked rows. Each row has a **left time gutter** (fixed `w-11`, `self-stretch` + `justify-between`) with the
+block's **start aligned to the top of the card and end to the bottom** (bracketing the block); both
+times share the same style (`text-text-muted text-xs`). The card's meta line shows only the duration
+(`N min`) + tags. **Press-and-hold anywhere on a movable block to pick
 it up** (`Timeline`: a ~300 ms long-press arms the drag from any position; a pre-arm finger move
 >10 px is treated as a page scroll and lets go). Once armed, drag to reorder (neighbour-swap, follows
 the finger; a non-passive `touchmove` listener blocks page scroll while held); on drop, `POST
