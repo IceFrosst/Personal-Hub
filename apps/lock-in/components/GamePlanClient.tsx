@@ -648,7 +648,7 @@ export default function GamePlanClient() {
                 type="button"
                 onClick={planDay}
                 disabled={planning}
-                className="lock-in-gold-button flex items-center justify-center gap-2 min-h-12 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-60"
+                className="lock-in-gold-button self-center flex items-center justify-center gap-2 min-h-12 px-10 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-60"
               >
                 <IconRefresh size={18} stroke={2.4} className={planning ? 'animate-spin' : ''} />
                 {planning
@@ -666,13 +666,6 @@ export default function GamePlanClient() {
               </p>
             )}
 
-            {/* Add task / routine directly from Game Plan → same tables as main list */}
-            {day !== 'yesterday' && (
-              <div className="mt-1">
-                <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
-              </div>
-            )}
-
             {reordering && (
               <p className="text-text-low text-xs px-1 -mt-1">Saving new order…</p>
             )}
@@ -682,6 +675,14 @@ export default function GamePlanClient() {
               onReorder={reorderBlocks}
               onLongPress={onBlockLongPress}
             />
+
+            {/* Add task / routine directly from Game Plan → same tables as main list.
+                Lives at the bottom, below the planned day. */}
+            {day !== 'yesterday' && (
+              <div className="mt-2 pt-4 border-t border-border">
+                <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
+              </div>
+            )}
           </>
         )}
       </div>
