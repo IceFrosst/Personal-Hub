@@ -51,9 +51,6 @@ export default function GamePlanClient() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  // A just-added one-off task, offered for a non-destructive "fit it in".
-  const [pendingFit, setPendingFit] = useState<{ id: string; title: string } | null>(null)
-  const [fitting, setFitting] = useState(false)
   // Long-press on a block opens an action sheet; Edit opens the shared editor.
   const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -165,7 +162,6 @@ export default function GamePlanClient() {
     setDay(next)
     setMessage(null)
     setError(null)
-    setPendingFit(null)
     if (userId) {
       await loadBlocks(userId, addDays(todayStr, DAY_OFFSET[next]))
     }
@@ -182,7 +178,45 @@ export default function GamePlanClient() {
     })
   }
 
-  // Create a one-off task from Game Plan → lands in the real to-do list.
+  // Slot a just-added task into the existing plan (no full replan; nothing else
+  // moves). Runs automatically right after the task is created.
+  const fitTaskIntoPlan = useCallback(
+    async (taskId: string, title: string) => {
+      try {
+        const res = await fetch('/api/game-plan/insert-task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId, day, providerToken }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          if (data.error === 'not_connected') setError('Connect your Google Calendar first.')
+          else if (data.error === 'reconnect_needed')
+            setError('Calendar access expired — reconnect to finish setup.')
+          else setError(`“${title}” added, but couldn’t be scheduled. Try Replan.`)
+          return
+        }
+        setBlocks((data.blocks ?? []) as PlanBlock[])
+        if (data.inserted) {
+          setMessage(
+            `Slotted “${data.inserted.title}” at ${data.inserted.start}–${data.inserted.end}${
+              data.pastHours ? ' (just past your work hours)' : ''
+            }.`
+          )
+        } else if (data.reason === 'already_scheduled') {
+          setMessage(`“${title}” is already in the plan.`)
+        } else {
+          setMessage(`“${title}” added, but couldn’t be scheduled — try Replan.`)
+        }
+      } catch {
+        setError(`“${title}” added, but scheduling failed. Try Replan.`)
+      }
+    },
+    [day, providerToken]
+  )
+
+  // Create a one-off task from Game Plan → lands in the real to-do list, then is
+  // automatically fit into the current plan.
   const addTask = useCallback(
     async (
       title: string,
@@ -209,52 +243,11 @@ export default function GamePlanClient() {
         return
       }
       setError(null)
-      setMessage(`“${title}” added to your list.`)
-      // Offer to slot it into the current plan without a full replan.
-      if (data?.id) setPendingFit({ id: data.id as string, title })
+      setMessage(`“${title}” added — scheduling…`)
+      if (data?.id) await fitTaskIntoPlan(data.id as string, title)
     },
-    [supabase, userId]
+    [supabase, userId, fitTaskIntoPlan]
   )
-
-  // Slot a just-added task into the existing plan (no full replan; nothing else moves).
-  const fitInTask = useCallback(async () => {
-    if (!pendingFit || fitting) return
-    setFitting(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/game-plan/insert-task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: pendingFit.id, day, providerToken }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        if (data.error === 'not_connected') setError('Connect your Google Calendar first.')
-        else if (data.error === 'reconnect_needed')
-          setError('Calendar access expired — reconnect to finish setup.')
-        else setError('Couldn’t fit it in. Try Replan instead.')
-        return
-      }
-      setBlocks((data.blocks ?? []) as PlanBlock[])
-      if (data.inserted) {
-        setMessage(
-          `Slotted “${data.inserted.title}” at ${data.inserted.start}–${data.inserted.end}${
-            data.pastHours ? ' (just past your work hours)' : ''
-          }.`
-        )
-        setPendingFit(null)
-      } else if (data.reason === 'already_scheduled') {
-        setMessage('That task is already in the plan.')
-        setPendingFit(null)
-      } else {
-        setMessage('Couldn’t fit it in — try Replan.')
-      }
-    } catch {
-      setError('Couldn’t fit it in. Try again.')
-    } finally {
-      setFitting(false)
-    }
-  }, [pendingFit, fitting, day, providerToken])
 
   // Create a routine from Game Plan → same table as the main list.
   const addRecurring = useCallback(
@@ -637,8 +630,8 @@ export default function GamePlanClient() {
       }}
     >
       <div className="w-full max-w-[420px] flex flex-col gap-4">
-        <header className="flex items-center justify-between gap-2 pt-2">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <header className="flex items-center justify-between gap-1.5 pt-2">
+          <div className="flex items-center gap-1 min-w-0">
             <Link
               href="/"
               aria-label="Back to tasks"
@@ -646,19 +639,35 @@ export default function GamePlanClient() {
             >
               <IconArrowLeft size={22} />
             </Link>
-            <IconCalendarBolt size={26} className="text-gold shrink-0" stroke={1.5} />
-            <h1 className="text-2xl font-semibold tracking-tight text-text truncate">Game Plan</h1>
+            <IconCalendarBolt size={20} className="text-gold shrink-0" stroke={1.5} />
+            <h1 className="text-base font-semibold tracking-tight text-text truncate">Game Plan</h1>
           </div>
 
           {!loading && connected && (
-            <button
-              type="button"
-              onClick={() => setShowSettings((s) => !s)}
-              aria-label="Settings"
-              className="min-h-11 min-w-11 -mr-2 shrink-0 flex items-center justify-center text-text-muted active:text-text transition-colors"
-            >
-              <IconSettings size={20} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center rounded-lg bg-surface border border-border p-0.5">
+                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => switchDay(d)}
+                    className={`px-1 py-1 rounded-md text-[10px] font-medium capitalize transition-colors ${
+                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettings((s) => !s)}
+                aria-label="Settings"
+                className="min-h-11 min-w-8 -mr-2 flex items-center justify-center text-text-muted active:text-text transition-colors"
+              >
+                <IconSettings size={18} />
+              </button>
+            </div>
           )}
         </header>
 
@@ -690,24 +699,6 @@ export default function GamePlanClient() {
               </button>
             )}
 
-            {/* Day switcher, centered directly under the Replan button */}
-            <div className="flex justify-center -mt-1">
-              <div className="inline-flex items-center rounded-xl bg-surface border border-border p-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
-                {(['yesterday', 'today', 'tomorrow'] as Day[]).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => switchDay(d)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                      day === d ? 'bg-gold/15 text-gold' : 'text-text-muted active:text-text'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {message && (
               <p className="text-text-muted text-xs px-1 -mt-1 leading-snug">{message}</p>
             )}
@@ -732,29 +723,6 @@ export default function GamePlanClient() {
             {day !== 'yesterday' && (
               <div className="mt-2 pt-4 border-t border-border">
                 <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
-
-                {pendingFit && (
-                  <div className="mt-3 flex items-center gap-2 rounded-xl bg-surface border border-border p-2.5">
-                    <p className="flex-1 min-w-0 text-xs text-text-muted truncate">
-                      Just added “{pendingFit.title}”
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setPendingFit(null)}
-                      className="shrink-0 min-h-9 px-2 text-xs text-text-low active:text-text-muted transition-colors"
-                    >
-                      Dismiss
-                    </button>
-                    <button
-                      type="button"
-                      onClick={fitInTask}
-                      disabled={fitting}
-                      className="lock-in-gold-button shrink-0 min-h-9 px-3.5 rounded-lg text-black text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
-                    >
-                      {fitting ? 'Fitting…' : `Fit into ${day === 'tomorrow' ? 'tomorrow' : 'today'}`}
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </>
