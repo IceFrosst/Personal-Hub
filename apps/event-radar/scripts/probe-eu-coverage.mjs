@@ -201,8 +201,14 @@ async function probeDomain(d) {
   }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// Luma rate-limited the first run of this probe from "hackathon Croatia"
+// onward — 25 queries came back 403 and were recorded as zero-yield when they
+// had simply never run. Pace the sweep so the measurement is real.
 const luma = []
 for (const q of QUERIES) {
+  await sleep(700)
   try {
     const r = await lumaQuery(q)
     luma.push({ query: q, ...r })
