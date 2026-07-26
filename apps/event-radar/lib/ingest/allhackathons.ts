@@ -193,9 +193,12 @@ export async function fetchAllHackathons(): Promise<IngestRow[]> {
   }
   collect(firstBatch)
 
+  // Walk forward only while the page we just read advertises the next one —
+  // checking page 1's markup for a "?page=4" link would stop the crawl early,
+  // since the pager only ever shows a couple of steps ahead.
+  let previousHtml = first.html
   for (let page = 2; page <= MAX_PAGES; page++) {
-    // Only walk on while the site advertises a further page.
-    if (!new RegExp(`\\?page=${page}"`).test(first.html) && page > 2) break
+    if (!new RegExp(`\\?page=${page}"`).test(previousHtml)) break
     let next: Awaited<ReturnType<typeof fetchPage>>
     try {
       next = await fetchPage(page)
@@ -206,6 +209,7 @@ export async function fetchAllHackathons(): Promise<IngestRow[]> {
     const batch = parseAllHackathonsList(next.html)
     if (batch.length === 0) break
     collect(batch)
+    previousHtml = next.html
   }
 
   // Past events are the bulk of the archive — drop them here so the catalog
