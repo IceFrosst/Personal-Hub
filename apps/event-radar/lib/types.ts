@@ -105,6 +105,13 @@ export type NotificationSettings = {
   priority_countries: string[]
   /** Country the user is based in — drives travel-for-me scoring. */
   home_base: string
+  /**
+   * When the last daily digest went out (ISO). State, not a preference — it
+   * lives in this jsonb so the once-per-day gate needs no migration (the
+   * additive rule makes widening a jsonb shape the cheap path). Written by the
+   * ingest runner; round-trips untouched through the settings UI.
+   */
+  last_digest_at: string | null
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
@@ -112,6 +119,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   min_score: 60,
   priority_countries: DEFAULT_PRIORITY_COUNTRIES,
   home_base: DEFAULT_HOME_BASE,
+  last_digest_at: null,
 }
 
 export function coerceNotificationSettings(raw: unknown): NotificationSettings {
@@ -140,6 +148,12 @@ export function coerceNotificationSettings(raw: unknown): NotificationSettings {
         : DEFAULT_NOTIFICATION_SETTINGS.min_score,
     priority_countries: countries,
     home_base,
+    // Preserved on every read so saving settings from the UI can't wipe the
+    // digest clock (the panel persists the whole coerced object).
+    last_digest_at:
+      typeof o.last_digest_at === 'string' && o.last_digest_at.trim() !== ''
+        ? o.last_digest_at
+        : null,
   }
 }
 

@@ -39,8 +39,11 @@
   Weekly GH Action (`event-radar-dormant-weekly.yml`) probes sites, opens a GitHub
   issue with candidates + parsed deadlines; high-confidence can auto-commit
   `promoted-from-dormant.json`.
-- **Travel ✓ filter** = only `travel_covered === true` (confirmed reimbursement).
-  Online is a separate filter.
+- **Travel ✓ filter** = `travelUsefulForMe(h, home_base) === 'yes'` (via `hasUsefulTravel`
+  in `lib/digest.ts`) — i.e. exactly the events wearing the solid purple **Travel** tag.
+  A bare `travel_covered === true` with no geography is only *maybe* and does NOT pass:
+  filter, card tag, and digest count all share this one predicate so they can never
+  disagree. Online is a separate filter.
 - **Travel-priority tiers drive the prior honestly** (`circuitTravelCovered`): only
   **Tier A** (documented reimbursement) sets `travel_covered = true` up front. **Tier B**
   (unclear / winner-only / region-gated / monitor) returns `null` — being on the list is
@@ -80,6 +83,30 @@
   (`format` / `travel_covered`) are also retried. Chunked `.in()` queries for DB stability.
   The scheduled cron calls it with notifications enabled; the owner-only manual route
   (`POST /api/ingest/refresh`) calls it with notifications disabled.
+- **Daily digest, not per-event pushes** (`lib/digest.ts`, notify phase of `run.ts`):
+  at most **one push per user per day** summarising what appeared —
+  title `"5 new hackathons"`, body `"3 IRL · 2 multi-day · 1 travel covered"`.
+  - **Suppressed unless something qualifies:** an event only counts if it is IRL,
+    multi-day, or travel-covered (`qualifiesForDigest`). No qualifiers ⇒ no push at all
+    (`buildDigestPayload` returns `null`) — a pile of online one-evening jams never buzzes.
+  - The user's `min_score` still applies first; the tag gate is on top of it.
+  - Counts **overlap by design** (one IRL multi-day travel event counts in all three) —
+    they answer "how many have this property", they are not a partition of the total.
+  - `isIrlEvent` is stricter than the feed's IRL tab: only known `in_person`/`hybrid`,
+    never unknown-format, so "3 IRL" in a notification is literally true.
+  - Once-per-day gate = `DIGEST_MIN_GAP_HOURS` (**20h**, not 24h): the cron fires at
+    05:00 UTC ±59min plus ~4 GH Action runs, so a strict 24h gate would silently skip a
+    day on jitter (05:59 → 05:01 = 23h02m). Bad/missing timestamps **fail open**.
+  - The digest is only "burned" (clock stamped + rows marked) when a push **actually
+    landed** — missing VAPID keys (`'unconfigured'`) or a transient failure roll the
+    whole batch into the next run instead of silently eating a day's events.
+  - `notified_at` = "already accounted for in a digest". It is stamped on **every**
+    considered row (including non-qualifiers) but **only when a digest actually went
+    out** — otherwise events accumulate for the next one. Marking non-qualifiers keeps
+    the newest-first candidate window from silting up with permanent non-qualifiers.
+    `notified_at` is global, not per-user (single-user app — same as the old behaviour).
+- **"New" tag** (`isNewHackathon`, `NEW_BADGE_HOURS` = 72): blue badge on cards for
+  recently ingested rows, driven by `created_at` — the visual counterpart to the digest.
 - Manual refresh authorization is checked against the verified Supabase user email via
   `lib/owner.ts`; `EVENT_RADAR_ADMIN_EMAIL` can override the portfolio-owner default.
 - Global `hackathons` writes use the service-role client (`lib/supabase/admin.ts`). RLS has
@@ -99,7 +126,8 @@
 - **Feed UI filters** (`components/Feed.tsx`):
   - IRL ↔ Online: mutually exclusive switch
   - Multi-day: independent on/off toggle (`durationHours > 24`)
-  - Applied / Dormant: override lists — ignore format + multi-day
+  - Travel: independent on/off toggle — confirmed-useful travel only (see above)
+  - Applied / Dormant: override lists — ignore format + multi-day + travel
   - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
     (Applied only in Applied tab; hidden nowhere)
 
@@ -122,7 +150,10 @@ From 0001:
 - `user_hackathon_status` — PK `(user_id, hackathon_id)`, status
   `interested|applying|applied|hidden`, optional `notes`.
 - `user_preferences` — `filters` jsonb (reserved), `notification_settings` jsonb
-  (`{enabled, min_score, priority_countries: string[]}`, default threshold 60).
+  (`{enabled, min_score, priority_countries: string[], home_base, last_digest_at}`,
+  default threshold 60). `last_digest_at` is **state, not a preference** — it rides in
+  the jsonb so the once-per-day digest gate needs no migration; `coerceNotificationSettings`
+  preserves it so saving from the settings UI can't wipe the clock.
 - `push_subscriptions` — one row per browser endpoint, `endpoint` unique.
 
 Schema is in PostgREST's exposed list (`db_schema` includes `hackathon`) and granted to
@@ -209,12 +240,19 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   Sep 25–27, Klaipėda) — new editions auto-ingest as published.
 - **Topcoder removed** — it threw on every production sweep (sole cause of the persistent
   "Refresh finished with errors" banner) and was low-value for a travel/in-person radar.
+- **Daily digest replaces per-event pushes** — ≤1 push/user/day, counts of IRL /
+  multi-day / travel, suppressed when nothing new carries one of those tags.
+- **New tag** (blue, 72h) on freshly ingested cards; **Travel filter chip** in the feed.
 
 ## Next
 
-- **Handoff:** Topcoder removal on this branch
-  (`claude/startup-lithuania-events-pcl0f0`, restarted from merged `main`) — typecheck +
-  tests + lint green. Merge to `main` so refreshes go clean/green.
+- **Handoff:** digest + New tag + Travel filter on this branch
+  (`claude/startup-lithuania-events-pcl0f0`, restarted from merged `main`) — typecheck,
+  70 tests, lint and `next build` all green. Merge to `main` to ship.
+- First digest fires on the next cron run after deploy; check the cron JSON's `digest`
+  field (`sent` / `gated` / `nothing_new` / `nothing_qualified`) if a buzz is unexpected.
+- If digests feel too rare, the likely cause is `min_score` (default 60) filtering
+  candidates out before the tag gate — lower it in Settings rather than loosening the gate.
   Merge to `main` to deploy.
 - Verify latest deploy on Vercel (Hobby deploy quota may delay). No open code bugs known;
   remaining work is product polish + enrichment quality.

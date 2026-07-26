@@ -17,6 +17,7 @@ import { watchesToRows } from './watches'
 import { enrich, fetchPageText } from './enrich'
 import { circuitTravelCovered, circuitFaqPaths, genericTravelFaqUrls } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
+import { buildDigestPayload, shouldSendDigest, summarizeDigest } from '@/lib/digest'
 import { sendPush } from '@/lib/push'
 import { encodeTravelPolicyThemes } from '@/lib/travel-policy-store'
 import {
@@ -30,6 +31,8 @@ const ENRICH_BATCH = 30
 const ENRICH_CONCURRENCY = 4
 const TIME_BUDGET_MS = 50_000
 const URL_CHUNK = 80
+/** Newest un-announced rows considered for the daily digest. */
+const DIGEST_CANDIDATES = 60
 
 export class IngestNotConfiguredError extends Error {
   constructor() {
@@ -43,6 +46,8 @@ export type IngestSummary = {
   inserted: number
   enriched: number
   notified: number
+  /** Why the daily digest did or didn't go out — for cron log debugging. */
+  digest?: 'sent' | 'gated' | 'nothing_new' | 'nothing_qualified'
   notifications_skipped?: boolean
   elapsed_ms: number
   gather_error?: string
@@ -318,20 +323,28 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   }
 
   if (sendNotifications) {
+    // ── Daily digest ────────────────────────────────────────────────────────
+    // One push per user per day summarising what appeared, instead of one push
+    // per event. Suppressed entirely unless something new is IRL / multi-day /
+    // travel-covered. `notified_at` marks a row as "already accounted for in a
+    // digest"; rows stay null (and accumulate) until a digest actually goes out.
     const goneSubscriptionIds: string[] = []
-    const processedHackathonIds: string[] = []
+    const now = new Date()
+
     const { data: fresh } = await db
       .from('hackathons')
       .select('*')
       .is('notified_at', null)
       .not('enriched_at', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(DIGEST_CANDIDATES)
 
-    const freshRows = (fresh ?? [])
-      .map((r) => coerceHackathon(r as Record<string, unknown>))
-      .filter((h) => isUpcomingAndOpen(h))
-    if (freshRows.length > 0) {
+    // Newest-first ordering matters: if the backlog ever exceeds the limit, the
+    // rows we might announce are always the ones inside the window.
+    const candidates = (fresh ?? []).map((r) => coerceHackathon(r as Record<string, unknown>))
+    const freshRows = candidates.filter((h) => isUpcomingAndOpen(h))
+
+    if (candidates.length > 0) {
       const [{ data: subscriptions }, { data: preferences }] = await Promise.all([
         db.from('push_subscriptions').select('id, user_id, subscription'),
         db.from('user_preferences').select('user_id, notification_settings'),
@@ -343,39 +356,84 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         ])
       )
 
-      for (const hackathon of freshRows) {
-        if (outOfTime()) break
-        for (const subscription of subscriptions ?? []) {
-          const settings =
-            preferencesByUser.get(subscription.user_id) ?? DEFAULT_NOTIFICATION_SETTINGS
-          const { score, reasons } = scoreHackathon(hackathon, new Date(), {
-            priority_countries: settings.priority_countries,
-            home_base: settings.home_base,
-          })
-          if (!settings.enabled || score < settings.min_score) continue
-          const topReasons = reasons
-            .filter((r) => r.pts > 0)
-            .slice(0, 2)
-            .map((r) => r.label)
-            .join(' · ')
-          const result = await sendPush(subscription.subscription, {
-            title: hackathon.title,
-            body: topReasons ? `Match ${score} — ${topReasons}` : `Match score ${score}`,
-            url: '/',
-          })
-          if (result === 'sent') summary.notified++
-          if (result === 'gone') goneSubscriptionIds.push(subscription.id)
-        }
-        processedHackathonIds.push(hackathon.id)
+      // One digest per user, delivered to each of that user's devices.
+      const subscriptionsByUser = new Map<string, typeof subscriptions>()
+      for (const subscription of subscriptions ?? []) {
+        const list = subscriptionsByUser.get(subscription.user_id) ?? []
+        list.push(subscription)
+        subscriptionsByUser.set(subscription.user_id, list)
       }
 
-      if (processedHackathonIds.length > 0) {
-        await db
-          .from('hackathons')
-          .update({ notified_at: new Date().toISOString() })
-          .in('id', processedHackathonIds)
+      let digestSent = false
+
+      for (const [userId, userSubscriptions] of subscriptionsByUser) {
+        if (outOfTime()) break
+        const settings = preferencesByUser.get(userId) ?? DEFAULT_NOTIFICATION_SETTINGS
+        if (!settings.enabled) continue
+        if (!shouldSendDigest(settings.last_digest_at, now)) {
+          if (summary.digest !== 'sent') summary.digest = 'gated'
+          continue
+        }
+
+        // The user's own score threshold still applies; the tag gate is on top.
+        const scorePrefs = {
+          priority_countries: settings.priority_countries,
+          home_base: settings.home_base,
+        }
+        const forUser = freshRows.filter(
+          (h) => scoreHackathon(h, now, scorePrefs).score >= settings.min_score
+        )
+        const counts = summarizeDigest(forUser, settings.home_base)
+        const payload = buildDigestPayload(counts)
+        if (!payload) {
+          if (summary.digest !== 'sent') summary.digest = 'nothing_qualified'
+          continue
+        }
+
+        let delivered = false
+        for (const subscription of userSubscriptions ?? []) {
+          const result = await sendPush(subscription.subscription, { ...payload, url: '/' })
+          if (result === 'sent') {
+            summary.notified++
+            delivered = true
+          }
+          if (result === 'gone') goneSubscriptionIds.push(subscription.id)
+        }
+
+        // Only burn the digest if a push actually landed. Missing VAPID keys
+        // ('unconfigured') or a transient failure must not stamp the clock and
+        // mark the events read — they roll into the next run instead.
+        if (!delivered) continue
+
+        digestSent = true
+        summary.digest = 'sent'
+
+        // Stamp the digest clock inside the settings jsonb (no migration).
+        await db.from('user_preferences').upsert(
+          {
+            user_id: userId,
+            notification_settings: { ...settings, last_digest_at: now.toISOString() },
+          },
+          { onConflict: 'user_id' }
+        )
       }
+
+      // Mark every considered row — including ones that did not qualify — so the
+      // candidate window keeps moving instead of silting up with permanent
+      // non-qualifiers. Only once a digest actually went out; otherwise events
+      // accumulate for the next one.
+      if (digestSent) {
+        for (const idChunk of chunk(candidates.map((h) => h.id), URL_CHUNK)) {
+          await db
+            .from('hackathons')
+            .update({ notified_at: now.toISOString() })
+            .in('id', idChunk)
+        }
+      }
+    } else {
+      summary.digest = 'nothing_new'
     }
+
     if (goneSubscriptionIds.length > 0) {
       await db.from('push_subscriptions').delete().in('id', goneSubscriptionIds)
     }

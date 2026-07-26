@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { durationHours, isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { isDormantCircuit, matchDormantCircuit } from '@/lib/dormant-tier-a'
+import { hasUsefulTravel } from '@/lib/digest'
 import {
   coerceHackathon,
   coerceNotificationSettings,
@@ -30,6 +31,8 @@ export default function Feed({ userId }: { userId: string }) {
   const [formatMode, setFormatMode] = useState<FormatMode>('irl')
   /** Multi-day on/off (ignored when Applied/Dormant is active) */
   const [multiDayOnly, setMultiDayOnly] = useState(false)
+  /** Travel ✓ on/off — only events whose travel policy is useful from home */
+  const [travelOnly, setTravelOnly] = useState(false)
   /** Applied / Dormant override the format + multi-day filters */
   const [listMode, setListMode] = useState<ListMode>('feed')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -188,6 +191,9 @@ export default function Feed({ userId }: { userId: string }) {
         const hours = durationHours(h)
         if (hours === null || hours <= 24) return false
       }
+      // Same predicate as the solid "Travel" tag on the card — filter and tag
+      // can never disagree about what counts as covered.
+      if (travelOnly && !hasUsefulTravel(h, prefs.home_base)) return false
       return true
     })
 
@@ -197,7 +203,7 @@ export default function Feed({ userId }: { userId: string }) {
       const db = b.h.registration_deadline ?? b.h.starts_at ?? '9999'
       return da < db ? -1 : 1
     })
-  }, [hackathons, statuses, listMode, formatMode, multiDayOnly, scoreOpts])
+  }, [hackathons, statuses, listMode, formatMode, multiDayOnly, travelOnly, prefs.home_base, scoreOpts])
 
   const selected = useMemo(() => {
     if (!selectedId) return null
@@ -210,6 +216,8 @@ export default function Feed({ userId }: { userId: string }) {
     if (listMode === 'applied') return 'No applied events yet — mark one from a card.'
     if (listMode === 'dormant')
       return 'No dormant circuit rows in the catalog. Weekly probe watches TreeHacks, PennApps, HackUPC, etc.'
+    if (travelOnly)
+      return 'No events with confirmed travel cover from your home base right now.'
     if (formatMode === 'online') return 'No open online events right now.'
     if (multiDayOnly) return 'No multi-day events match the current filters.'
     return 'No open in-person events starting at least 1 week from now.'
@@ -263,6 +271,19 @@ export default function Feed({ userId }: { userId: string }) {
           aria-pressed={multiDayOnly}
         >
           Multi-day{multiDayOnly ? ' ✓' : ''}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setListMode('feed')
+            setTravelOnly((v) => !v)
+          }}
+          className={chipClass(listMode === 'feed' && travelOnly)}
+          aria-pressed={travelOnly}
+          title="Only events whose travel policy covers someone based in your home country"
+        >
+          Travel{travelOnly ? ' ✓' : ''}
         </button>
 
         <button
