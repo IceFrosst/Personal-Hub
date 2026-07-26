@@ -168,3 +168,10 @@ if (criticalFail.length > 0) {
   console.error('Critical source failure:', criticalFail.map((r) => r.id).join(', '))
   process.exit(1)
 }
+
+// TEMPORARY (feature branch only): harvest the Turkey/aggregator structure report
+// from open egress. workflow_dispatch only sees workflows on the default branch,
+// so the new event-radar-turkey-probe.yml cannot be triggered until it is merged;
+// dispatching THIS workflow against the feature branch runs the branch's scripts.
+// Removed in the following commit.
+await import('./probe-turkey-sources.mjs')
