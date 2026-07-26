@@ -66,6 +66,42 @@ function signalsFrom(text) {
   return signals
 }
 
+function visibleText(html) {
+  return html
+    .replace(/<(script|style|noscript)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#39;|&rsquo;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * The signal labels say a policy EXISTS; they never say who it covers. Promoting
+ * a circuit B → A (and picking its travel scope) needs the actual wording, so
+ * pull the sentences around each travel match into the report.
+ */
+function travelQuotes(html) {
+  const text = visibleText(html)
+  const quotes = []
+  const re =
+    /travel|reimburs|stipend|bursary|airfare|flight|scholarship|covered up to|we (?:cover|will cover|reimburse)/gi
+  let m
+  while ((m = re.exec(text)) !== null && quotes.length < 8) {
+    const start = Math.max(0, text.lastIndexOf('.', m.index - 1) + 1)
+    const dot = text.indexOf('.', m.index)
+    const end = dot === -1 ? Math.min(text.length, m.index + 220) : Math.min(dot + 1, m.index + 300)
+    const q = text.slice(start, end).trim()
+    // Skip nav/footer noise and near-duplicates.
+    if (q.length < 40 || q.length > 400) continue
+    if (quotes.some((prev) => prev.includes(q.slice(0, 40)))) continue
+    quotes.push(q)
+    re.lastIndex = end
+  }
+  return quotes
+}
+
 const results = []
 for (const c of CIRCUITS) {
   const started = Date.now()
@@ -81,6 +117,16 @@ for (const c of CIRCUITS) {
       } catch {}
     }
     const allSignals = [...new Set(pages.flatMap((p) => p.signals))]
+    const quotes = [...new Set(pages.flatMap((p) => travelQuotes(p.text)))].slice(0, 10)
+    // A JS-only SPA returns a big shell with almost no words — the reason
+    // production enrichment learns nothing from these sites. Record it so a
+    // silent "no travel language" is distinguishable from "page has no text".
+    const shell = pages.map((p) => ({
+      path: p.path,
+      status: p.status,
+      bytes: p.text.length,
+      words: visibleText(p.text).split(' ').length,
+    }))
     results.push({
       id: c.id,
       tier: c.tier,
@@ -88,11 +134,15 @@ for (const c of CIRCUITS) {
       signals: allSignals,
       alert: allSignals.includes('reg_open_language'),
       travel_hit: allSignals.includes('travel_language'),
+      quotes,
+      pages: shell,
       ms: Date.now() - started,
     })
     console.log(
-      `${pages.some((p) => p.ok) ? 'OK' : 'FAIL'} ${c.tier} ${c.id.padEnd(14)} ${allSignals.join(',') || '—'}`
+      `${pages.some((p) => p.ok) ? 'OK' : 'FAIL'} ${c.tier} ${c.id.padEnd(14)} ${allSignals.join(',') || '—'}` +
+        ` [${shell.map((p) => `${p.path}:${p.words}w`).join(' ')}]`
     )
+    for (const q of quotes) console.log(`      » ${q.slice(0, 240)}`)
   } catch (e) {
     results.push({ id: c.id, tier: c.tier, ok: false, error: String(e) })
     console.log(`FAIL ${c.tier} ${c.id}`)
