@@ -240,6 +240,13 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   MLH approach; meetups/cafes/summits and finished/cancelled events are filtered out.
 - Hack Club: use `/api/events/upcoming` — the bare `/api/events` path serves the SPA
   shell, not JSON.
+- **Luma's discover search is fuzzy about PLACE, not just name.** "hackathon
+  Paris" returns London and Berlin events; "hackathon France" returned one in
+  Argentina; "hackathon Lisbon" returned San Francisco. This is harmless for
+  ingest — a row's location always comes from the event's own geo, never from
+  the query — but it means **a query's hit count is not evidence the query
+  works**. When judging whether to keep a city query, check the hits' own geo.
+  The umlaut matters too: "Zürich" found a Swiss event that plain "Zurich" missed.
 - Luma: `api.lu.ma/discover/get-paginated-events?query=hackathon` is a public,
   no-auth, cursor-paginated feed. Expanded with city queries for priority regions
   (`lib/region-priority-batch1..4.ts`, Baltic/PL helpers). The query is **fuzzy** —
@@ -336,11 +343,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   execution bug, not missing queries — see the rotation note in Conventions.
 - **EU west/south pack added** (`lib/region-eu-west-south.ts`): France, Spain,
   Portugal, Ireland, Switzerland, Greece/Cyprus/Malta, Romania/Bulgaria, the
-  Balkans, Luxembourg/Iceland — none of which had any coverage. Measured yield
-  on 2026-07-26: Ireland 3 · Dublin 2 · Paris 2 · Lisbon 2 · Switzerland 2 ·
-  France, Station F, Spain, Barcelona, Galway, Zurich 1 each. Greece/Malta/
-  Romania/Bulgaria measured 0 (July — their season is spring/autumn); the
-  Balkans and small states are **unmeasured**, not zero.
+  Balkans, Luxembourg/Iceland — none of which had any coverage. **On-target**
+  yield (paced re-run, 2026-07-26): **Ireland 3** (Dublin ×2, Galway),
+  **Switzerland 2** (Winterthur/Zürich, Leukerbad), **Spain 1** (Barcelona).
+  Everything else measured 0 for July, including the Balkans and small states —
+  those ran properly on the paced re-run, so 0 is real, not a rate-limit
+  artifact.
 - **allhackathons.com live as an ingest source** — server-rendered international
   listing, the one aggregator that survived the open-egress probe.
 - **Turkey groundwork** (`lib/region-turkey.ts`): Türkiye/İstanbul spellings recognised,

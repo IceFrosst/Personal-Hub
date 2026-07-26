@@ -9,15 +9,19 @@ import type { Hackathon } from './types'
  * the Balkans had nothing at all — despite every one of them being a short,
  * cheap flight from Vilnius.
  *
- * Measured from open egress on 2026-07-26 rather than assumed. The `yield`
- * notes below are future in-person hackathons returned by that query on the
- * day, and they are why the list is ordered the way it is. Two caveats worth
- * keeping in mind before pruning anything:
+ * Measured from open egress on 2026-07-26 (paced re-run) rather than assumed.
+ * Two things that measurement taught us, both of which matter before anyone
+ * prunes this list:
  *
- *   1. Luma rate-limited the probe partway through, so every query from
- *      Croatia onward returned 403 and is genuinely UNMEASURED — a 0 below
- *      means "measured zero", an absent note means "not yet measured".
- *   2. Hackathon scenes are seasonal. A zero in July says little about
+ *   1. **Luma's discover search is fuzzy about place.** A query's raw hit count
+ *      is NOT evidence that the query works — "hackathon Paris" returned a
+ *      London and a Berlin event, "hackathon France" returned one in Argentina,
+ *      and "hackathon Lisbon" returned San Francisco and London. Yield notes
+ *      below therefore count only hits whose OWN geo matches the region. The
+ *      off-target hits are still ingested correctly (the row's location comes
+ *      from the event, never from the query), they just prove nothing about
+ *      that query.
+ *   2. **Hackathon scenes are seasonal.** A zero in July says little about
  *      November, which is exactly when the big EU student events run.
  *
  * These are cheap to carry now: the sweep rotates through a window
@@ -52,7 +56,10 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       'sophia antipolis',
       'station f',
     ],
-    // yield: Paris 2, France 1, Station F 1 — the strongest gap that was open.
+    // yield: 0 on-target. Paris/France/Station F did return hits, but every one
+    // was elsewhere (London, Berlin, Mar del Plata) — fuzzy search, not French
+    // events. Kept because France is the largest EU scene with no coverage and
+    // the cost is one rotation slot; revisit in the autumn.
     lumaQueries: [
       'hackathon Paris',
       'hackathon France',
@@ -69,7 +76,7 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       { id: 'vivatech', label: 'VivaTech', url: 'https://vivatechnology.com/' },
     ],
     notes:
-      'Densest untapped EU scene. Paris/Station F both returned live events on the probe day.',
+      'Densest untapped EU scene, but every July hit was off-target (fuzzy search). Re-measure in autumn.',
   },
   {
     id: 'spain',
@@ -86,7 +93,8 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       'seville',
       'catalonia',
     ],
-    // yield: Spain 1, Barcelona 1. HackUPC (Barcelona) is Tier A with a
+    // yield: 1 on-target — AI Summit Hackathon, Barcelona (2026-09-19), found
+    // by both "Spain" and "Barcelona". HackUPC (Barcelona) is Tier A with a
     // verified EU-inclusive travel policy — the single best-value EU circuit
     // in the registry, and it only reached the catalog via a hand seed.
     lumaQueries: [
@@ -107,8 +115,9 @@ export const EU_WEST_SOUTH: CountryPack[] = [
     id: 'portugal',
     label: 'Portugal',
     markers: ['portugal', 'portuguese', 'lisbon', 'lisboa', 'porto', 'braga', 'coimbra'],
-    // yield: Lisbon 2. Taikai (already an ingest source) is Portuguese, so
-    // some of this scene arrives that way too.
+    // yield: 0 on-target — "Lisbon" matched a San Francisco and a London event.
+    // Taikai (already an ingest source) is Portuguese, so some of this scene
+    // arrives that way regardless.
     lumaQueries: [
       'hackathon Lisbon',
       'hackathon Portugal',
@@ -120,14 +129,16 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       { id: 'websummit', label: 'Web Summit Lisbon', url: 'https://websummit.com/' },
       { id: 'taikai-pt', label: 'TAIKAI', url: 'https://taikai.network/' },
     ],
-    notes: 'Web Summit week draws satellite hackathons; TAIKAI source already covers some.',
+    notes: 'No on-target July hits; Web Summit week draws satellites, and TAIKAI already covers some.',
   },
   {
     id: 'ireland',
     label: 'Ireland',
     markers: ['ireland', 'irish', 'dublin', 'cork', 'galway', 'limerick'],
-    // yield: Ireland 3, Dublin 2, Galway 1 — the best measured yield of the
-    // whole probe, and it had zero coverage before.
+    // yield: 3 on-target and all genuinely Irish — GTM Hackathon (Dublin,
+    // 2026-08-15), FutureHack (Galway, 2026-08-20), Daytona HackSprint (Dublin,
+    // 2026-08-29). The best real yield of the whole probe, from a country that
+    // had no coverage at all.
     lumaQueries: [
       'hackathon Ireland',
       'hackathon Dublin',
@@ -138,7 +149,7 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       { id: 'dogpatch', label: 'Dogpatch Labs', url: 'https://dogpatchlabs.com/' },
       { id: 'patch', label: 'Patch', url: 'https://patch.ie/' },
     ],
-    notes: 'Highest measured yield of any newly probed country.',
+    notes: 'Highest real yield of any newly probed country — three genuinely Irish events.',
   },
   {
     id: 'switzerland',
@@ -156,9 +167,11 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       'epfl',
       'eth zurich',
     ],
-    // yield: Switzerland 2, Zurich 1, Zürich 1. Note HackZurich itself is on
-    // hiatus (confirmed again by this probe: "HackZurich is taking a break"),
-    // so the yield here is other organisers — worth having.
+    // yield: 2 on-target — Critical Infrastructure Shield (Winterthur/Zürich,
+    // 2026-10-23) and Leukerbad Hackathon (2026-11-14). Note the umlaut matters:
+    // "Zürich" found the Winterthur event, plain "Zurich" only returned Berlin.
+    // HackZurich itself is still on hiatus ("HackZurich is taking a break"), so
+    // this yield is other organisers entirely.
     lumaQueries: [
       'hackathon Switzerland',
       'hackathon Zurich',
@@ -191,9 +204,8 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       'valletta',
       'msida',
     ],
-    // yield: measured 0 for all of these on the probe day. Kept because the
-    // cost is a rotation slot and the Mediterranean student calendar runs in
-    // spring/autumn, not July.
+    // yield: measured 0, all eight queries. Kept because the cost is a rotation
+    // slot and the Mediterranean student calendar runs spring/autumn, not July.
     lumaQueries: [
       'hackathon Athens',
       'hackathon Greece',
@@ -258,10 +270,10 @@ export const EU_WEST_SOUTH: CountryPack[] = [
       'beograd',
       'novi sad',
     ],
-    // UNMEASURED — Luma had started rate-limiting the probe by the time these
-    // ran, so all of them returned 403. Do not read that as zero.
-    // Hack Kosice is a Tier A circuit already in the travel registry, which is
-    // reason enough to query its region.
+    // yield: measured 0 (the paced re-run reached these; the first, unpaced
+    // probe had been rate-limited before it got here). Hack Kosice is a Tier A
+    // circuit already in the travel registry, which is reason enough to keep
+    // querying its region even at zero today.
     lumaQueries: [
       'hackathon Kosice',
       'hackathon Bratislava',
@@ -273,16 +285,16 @@ export const EU_WEST_SOUTH: CountryPack[] = [
     organisers: [
       { id: 'hackkosice', label: 'Hack Kosice', url: 'https://www.hackkosice.com/' },
     ],
-    notes: 'Unmeasured — probe was rate-limited before reaching these. Hack Kosice is Tier A.',
+    notes: 'Measured 0 in July. Hack Kosice is Tier A and reachable (285 words).',
   },
   {
     id: 'small-states',
     label: 'Luxembourg · Iceland',
     markers: ['luxembourg', 'iceland', 'reykjavik', 'reykjavík'],
-    // UNMEASURED — same 403 window as the Balkans block.
+    // yield: measured 0 in the paced re-run.
     lumaQueries: ['hackathon Luxembourg', 'hackathon Reykjavik'],
     organisers: [],
-    notes: 'Unmeasured. Small scenes; low expectation, negligible cost in a rotation.',
+    notes: 'Measured 0. Small scenes; low expectation, negligible cost in a rotation.',
   },
 ]
 
