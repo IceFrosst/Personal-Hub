@@ -285,22 +285,44 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 - **After deploy, hit Refresh once** — the seed upgrade repairs Hack the North, HackRice
   and BigRed//Hacks in place; they only become visible after that run.
-- **Turkey is a genuine coverage gap**: zero rows in the catalog, no region batch queries
-  it (`region-*.ts`), and it is missing from `REGION_OF` in `travel-for-me.ts` so its
-  events could not be geo-reasoned about anyway. Luma currently returns nothing for
-  Istanbul/Ankara/Türkiye, so adding queries alone would not help — Turkish hackathons
-  live on local platforms. Needs a dedicated source before it is worth wiring.
+- **Turkey — coverage gap, researched 2026-07-26.** Zero rows in the catalog. Three
+  separate causes, and only the third needs new code:
+  1. No region batch queries it (`region-*.ts`), and Turkey is missing from `REGION_OF`
+     in `travel-for-me.ts` — so a Turkish event could not be geo-reasoned about even if
+     ingested. **Cheap groundwork, do this first; needs no allowlist.**
+  2. Every Turkish domain is blocked in interactive sessions. **Production Vercel egress
+     is open**, so this only blocks agent development/verification, not a shipped source.
+  3. The aggregators genuinely have nothing: Luma returns 0 for
+     Istanbul/Ankara/Türkiye, Devpost search returns only an unrelated online event, and
+     hackathon.com states outright there are no upcoming Turkey hackathons. Turkey's
+     scene runs through national programmes (TEKNOFEST, TÜBİTAK) and university/corporate
+     portals that publish no machine-readable feed. **Allowlisting alone will not produce
+     events — expect verification work, not an instant feed.**
+
+  Domains to allowlist, in priority order:
+  - *Aggregators (highest value, NOT Turkey-specific):* `dev.events`, `hackathon.com`,
+    `www.hackathon.com`, `allhackathons.com`, `tr.allhackathons.com`.
+    **`dev.events` is the real lead** — structured per-country/city listings
+    (`dev.events/hackathons/AS/TR/Istanbul`), i.e. a candidate *general* source, not just
+    a Turkey fix. It 403'd a plain fetch, so parseability is unconfirmed — check first.
+  - *Turkish organizers:* `teknofest.org`, `www.teknofest.org`, `t3vakfi.org`,
+    `hackathon.turkishairlines.com`, `terminal.turkishairlines.com`, `tubitak.gov.tr`,
+    `bilisimvadisi.com.tr`, `itucekirdek.com`, `kworks.ku.edu.tr`.
+  - *Vertical/Istanbul:* `istanbulblockchainweek.com`, `iata.org`.
+
+  Best individual lead: the **Turkish Airlines Travel Hackathon** (Istanbul, listed for
+  2026-12-22) — an airline-run event whose past prizes included Business Class
+  international tickets, so travel support is plausible. Confirm the date and whether
+  non-Turkish residents may enter. TEKNOFEST is the largest and has international tracks.
+  IATA-class events (e.g. the ONE Record hackathon hosted by Turkish Cargo) run on
+  Devpost, so the existing source already catches that shape.
 - **Check Monday's watch-agent run** (`travel-priority-probe.json`) for the four new EU
   circuits: any that report `travel_language` with a real policy get promoted B → A.
   hackaTUM and CASSINI are the likeliest Tier A candidates.
-- **Handoff:** digest + New tag + Travel filter on this branch
-  (`claude/startup-lithuania-events-pcl0f0`, restarted from merged `main`) — typecheck,
-  70 tests, lint and `next build` all green. Merge to `main` to ship.
 - First digest fires on the next cron run after deploy; check the cron JSON's `digest`
   field (`sent` / `gated` / `nothing_new` / `nothing_qualified`) if a buzz is unexpected.
 - If digests feel too rare, the likely cause is `min_score` (default 60) filtering
   candidates out before the tag gate — lower it in Settings rather than loosening the gate.
-  Merge to `main` to deploy.
 - Verify latest deploy on Vercel (Hobby deploy quota may delay). No open code bugs known;
   remaining work is product polish + enrichment quality.
 - Confirm Applied-only-in-Applied-tab after deploy; hard-refresh PWA if stale.
