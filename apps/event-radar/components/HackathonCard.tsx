@@ -3,6 +3,7 @@
 import type { Hackathon, UserStatus } from '@/lib/types'
 import type { ScoredHackathon } from '@/lib/scoring'
 import { durationHours } from '@/lib/scoring'
+import { isNewHackathon } from '@/lib/digest'
 import { travelTagLabel } from '@/lib/travel-for-me'
 import { IconExternalLink, IconStar, IconChecks, IconEyeOff } from '@tabler/icons-react'
 
@@ -23,12 +24,22 @@ function scoreColor(score: number): string {
 
 function featureTags(h: Hackathon, homeBase: string): string[] {
   const tags: string[] = []
+  // "New" leads — it's the reason the daily digest buzzed.
+  if (isNewHackathon(h)) tags.push('New')
   const travel = travelTagLabel(h, homeBase)
   if (travel) tags.push(travel)
   if (h.accommodation_covered === true) tags.push('Accommodation')
   const hours = durationHours(h)
   if (hours !== null && hours > 24) tags.push('Multi-day')
   return tags
+}
+
+function tagClass(tag: string): string {
+  if (tag === 'New') return 'border-blue/40 bg-blue/10 text-blue'
+  // Solid purple = travel confirmed useful from home; hedged variants stay quiet.
+  if (tag === 'Travel') return 'border-purple/40 bg-purple/10 text-purple'
+  if (tag.startsWith('Travel')) return 'border-border bg-surface-elevated text-text-low'
+  return 'border-border bg-surface-elevated text-text-muted'
 }
 
 export default function HackathonCard({
@@ -89,13 +100,7 @@ export default function HackathonCard({
           {tags.map((tag) => (
             <span
               key={tag}
-              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${
-                tag === 'Travel'
-                  ? 'border-purple/40 bg-purple/10 text-purple'
-                  : tag.startsWith('Travel')
-                    ? 'border-border bg-surface-elevated text-text-low'
-                    : 'border-border bg-surface-elevated text-text-muted'
-              }`}
+              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${tagClass(tag)}`}
             >
               {tag}
             </span>
