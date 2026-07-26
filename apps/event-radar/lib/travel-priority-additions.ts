@@ -263,7 +263,8 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     hostPatterns: [/hackzurich\.com$/i],
     faqPaths: ['/faq'],
     siteUrl: 'https://hackzurich.com/',
-    evidence: 'Application-only; travel support for accepted internationals is selective — verify FAQ',
+    evidence:
+      'ON HIATUS as of 2026-07-26 — hackzurich.com now serves only "HackZurich is currently on hiatus as we evaluate future opportunities"; no 2026 edition. Historically application-only with selective travel support for accepted internationals. Kept (not deleted) so a returning edition is recognised; see DORMANT_TIER_A.',
   },
   {
     id: 'colosseum',
@@ -462,5 +463,65 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     faqPaths: ['/faq'],
     siteUrl: 'https://hederahackafrica.com/',
     evidence: 'Largest-ever Web3 hackathon (13k devs, $1M prizes) but travel funding targets African participants — international-inbound travel unconfirmed',
+  },
+
+  // ── EU expansion (added 2026-07-26) ──────────────────────────────────────
+  // The registry was heavily NA-weighted: 20+ Tier A circuits in North America
+  // against 3 in Europe (Junction, HackUPC, Hack Kosice), even though EU events
+  // are the realistic travel targets from a Baltic home base (no visa, cheap RT).
+  // These enter at Tier B ON PURPOSE: every EU hackathon domain is blocked by the
+  // sandbox egress policy, so no per-edition travel policy could be read when they
+  // were added, and "notable event that probably reimburses" is explicitly NOT
+  // evidence under the Tier A bar. They are wired into
+  // scripts/probe-travel-priority.mjs, so the weekly watch-agent (open egress)
+  // reports travel_language / reg_open_language per circuit — promote to Tier A
+  // only when that probe (or a production enrichment run) shows a real policy.
+  {
+    id: 'hackatum',
+    label: 'hackaTUM',
+    tier: 'B',
+    region: 'eu',
+    titlePattern: /\bhackatum\b|\bhacka\s+tum\b/i,
+    hostPatterns: [/hackatum\.(com|de)$/i, /(^|\.)hack\.tum\.de$/i],
+    faqPaths: ['/faq', '/travel'],
+    siteUrl: 'https://hack.tum.de/',
+    evidence:
+      'TU Munich flagship (~1k hackers, November). Germany is a priority country. Travel support has historically been partial/selective rather than guaranteed — unverified, site unreachable from sandbox egress; awaiting weekly probe.',
+  },
+  {
+    id: 'hack-cambridge',
+    label: 'Hack Cambridge',
+    tier: 'B',
+    region: 'eu',
+    titlePattern: /\bhack\s*cambridge\b/i,
+    hostPatterns: [/hackcambridge\.com$/i],
+    faqPaths: ['/faq', '/travel'],
+    siteUrl: 'https://hackcambridge.com/',
+    evidence:
+      'Cambridge University flagship (January). UK is a priority country. Historically reimburses travel, but caps are commonly UK/EU-student gated per edition — unverified from sandbox; awaiting weekly probe.',
+  },
+  {
+    id: 'cassini',
+    label: 'CASSINI Hackathons',
+    tier: 'B',
+    region: 'eu',
+    titlePattern: /\bcassini\s+(hackathon|hack)\b/i,
+    hostPatterns: [/(^|\.)cassini\.eu$/i],
+    faqPaths: ['/faq', '/hackathons'],
+    siteUrl: 'https://www.cassini.eu/hackathons',
+    evidence:
+      'EU space-programme hackathon series (EUSPA-funded, multi-city, run in national locations simultaneously). EU-funded events frequently cover participant travel/accommodation, which would make this Tier A — but funding terms vary per edition and cassini.eu is unreachable from sandbox egress. Verify before promoting.',
+  },
+  {
+    id: 'edth',
+    label: 'European Defence Tech Hackathon',
+    tier: 'B',
+    region: 'eu',
+    titlePattern: /\beuropean\s+defen[cs]e\s+tech\s+hackathon\b|\bEDTH\b/i,
+    hostPatterns: [/europeandefensetech\.(com|eu)$/i, /edth\.(eu|com)$/i],
+    faqPaths: ['/faq', '/travel'],
+    siteUrl: 'https://www.europeandefensetech.com/',
+    evidence:
+      'Fast-growing EU defence-tech circuit already reaching the catalog through Luma (e.g. the Hamburg edition). Registering it here gives those ingested rows a travel prior instead of nothing. Editions are city-hosted with varying sponsor budgets, so travel is per-edition — unverified.',
   },
 ]

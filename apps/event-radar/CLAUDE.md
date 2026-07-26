@@ -49,6 +49,15 @@
   (unclear / winner-only / region-gated / monitor) returns `null` — being on the list is
   not evidence; the FAQ crawl + LLM must confirm travel per edition. Add a circuit as Tier A
   only with hard evidence; otherwise Tier B.
+  **Evidence path for EU circuits:** every EU hackathon domain is blocked by the sandbox
+  egress policy, so a Claude/Codex session *cannot* produce Tier A evidence for them. The
+  weekly watch-agent (`event-radar-watch-agent.yml`, Mondays 08:00 UTC) runs
+  `scripts/probe-travel-priority.mjs` from GitHub's open egress and reports
+  `travel_language` / `reg_open_language` per circuit — that report (or a production
+  enrichment run) is what promotes an EU circuit from B to A. Keep the script's circuit
+  list in sync with `lib/travel-priority*.ts`.
+  The registry was NA-heavy (20+ Tier A in North America vs 3 in Europe); EU entries added
+  2026-07-26 — hackaTUM, Hack Cambridge, CASSINI, EDTH — sit at **Tier B pending that probe**.
 - **India rule is travel-gated, not a blanket block** (`isIndiaFocused` in `scoring.ts`):
   India-focused events (Unstop source, India location, "Smart India"…) are hidden from feed
   and scored −100 **unless `travel_covered === true`**. A fully-covered Indian event
@@ -243,9 +252,17 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - **Daily digest replaces per-event pushes** — ≤1 push/user/day, counts of IRL /
   multi-day / travel, suppressed when nothing new carries one of those tags.
 - **New tag** (blue, 72h) on freshly ingested cards; **Travel filter chip** in the feed.
+- **HackZurich is on hiatus** (verified 2026-07-26 — site says so outright). It is in
+  `DORMANT_TIER_A`, not a scraper blind spot; nothing to ingest until organisers return.
+- **EU travel circuits widened**: hackaTUM, Hack Cambridge, CASSINI, EDTH at Tier B, all
+  wired into the weekly open-egress probe. EDTH matters immediately — its editions already
+  reach the catalog via Luma, so they now carry a travel prior instead of nothing.
 
 ## Next
 
+- **Check Monday's watch-agent run** (`travel-priority-probe.json`) for the four new EU
+  circuits: any that report `travel_language` with a real policy get promoted B → A.
+  hackaTUM and CASSINI are the likeliest Tier A candidates.
 - **Handoff:** digest + New tag + Travel filter on this branch
   (`claude/startup-lithuania-events-pcl0f0`, restarted from merged `main`) — typecheck,
   70 tests, lint and `next build` all green. Merge to `main` to ship.

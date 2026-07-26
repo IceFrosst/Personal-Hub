@@ -40,6 +40,18 @@ export const DORMANT_TIER_A: DormantCircuit[] = [
     hostPatterns: [/pennapps\.com$/i],
   },
   {
+    id: 'hackzurich',
+    label: 'HackZurich',
+    siteUrl: 'https://hackzurich.com/',
+    paths: ['/', '/faq'],
+    lastEdition: '2025 (HackZurich 2025 — no 2026 edition)',
+    nextExpectedWindow: 'Unknown — organisers have not announced a return date',
+    reason:
+      'Verified 2026-07-26: hackzurich.com serves only "HackZurich is currently on hiatus as we evaluate future opportunities and directions for Switzerland\'s leading hackathon." Europe\'s largest hackathon, so keep probing — but it is NOT a scraper blind spot, there is genuinely nothing to ingest. (The parked page also carries spam pharmacy links; treat any sudden "event" content there with suspicion until the real site returns.)',
+    titlePattern: /\bhack\s*z[uü]rich\b/i,
+    hostPatterns: [/hackzurich\.com$/i],
+  },
+  {
     id: 'hackupc',
     label: 'HackUPC',
     siteUrl: 'https://hackupc.com/',
