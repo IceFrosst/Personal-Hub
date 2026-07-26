@@ -1,5 +1,9 @@
 import type { HackathonFormat } from '@/lib/types'
-import { matchTravelPriority, travelPriorityFaqPaths } from '@/lib/travel-priority'
+import {
+  matchTravelPriority,
+  travelPriorityFaqPaths,
+  type CircuitTravelPolicy,
+} from '@/lib/travel-priority'
 
 // Layer-1 travel detection: curated circuits with standing travel programs.
 // Enrichment always runs first; circuit prior only fills when page extraction
@@ -27,6 +31,32 @@ export function circuitTravelCovered(row: {
     url: row.url ?? null,
   })
   return hit && hit.tier === 'A' ? true : null
+}
+
+/**
+ * The circuit's VERIFIED travel policy, in the same shape enrichment extracts.
+ *
+ * `circuitTravelCovered` only ever answers the boolean, and a bare boolean can
+ * never reach travelUsefulForMe === 'yes' — so a Tier A circuit whose site is a
+ * JS shell (most of them) stayed permanently "Travel · check FAQ" and never
+ * appeared under the Travel filter. This supplies the missing geography for the
+ * circuits somebody actually verified.
+ *
+ * Online events return null: there is no travel to reimburse.
+ */
+export function circuitTravelPolicy(row: {
+  source: string
+  title: string
+  url?: string | null
+  format: HackathonFormat | null
+}): CircuitTravelPolicy | null {
+  if (row.format === 'online') return null
+  const hit = matchTravelPriority({
+    source: row.source,
+    title: row.title,
+    url: row.url ?? null,
+  })
+  return hit?.travelPolicy ?? null
 }
 
 /** Extra FAQ-style paths when the main page is thin / SPA. */

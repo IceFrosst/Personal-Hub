@@ -15,8 +15,14 @@ import { fetchStartupLithuania } from './startuplithuania'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
 import { buildSeedPatch, type ExistingRow } from './seed-upgrade'
+import { buildTravelPolicyPatch } from './travel-policy-backfill'
 import { enrich, fetchPageText } from './enrich'
-import { circuitTravelCovered, circuitFaqPaths, genericTravelFaqUrls } from './travel-circuits'
+import {
+  circuitTravelCovered,
+  circuitTravelPolicy,
+  circuitFaqPaths,
+  genericTravelFaqUrls,
+} from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { buildDigestPayload, shouldSendDigest, summarizeDigest } from '@/lib/digest'
 import { sendPush } from '@/lib/push'
@@ -34,6 +40,8 @@ const TIME_BUDGET_MS = 50_000
 const URL_CHUNK = 80
 /** Newest un-announced rows considered for the daily digest. */
 const DIGEST_CANDIDATES = 60
+/** Upcoming rows scanned per run for a registry travel-policy backfill. */
+const POLICY_BACKFILL_SCAN = 400
 
 export class IngestNotConfiguredError extends Error {
   constructor() {
@@ -47,6 +55,8 @@ export type IngestSummary = {
   inserted: number
   /** Existing rows whose missing/stale dates a known/watch seed repaired. */
   seed_patched?: number
+  /** Already-enriched rows given a verified circuit travel policy. */
+  policy_backfilled?: number
   enriched: number
   notified: number
   /** Why the daily digest did or didn't go out — for cron log debugging. */
@@ -248,10 +258,34 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       url: row.url,
       format: effectiveFormat,
     })
+    // Verified policy for this circuit, if anyone has read one. Most flagship
+    // sites are JS shells (1–3 words of server-rendered text), so the page
+    // extraction below usually comes back with a null scope and the registry is
+    // the only place the geography can come from.
+    const circuitPolicy = circuitTravelPolicy({
+      source: row.source,
+      title: row.title,
+      url: row.url,
+      format: effectiveFormat,
+    })
+
     const travel =
       extracted.travel_covered !== null && extracted.travel_covered !== undefined
         ? extracted.travel_covered
-        : circuitTravel
+        : circuitPolicy
+          ? circuitPolicy.scope !== 'none'
+          : circuitTravel
+
+    // Precedence throughout: what the page said > what the registry verified >
+    // nothing. The page is per-edition truth; the registry is a standing fact.
+    const travelScope = extracted.travel_scope ?? circuitPolicy?.scope ?? null
+    const travelRegions =
+      extracted.travel_regions.length > 0
+        ? extracted.travel_regions
+        : (circuitPolicy?.regions ?? [])
+    const travelCap = extracted.travel_cap ?? circuitPolicy?.cap ?? null
+    const travelNotes =
+      extracted.travel_notes ?? (circuitPolicy ? circuitPolicy.quote.slice(0, 160) : null)
 
     // Always encode policy into themes so scoring works without migration 0003.
     const baseThemes =
@@ -259,10 +293,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         ? extracted.themes
         : row.themes ?? []
     const themesWithPolicy = encodeTravelPolicyThemes(baseThemes, {
-      travel_scope: extracted.travel_scope,
-      travel_regions: extracted.travel_regions,
-      travel_cap: extracted.travel_cap,
-      travel_notes: extracted.travel_notes,
+      travel_scope: travelScope,
+      travel_regions: travelRegions,
+      travel_cap: travelCap,
+      travel_notes: travelNotes,
     })
 
     const basePatch: Record<string, unknown> = {
@@ -290,10 +324,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     // Prefer dedicated columns when migration 0003 is applied; themes remain the fallback.
     const policyPatch: Record<string, unknown> = {
       ...basePatch,
-      travel_scope: extracted.travel_scope,
-      travel_regions: extracted.travel_regions,
-      travel_cap: extracted.travel_cap,
-      travel_notes: extracted.travel_notes,
+      travel_scope: travelScope,
+      travel_regions: travelRegions,
+      travel_cap: travelCap,
+      travel_notes: travelNotes,
     }
 
     let { data: updated, error: updateError } = await db
@@ -346,6 +380,42 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       toEnrich.slice(i, i + ENRICH_CONCURRENCY).map((row) => enrichRow(row))
     )
     summary.enriched += results.filter(Boolean).length
+  }
+
+  // ── Travel policy backfill ────────────────────────────────────────────────
+  // Rows already enriched are never revisited (a Tier A row has
+  // travel_covered = true, so it matches no re-enrich condition). Without this
+  // pass, a policy verified today would only reach events inserted tomorrow —
+  // every event already in the catalog would keep a null scope, which is what
+  // left the Travel filter matching 0 of 555 rows. No LLM, no fetch: registry
+  // → row, so it is cheap enough to run every ingest and self-heals whenever
+  // the registry gains evidence.
+  if (!outOfTime()) {
+    const { data: upcoming } = await db
+      .from('hackathons')
+      .select('id, title, url, source, format, themes, travel_covered')
+      .gt('starts_at', new Date().toISOString())
+      .order('starts_at', { ascending: true })
+      .limit(POLICY_BACKFILL_SCAN)
+
+    for (const raw of upcoming ?? []) {
+      if (outOfTime()) break
+      const row = coerceHackathon(raw as Record<string, unknown>)
+      const policy = circuitTravelPolicy({
+        source: row.source,
+        title: row.title,
+        url: row.url,
+        format: row.format,
+      })
+      if (!policy) continue
+      const patch = buildTravelPolicyPatch(
+        { id: row.id, themes: row.themes ?? [], travel_covered: row.travel_covered },
+        policy
+      )
+      if (!patch) continue
+      const { error } = await db.from('hackathons').update(patch).eq('id', row.id)
+      if (!error) summary.policy_backfilled = (summary.policy_backfilled ?? 0) + 1
+    }
   }
 
   if (sendNotifications) {
