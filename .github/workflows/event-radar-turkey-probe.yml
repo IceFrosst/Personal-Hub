@@ -1,13 +1,15 @@
-# Open-egress structure probe for the Turkey / international-aggregator gap.
+# Open-egress coverage probes: the Turkey/aggregator structure report and the
+# EU region-coverage measurement (which Luma queries actually yield events, and
+# which candidate EU hub sites are parseable).
 #
 # Every domain this touches is blocked by the interactive sandbox egress policy,
 # so agent sessions cannot see their markup. GitHub-hosted runners can — run this
 # workflow and read the job log (the report is printed to stdout as well as
 # uploaded) before writing or changing a parser for any of these sources.
 #
-# Trigger: Actions → Event Radar Turkey source probe → Run workflow
+# Trigger: Actions → Event Radar coverage probe → Run workflow
 
-name: Event Radar Turkey source probe
+name: Event Radar coverage probe
 
 on:
   schedule:
@@ -28,10 +30,15 @@ jobs:
       - name: Probe Turkey + aggregator sources
         run: node apps/event-radar/scripts/probe-turkey-sources.mjs
 
-      - name: Upload turkey-sources-probe.json
+      - name: Probe EU coverage gaps
+        run: node apps/event-radar/scripts/probe-eu-coverage.mjs
+
+      - name: Upload probe reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: turkey-sources-probe
-          path: turkey-sources-probe.json
+          name: coverage-probes
+          path: |
+            turkey-sources-probe.json
+            eu-coverage-probe.json
           retention-days: 30

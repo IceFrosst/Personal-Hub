@@ -6,7 +6,7 @@ import { fetchMlh } from './mlh'
 import { fetchEthGlobal } from './ethglobal'
 import { fetchHackerEarth } from './hackerearth'
 import { fetchHackClub } from './hackclub'
-import { fetchLuma } from './luma'
+import { fetchLuma, lastSweepStats } from './luma'
 import { fetchHackQuest } from './hackquest'
 import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
@@ -58,6 +58,13 @@ export type IngestSummary = {
   seed_patched?: number
   /** Already-enriched rows given a verified circuit travel policy. */
   policy_backfilled?: number
+  /**
+   * Luma discovery queries by outcome. `blocked` is the rate limiter — it used
+   * to be indistinguishable from "no more results", which is how most of the
+   * region packs silently stopped running. Non-zero here means this sweep's
+   * rotation window was cut short; the next run picks up where it left off.
+   */
+  luma_queries?: { ok: number; blocked: number; failed: number }
   enriched: number
   notified: number
   /** Why the daily digest did or didn't go out — for cron log debugging. */
@@ -153,6 +160,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
         `error: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
     }
   })
+
+  if (lastSweepStats.ok + lastSweepStats.blocked + lastSweepStats.failed > 0) {
+    summary.luma_queries = { ...lastSweepStats }
+  }
 
   const newlyInsertedIds: string[] = []
 

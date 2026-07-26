@@ -5,6 +5,8 @@ import { LUMA_BATCH2_QUERIES } from '@/lib/region-priority-batch2'
 import { LUMA_BATCH3_QUERIES } from '@/lib/region-priority-batch3'
 import { LUMA_BATCH4_QUERIES } from '@/lib/region-priority-batch4'
 import { LUMA_TURKEY_QUERIES } from '@/lib/region-turkey'
+import { LUMA_EU_WEST_SOUTH_QUERIES } from '@/lib/region-eu-west-south'
+import { selectQueryWindow } from './luma-rotation'
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 const API = 'https://api.lu.ma/discover/get-paginated-events'
@@ -23,6 +25,7 @@ const QUERIES = [
   ...LUMA_BATCH3_QUERIES,
   ...LUMA_BATCH4_QUERIES,
   ...LUMA_TURKEY_QUERIES,
+  ...LUMA_EU_WEST_SOUTH_QUERIES,
 ] as const
 
 const PAGES_PER_QUERY = 2
@@ -109,7 +112,16 @@ export function parseLumaPage(page: LumaPage): IngestRow[] {
   return rows
 }
 
-async function fetchLumaQuery(query: string, seen: Set<string>): Promise<IngestRow[]> {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Counters for one sweep, so a rate-limit wall shows up in the cron report. */
+export type LumaSweepStats = { ok: number; blocked: number; failed: number }
+
+async function fetchLumaQuery(
+  query: string,
+  seen: Set<string>,
+  stats: LumaSweepStats
+): Promise<IngestRow[]> {
   const rows: IngestRow[] = []
   let cursor: string | null = null
 
@@ -124,12 +136,19 @@ async function fetchLumaQuery(query: string, seen: Set<string>): Promise<IngestR
         redirect: 'follow',
       })
     } catch {
+      stats.failed++
       break
     }
     if (!res.ok) {
       if (i === 0 && query === 'hackathon') throw new Error(`luma -> ${res.status}`)
+      // 403/429 is the rate limiter, not an empty result. Counting it separately
+      // is the whole point — this used to look identical to "no more pages",
+      // which is how ~two thirds of the query list went missing unnoticed.
+      if (res.status === 403 || res.status === 429) stats.blocked++
+      else stats.failed++
       break
     }
+    stats.ok++
     const page = (await res.json()) as LumaPage
     if (!Array.isArray(page.entries)) break
     for (const row of parseLumaPage(page)) {
@@ -143,26 +162,49 @@ async function fetchLumaQuery(query: string, seen: Set<string>): Promise<IngestR
   return rows
 }
 
+/** Gap between requests. Enough to stay under the limiter, cheap enough for the budget. */
+const REQUEST_GAP_MS = 250
+/** Consecutive rate-limited queries after which the sweep gives up for this run. */
+const BLOCKED_STREAK_LIMIT = 5
+
+export const lastSweepStats: LumaSweepStats = { ok: 0, blocked: 0, failed: 0 }
+
 export async function fetchLuma(): Promise<IngestRow[]> {
   const seen = new Set<string>()
   const rows: IngestRow[] = []
+  const stats: LumaSweepStats = { ok: 0, blocked: 0, failed: 0 }
 
-  const primary = await fetchLumaQuery('hackathon', seen)
+  const primary = await fetchLumaQuery('hackathon', seen, stats)
   rows.push(...primary)
 
+  // Rotate through the list instead of firing all 108 at once — see
+  // luma-rotation.ts for why the tail of this list was never actually running.
   const unique = [...new Set(QUERIES.filter((q) => q !== 'hackathon'))]
+  const window = selectQueryWindow(unique)
 
-  for (const q of unique) {
+  let blockedStreak = 0
+  for (const q of window) {
+    await sleep(REQUEST_GAP_MS)
+    const before = stats.blocked
     try {
-      const batch = await fetchLumaQuery(q, seen)
+      const batch = await fetchLumaQuery(q, seen, stats)
       rows.push(...batch)
     } catch {
       /* non-primary failure non-fatal */
     }
+    // Once the limiter is on us, every further request is wasted time inside a
+    // 50s budget — stop and let the next run's window pick up the rest.
+    blockedStreak = stats.blocked > before ? blockedStreak + 1 : 0
+    if (blockedStreak >= BLOCKED_STREAK_LIMIT) break
   }
 
+  Object.assign(lastSweepStats, stats)
+
   if (rows.length === 0) {
-    throw new Error('luma: 0 hackathons mapped — feed shape or query drifted?')
+    throw new Error(
+      `luma: 0 hackathons mapped (queries ok=${stats.ok} blocked=${stats.blocked} ` +
+        `failed=${stats.failed}) — rate limited, or feed shape drifted?`
+    )
   }
   return rows
 }
