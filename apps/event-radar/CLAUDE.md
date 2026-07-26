@@ -95,6 +95,21 @@
   are capped at 4 with a 5s timeout each. Limitation: plain fetch can't read JS-only SPA
   sites (e.g. hackzurich.com returns a 46-word shell for every path); the no-headless rule
   stands, so SPA organizers stay "unknown" until their policy is server-rendered.
+- **Luma queries rotate; they do not all run every sweep**
+  (`lib/ingest/luma-rotation.ts`). The region packs grew to ~150 queries × up to
+  2 pages, fired back to back, and Luma rate-limits after roughly 40 requests —
+  after which `fetchLumaQuery` treated every 403 as "no more pages" and moved
+  on. The tail of the list never ran, which is why the live catalog was full of
+  California/UK/India/Germany and had **zero** rows from France, Spain,
+  Portugal, the Netherlands, Belgium, Poland, Lithuania, Czechia, Hungary or
+  Italy despite all of them being queried on paper. Now: a window of
+  `LUMA_WINDOW` (35) per sweep, stepped a whole window per 3-hour slot, paced
+  250ms apart, abandoning the run after `BLOCKED_STREAK_LIMIT` consecutive
+  rate-limited queries. ~5 ingest runs/day cycles the list about twice daily.
+  **Adding a query is therefore cheap** — it joins the rotation instead of
+  pushing another one off the end. `summary.luma_queries`
+  (`ok`/`blocked`/`failed`) makes the limiter visible in the cron report; a
+  persistently high `blocked` means lower the window, not add retries.
 - Feed (`components/Feed.tsx`) fetches the newest **1000** catalog rows then filters with
   `isUpcomingAndOpen` client-side. Raise this before the catalog outgrows it, or move the
   future-start filter server-side (the limit is applied *before* eligibility filtering).
@@ -317,6 +332,15 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   HackUPC (international, EU-inclusive, ~€120), TreeHacks (global), YHack + ConUHacks
   (selective), McHacks + **hackaTUM** (explicitly none — hackaTUM was queued as the
   likeliest B→A promotion and the probe showed the opposite).
+- **EU coverage: the region packs now actually execute.** The gap was an
+  execution bug, not missing queries — see the rotation note in Conventions.
+- **EU west/south pack added** (`lib/region-eu-west-south.ts`): France, Spain,
+  Portugal, Ireland, Switzerland, Greece/Cyprus/Malta, Romania/Bulgaria, the
+  Balkans, Luxembourg/Iceland — none of which had any coverage. Measured yield
+  on 2026-07-26: Ireland 3 · Dublin 2 · Paris 2 · Lisbon 2 · Switzerland 2 ·
+  France, Station F, Spain, Barcelona, Galway, Zurich 1 each. Greece/Malta/
+  Romania/Bulgaria measured 0 (July — their season is spring/autumn); the
+  Balkans and small states are **unmeasured**, not zero.
 - **allhackathons.com live as an ingest source** — server-rendered international
   listing, the one aggregator that survived the open-egress probe.
 - **Turkey groundwork** (`lib/region-turkey.ts`): Türkiye/İstanbul spellings recognised,
@@ -335,6 +359,13 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   "Travel · check FAQ". **Open product question for Ignas:** should the Travel chip
   include those `maybe` events (one chip, looser) or stay strict? Changing it also
   changes the card tag and the digest count — they deliberately share one predicate.
+- **Watch `luma_queries` in the next few cron reports.** `blocked` should be 0
+  or low. If it stays high, drop `LUMA_WINDOW` below 35 — do not add retries,
+  the limiter is per-window not per-request.
+- **Best untapped EU hub is Codemotion** (`events.codemotion.com`) — claims 500+
+  European tech events and server-renders some of them. Probe its markup, then
+  parse. Second cheapest win: pass `challenge_type[]=in-person` to the Devpost
+  API, which it supports and `devpost.ts` does not use.
 - **Grow the verified registry** — that is what moves the Travel chip. The weekly
   watch-agent probe now prints the actual policy sentences (not just a boolean), so
   promoting a circuit is a matter of reading the run log and adding a `travelPolicy`

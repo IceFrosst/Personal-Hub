@@ -86,12 +86,37 @@ sandbox, so these are not allowlist problems:
 Conclusion: Turkey's gap is **absence, not blockage**. Queries are wired anyway
 (`LUMA_TURKEY_QUERIES`) so the net is already cast.
 
+
+## EU hub candidates — probed 2026-07-26 (open egress)
+
+Run `scripts/probe-eu-coverage.mjs` (workflow: *Event Radar coverage probe*) to
+re-check. `words` is server-rendered text — a big page with almost none is a JS
+shell that plain fetch cannot read.
+
+| Site | Result |
+|---|---|
+| `events.codemotion.com` | **Best remaining lead.** 200, Nuxt, 293 words, advertises "more than 500 tech events for developers across Europe" and server-renders at least some entries. Needs a follow-up markup probe before writing a parser. |
+| `devpost.com/api/hackathons?challenge_type[]=in-person` | 200 with real JSON — the API takes an in-person filter our `devpost.ts` does not currently pass. Cheap way to bias the sweep toward IRL events. |
+| `hackjunction.app/hackathons` | **SPA shell — 28 words.** Junction's platform page cannot be scraped; it is registered as a watch, and that is all it can be. |
+| `cassini.eu/hackathons` | 200, 798 words, no JSON-LD and no travel language. Tier B circuit; still unpromotable. |
+| `hackkosice.com` | 200, 285 words. Tier A circuit, Slovakia — worth a targeted parser eventually. |
+| `techstars.com/.../startup-weekend` | 200, 430 words, RSC flight. Global programme, EU editions included. |
+| `hackzurich.com` | 200, 46 words — "HackZurich is taking a break". Hiatus re-confirmed. |
+| `innovationlabs.ro` | 200 but 34 words. Romania's big national programme, unscrapeable. |
+| `eu-startups.com`, `lablab.ai`, `best.eu.org`, `ichack.org`, `lauzhack.com` | 403 Cloudflare interstitial. |
+| `hackeps.com`, `europeandefensetech.com`, `hackathon.gr` | Do not resolve. |
+| `mita.gov.mt/events/` | 404. |
+
 ## Next candidates (in rough effort order)
 
-1. **Junction** — `api.hackjunction.com` was only *unreachable from this session*
-   (`000`). Re-probe from a production Vercel run; if it answers there it's a
-   clean JSON source. (Topcoder was tried this way and removed — it threw from
-   production too; see the matrix row.)
+1. **Codemotion** — probe `events.codemotion.com` markup, then parse. It is the
+   only untapped listing that claims pan-EU coverage at scale.
+2. **Devpost in-person filter** — pass `challenge_type[]=in-person` in
+   `devpost.ts` to bias the sweep toward travel-relevant events.
+3. **Junction** — `hackjunction.app/hackathons` is a 28-word SPA shell, so the
+   scrape path is closed; `api.hackjunction.com` was only *unreachable from this
+   session* (`000`), so re-probe that from production. (Topcoder was tried this
+   way and removed — it threw from production too; see the matrix row.)
 2. **AKINDO** — allowlist `app.akindo.io`, then lift its API paths from the app
    bundle the same way HackQuest's query was recovered.
 3. **Hackster** — retry from open egress; if still WAF-403, try the curl/proxy
