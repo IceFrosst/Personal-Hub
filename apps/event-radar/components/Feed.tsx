@@ -172,11 +172,15 @@ export default function Feed({ userId }: { userId: string }) {
         })
     }
 
-    // Main feed: never show dormant circuits (TreeHacks, PennApps, …) — Dormant tab only
-    // + isUpcomingAndOpen + IRL/Online + Multi-day
+    // Main feed: isUpcomingAndOpen + IRL/Online + Multi-day.
+    // Dormant circuits (TreeHacks, PennApps, …) are NOT excluded here: their
+    // gate lives inside isUpcomingAndOpen, which requires a real future
+    // registration deadline for them. Excluding them again here hid circuits
+    // that had genuinely reopened — PennApps was travel-covered and closing in
+    // three weeks while only reachable from the Dormant tab.
     // Exclude applied + hidden so they only live in their own tabs
     const scored = hackathons
-      .filter((h) => !isDormantCircuit(h) && isUpcomingAndOpen(h))
+      .filter((h) => isUpcomingAndOpen(h))
       .map((h) => ({
         h,
         scored: scoreHackathon(h, new Date(), scoreOpts),
