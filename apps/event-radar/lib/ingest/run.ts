@@ -14,6 +14,7 @@ import { fetchDoraHacks } from './dorahacks'
 import { fetchStartupLithuania } from './startuplithuania'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
+import { buildSeedPatch, type ExistingRow } from './seed-upgrade'
 import { enrich, fetchPageText } from './enrich'
 import { circuitTravelCovered, circuitFaqPaths, genericTravelFaqUrls } from './travel-circuits'
 import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
@@ -44,6 +45,8 @@ export class IngestNotConfiguredError extends Error {
 export type IngestSummary = {
   sources: Record<string, string | number>
   inserted: number
+  /** Existing rows whose missing/stale dates a known/watch seed repaired. */
+  seed_patched?: number
   enriched: number
   notified: number
   /** Why the daily digest did or didn't go out — for cron log debugging. */
@@ -144,17 +147,23 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   if (gathered.length > 0) {
     const urls = gathered.map((row) => row.url)
     const known = new Set<string>()
+    // Keep the full row, not just the URL: a colliding known/watch seed may need
+    // to upgrade it (see seed-upgrade.ts).
+    const existingByUrl = new Map<string, ExistingRow>()
 
     for (const urlChunk of chunk(urls, URL_CHUNK)) {
       const { data: existing, error: existingError } = await db
         .from('hackathons')
-        .select('url')
+        .select('id, url, registration_deadline, format, location_raw')
         .in('url', urlChunk)
       if (existingError) {
         summary.gather_error = existingError.message
         break
       }
-      for (const row of existing ?? []) known.add(row.url)
+      for (const row of existing ?? []) {
+        known.add(row.url)
+        existingByUrl.set(row.url, row as ExistingRow)
+      }
     }
 
     if (!summary.gather_error) {
@@ -200,6 +209,23 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
             .update({ last_seen_at: new Date().toISOString() })
             .in('url', urlChunk)
         }
+      }
+
+      // Seed upgrade: a known/watch seed whose URL is already owned by an
+      // aggregator row fills that row's missing/stale deadline instead of being
+      // silently dropped. Without this, hand-curated Tier A events stay invisible
+      // forever behind a deadline-less MLH/Devpost row.
+      const patchNow = new Date()
+      for (const seed of gathered) {
+        const existing = existingByUrl.get(seed.url)
+        if (!existing) continue
+        const patch = buildSeedPatch(existing, seed, patchNow)
+        if (!patch) continue
+        const { error: patchError } = await db
+          .from('hackathons')
+          .update(patch)
+          .eq('id', existing.id)
+        if (!patchError) summary.seed_patched = (summary.seed_patched ?? 0) + 1
       }
     }
   }

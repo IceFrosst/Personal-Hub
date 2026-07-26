@@ -35,7 +35,12 @@
   stay open until the event starts). For `source === 'luma'` with a null deadline, a
   strictly future `starts_at` is enough to qualify.
 - **Dormant circuits** (`lib/dormant-tier-a.ts`): TreeHacks, PennApps, HackUPC, etc.
-  Hard-hidden from main feed via `isDormantCircuit` until registration is open.
+  Hidden from the main feed until registration is open — that gate lives **inside
+  `isUpcomingAndOpen`** (dormant rows require a real future registration deadline), NOT
+  as a second `!isDormantCircuit(h)` filter in `Feed.tsx`. That extra filter used to hide
+  reopened circuits outright: PennApps was travel-covered and three weeks from closing
+  while reachable only via the Dormant tab. Removed — an open dormant circuit now appears
+  in the main feed *and* the Dormant tab.
   Weekly GH Action (`event-radar-dormant-weekly.yml`) probes sites, opens a GitHub
   issue with candidates + parsed deadlines; high-confidence can auto-commit
   `promoted-from-dormant.json`.
@@ -215,8 +220,21 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   shortly before it runs) — so past editions resolve to the past and fail-closed drops them
   instead of inventing fake future events. Name-filtered to hackathons; 0 upcoming is a
   legitimate empty (it throws only if the REST endpoint returns 0 events at all).
-- The same hackathon can arrive from two sources (e.g. MLH + Hack Club) as two rows —
-  dedupe is per-source URL only. Known trade-off; revisit if it gets noisy.
+- **Dedupe is by URL ALONE, not `(source, url)`** — despite the table's unique constraint
+  being `(source, url)`. The pre-insert filter in `run.ts` checks `.in('url', …)` with no
+  source, so **the first source to claim a URL owns that row forever**. Aggregators (MLH,
+  Devpost) usually win the race and often carry no registration deadline, and eligibility
+  is fail-closed → the event is invisible in the feed permanently.
+  This silently defeated the `known`/`watch` seeds, whose entire job is to supply
+  hand-verified deadlines for Tier A travel circuits: Hack the North and HackRice sat in
+  the catalog as MLH rows with `registration_deadline = null`, and BigRed//Hacks with a
+  long-past one — none could ever appear. **Fix: `lib/ingest/seed-upgrade.ts`** — a
+  colliding `known`/`watch` seed now *upgrades* the existing row (fills a missing/stale
+  deadline, fills `format`/`location_raw` only when null) instead of being dropped. It
+  never overwrites a valid future deadline from the real source. Count surfaces as
+  `seed_patched` in the ingest summary.
+  Two rows for one event can still happen when the sources use different URLs. Known
+  trade-off; revisit if it gets noisy.
 - Enrichment throughput is capped by two ceilings: Vercel Hobby's 60s `maxDuration`, and
   free LLM RPM limits. The runner self-budgets to 50s and enriches up to 30 rows per run
   in concurrency 4. Newly inserted rows are prioritised; rows that still have critical
@@ -258,8 +276,20 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   wired into the weekly open-egress probe. EDTH matters immediately — its editions already
   reach the catalog via Luma, so they now carry a travel prior instead of nothing.
 
+- **Two visibility bugs fixed** (found 2026-07-26 by querying the live catalog via the
+  Management API — worth doing again when "why isn't X showing?" comes up):
+  seed-vs-aggregator URL collisions, and dormant circuits double-filtered out of the feed.
+  Both hid *travel-covered Tier A events with open deadlines*.
+
 ## Next
 
+- **After deploy, hit Refresh once** — the seed upgrade repairs Hack the North, HackRice
+  and BigRed//Hacks in place; they only become visible after that run.
+- **Turkey is a genuine coverage gap**: zero rows in the catalog, no region batch queries
+  it (`region-*.ts`), and it is missing from `REGION_OF` in `travel-for-me.ts` so its
+  events could not be geo-reasoned about anyway. Luma currently returns nothing for
+  Istanbul/Ankara/Türkiye, so adding queries alone would not help — Turkish hackathons
+  live on local platforms. Needs a dedicated source before it is worth wiring.
 - **Check Monday's watch-agent run** (`travel-priority-probe.json`) for the four new EU
   circuits: any that report `travel_language` with a real policy get promoted B → A.
   hackaTUM and CASSINI are the likeliest Tier A candidates.
