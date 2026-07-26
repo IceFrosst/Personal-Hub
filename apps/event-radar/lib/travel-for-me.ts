@@ -31,6 +31,11 @@ const REGION_OF: Record<string, string> = {
   switzerland: 'europe',
   georgia: 'europe',
   ukraine: 'europe',
+  // Transcontinental, but for travel reasoning from a Baltic home base it
+  // behaves as Europe: no visa for LT citizens, short cheap flights.
+  turkey: 'europe',
+  türkiye: 'europe',
+  turkiye: 'europe',
   usa: 'na',
   'united states': 'na',
   'united states of america': 'na',

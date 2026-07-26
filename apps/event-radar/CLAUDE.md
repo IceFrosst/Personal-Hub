@@ -49,6 +49,21 @@
   A bare `travel_covered === true` with no geography is only *maybe* and does NOT pass:
   filter, card tag, and digest count all share this one predicate so they can never
   disagree. Online is a separate filter.
+- **The registry carries verified travel POLICY, not just a boolean**
+  (`travelPolicy` on `TravelPriorityCircuit`, applied via `circuitTravelPolicy`).
+  A bare `travel_covered = true` can never reach `travelUsefulForMe === 'yes'` —
+  that needs geography — so Tier A circuits sat permanently at "Travel · check
+  FAQ" and the Travel filter matched **0 of 555** catalog rows. The scope was
+  meant to come from enrichment, but the flagship circuit sites are JS shells
+  (probe measured hackmit 2 words, pennapps 2, hackthenorth 3, bitcamp 1,
+  hackgt 2, technica 1), so enrichment was being asked for a fact its input
+  never contained. Fill `travelPolicy` **only from wording someone read** —
+  every entry carries its `quote` and `verifiedOn`. Precedence is
+  **page extraction > registry > nothing**; a verified `scope: 'none'` also
+  overrides the tier prior (hackaTUM and McHacks both say outright they do not
+  reimburse). `lib/ingest/travel-policy-backfill.ts` applies the registry to
+  rows that are already enriched — they are never re-enriched, so without it a
+  policy added today would only reach events inserted tomorrow.
 - **Travel-priority tiers drive the prior honestly** (`circuitTravelCovered`): only
   **Tier A** (documented reimbursement) sets `travel_covered = true` up front. **Tier B**
   (unclear / winner-only / region-gated / monitor) returns `null` — being on the list is
@@ -86,7 +101,7 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, startuplithuania (`lib/ingest/*.ts`), plus known/watch.
+  taikai, dorahacks, startuplithuania, allhackathons (`lib/ingest/*.ts`), plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
@@ -181,6 +196,15 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   Caveat: Node `fetch` does NOT use the session's HTTPS proxy, so a WAF can 403 direct
   requests while curl (proxied) succeeds — HackerEarth does exactly this. Production
   Vercel has open egress with different IPs again.
+- **allhackathons.com** (`lib/ingest/allhackathons.ts`): Bootstrap job-board
+  template — cards are `<!-- Job -->` blocks; dates are Django's AP-style `N`
+  filter ("Sept. 12, 2026", but "March"/"April"/"May"/"June"/"July" spelled out
+  with no period); the country is the **tail text** of the themes footer, after
+  the theme anchors. The `tr.` subdomain uses the same template with Turkish
+  month names, which `parseListDate` deliberately does NOT parse — a null start
+  is dropped by the fail-closed feed rather than guessed. Supplies no
+  registration deadline. Adds a second row for events already ingested
+  elsewhere (dedupe is by URL alone) — the known aggregator trade-off.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
   HTML. Don't add a headless browser for any source.
 - **MLH moved to www.mlh.com (2026-07):** the Inertia page object now lives as the BODY
@@ -276,49 +300,56 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   wired into the weekly open-egress probe. EDTH matters immediately — its editions already
   reach the catalog via Luma, so they now carry a travel prior instead of nothing.
 
-- **Two visibility bugs fixed** (found 2026-07-26 by querying the live catalog via the
-  Management API — worth doing again when "why isn't X showing?" comes up):
+- **Two visibility bugs fixed** (found 2026-07-26 by querying the live catalog via
+  the Management API — worth doing again when "why isn't X showing?" comes up):
   seed-vs-aggregator URL collisions, and dormant circuits double-filtered out of the feed.
-  Both hid *travel-covered Tier A events with open deadlines*.
+  Both hid *travel-covered Tier A events with open deadlines*. **Verified in the live
+  catalog: the fix worked** — Hack the North, HackRice and BigRed//Hacks all carry
+  deadlines now and pass `isUpcomingAndOpen`.
+- **Travel filter fixed (the third gate).** The events above were in the main feed all
+  along; what was broken was the **Travel chip**, which requires
+  `travelUsefulForMe === 'yes'` and so matched **0 of 555** rows — only 2 rows in the
+  whole catalog had a `travel_scope` and none had a region. Root cause was not the
+  extractor: the circuit sites are JS shells with 1–3 words of text, so enrichment
+  never had anything to read (their `raw_description` is 9–61 chars). The registry now
+  stores verified policy (see Conventions), and a backfill pass repairs already-enriched
+  rows each run (`policy_backfilled` in the summary). Six circuits carry evidence:
+  HackUPC (international, EU-inclusive, ~€120), TreeHacks (global), YHack + ConUHacks
+  (selective), McHacks + **hackaTUM** (explicitly none — hackaTUM was queued as the
+  likeliest B→A promotion and the probe showed the opposite).
+- **allhackathons.com live as an ingest source** — server-rendered international
+  listing, the one aggregator that survived the open-egress probe.
+- **Turkey groundwork** (`lib/region-turkey.ts`): Türkiye/İstanbul spellings recognised,
+  Turkey → europe travel region, `priority_countries: ['turkey']` now matches a
+  "Türkiye"-labelled event (it never did — `matchesCountry` is a plain substring test),
+  Luma TR queries wired, organiser watch list recorded.
 
 ## Next
 
-- **After deploy, hit Refresh once** — the seed upgrade repairs Hack the North, HackRice
-  and BigRed//Hacks in place; they only become visible after that run.
-- **Turkey — coverage gap, researched 2026-07-26.** Zero rows in the catalog. Three
-  separate causes, and only the third needs new code:
-  1. No region batch queries it (`region-*.ts`), and Turkey is missing from `REGION_OF`
-     in `travel-for-me.ts` — so a Turkish event could not be geo-reasoned about even if
-     ingested. **Cheap groundwork, do this first; needs no allowlist.**
-  2. Every Turkish domain is blocked in interactive sessions. **Production Vercel egress
-     is open**, so this only blocks agent development/verification, not a shipped source.
-  3. The aggregators genuinely have nothing: Luma returns 0 for
-     Istanbul/Ankara/Türkiye, Devpost search returns only an unrelated online event, and
-     hackathon.com states outright there are no upcoming Turkey hackathons. Turkey's
-     scene runs through national programmes (TEKNOFEST, TÜBİTAK) and university/corporate
-     portals that publish no machine-readable feed. **Allowlisting alone will not produce
-     events — expect verification work, not an instant feed.**
-
-  Domains to allowlist, in priority order:
-  - *Aggregators (highest value, NOT Turkey-specific):* `dev.events`, `hackathon.com`,
-    `www.hackathon.com`, `allhackathons.com`, `tr.allhackathons.com`.
-    **`dev.events` is the real lead** — structured per-country/city listings
-    (`dev.events/hackathons/AS/TR/Istanbul`), i.e. a candidate *general* source, not just
-    a Turkey fix. It 403'd a plain fetch, so parseability is unconfirmed — check first.
-  - *Turkish organizers:* `teknofest.org`, `www.teknofest.org`, `t3vakfi.org`,
-    `hackathon.turkishairlines.com`, `terminal.turkishairlines.com`, `tubitak.gov.tr`,
-    `bilisimvadisi.com.tr`, `itucekirdek.com`, `kworks.ku.edu.tr`.
-  - *Vertical/Istanbul:* `istanbulblockchainweek.com`, `iata.org`.
-
-  Best individual lead: the **Turkish Airlines Travel Hackathon** (Istanbul, listed for
-  2026-12-22) — an airline-run event whose past prizes included Business Class
-  international tickets, so travel support is plausible. Confirm the date and whether
-  non-Turkish residents may enter. TEKNOFEST is the largest and has international tracks.
-  IATA-class events (e.g. the ONE Record hackathon hosted by Turkish Cargo) run on
-  Devpost, so the existing source already catches that shape.
-- **Check Monday's watch-agent run** (`travel-priority-probe.json`) for the four new EU
-  circuits: any that report `travel_language` with a real policy get promoted B → A.
-  hackaTUM and CASSINI are the likeliest Tier A candidates.
+- **Hit Refresh once after deploy.** Two repairs only land on a run: the seed upgrade
+  (Hack the North / HackRice / BigRed//Hacks — already confirmed applied in production)
+  and the new travel-policy backfill. Check `policy_backfilled` in the response.
+- **The Travel chip will show ~2 events, not 21.** That is honest, not broken: only
+  HackUPC and TreeHacks have wording that covers a Baltic traveller. The other 19
+  travel-covered events are real but their geography is unverified, so they stay
+  "Travel · check FAQ". **Open product question for Ignas:** should the Travel chip
+  include those `maybe` events (one chip, looser) or stay strict? Changing it also
+  changes the card tag and the digest count — they deliberately share one predicate.
+- **Grow the verified registry** — that is what moves the Travel chip. The weekly
+  watch-agent probe now prints the actual policy sentences (not just a boolean), so
+  promoting a circuit is a matter of reading the run log and adding a `travelPolicy`
+  with its quote. Best remaining candidates: CASSINI (799 words, no travel language
+  found yet), Hack Cambridge (198 words), LA Hacks / MHacks (FAQ accordions hide the
+  answer behind JS), EDTH (unreachable — retry).
+- **Turkey is closed as a research question.** It is an absence, not a blockage: from
+  open egress, Luma returns 0 for Istanbul/Ankara/Turkey/Türkiye, hackathon.com has no
+  upcoming Turkey (or Germany) events, and every Turkish event on tr.allhackathons.com
+  is past. Two corrections to the earlier note: **dev.events is unusable** (Cloudflare
+  403 even from a GitHub runner, not an allowlist issue), and the **Turkish Airlines
+  Travel Hackathon is not upcoming** — "22 Aralık" is the **2017** edition, and
+  `hackathon.turkishairlines.com` does not resolve. The monthly *Event Radar Turkey
+  source probe* workflow re-checks all of it; nothing more to do until it reports a
+  live event.
 - First digest fires on the next cron run after deploy; check the cron JSON's `digest`
   field (`sent` / `gated` / `nothing_new` / `nothing_qualified`) if a buzz is unexpected.
 - If digests feel too rare, the likely cause is `min_score` (default 60) filtering

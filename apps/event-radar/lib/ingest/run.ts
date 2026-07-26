@@ -12,6 +12,7 @@ import { fetchDevfolio } from './devfolio'
 import { fetchTaikai } from './taikai'
 import { fetchDoraHacks } from './dorahacks'
 import { fetchStartupLithuania } from './startuplithuania'
+import { fetchAllHackathons } from './allhackathons'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
 import { buildSeedPatch, type ExistingRow } from './seed-upgrade'
@@ -136,6 +137,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['taikai', () => fetchTaikai()],
     ['dorahacks', () => fetchDoraHacks()],
     ['startuplithuania', () => fetchStartupLithuania()],
+    ['allhackathons', () => fetchAllHackathons()],
     ['known', async () => fetchKnownEvents()],
     ['watch', async () => watchesToRows()],
   ]
