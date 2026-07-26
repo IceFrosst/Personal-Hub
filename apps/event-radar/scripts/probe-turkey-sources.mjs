@@ -17,14 +17,25 @@ const UA =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
 const TARGETS = [
-  // ── Aggregators (highest value: NOT Turkey-specific) ────────────────────
+  // ── allhackathons.com — the one aggregator that survived round 1 ────────
+  // Server-rendered, no JS shell, and a Turkish subdomain carrying real TR
+  // events. These targets exist to pin down the LIST and DETAIL markup so
+  // lib/ingest/allhackathons.ts can be written against fact, not guesswork.
+  { id: 'ah-list', group: 'aggregator', url: 'https://allhackathons.com/hackathons/', sample: true },
+  { id: 'ah-list-p2', group: 'aggregator', url: 'https://allhackathons.com/hackathons/?page=2', sample: true },
+  { id: 'ah-tr-list', group: 'aggregator', url: 'https://tr.allhackathons.com/hackathons/', sample: true },
+  {
+    id: 'ah-detail',
+    group: 'aggregator',
+    url: 'https://tr.allhackathons.com/hackathon/iga-social-hack/',
+    sample: true,
+  },
+  { id: 'ah-sitemap', group: 'aggregator', url: 'https://allhackathons.com/sitemap.xml' },
+
+  // ── Round 1 survivors kept for drift detection ──────────────────────────
+  // dev.events returns a Cloudflare "Just a moment..." interstitial (403) even
+  // from GitHub's open egress, so it stays here purely to notice if that lifts.
   { id: 'dev-events-hackathons', group: 'aggregator', url: 'https://dev.events/hackathons' },
-  { id: 'dev-events-tr', group: 'aggregator', url: 'https://dev.events/hackathons/AS/TR' },
-  { id: 'dev-events-eu', group: 'aggregator', url: 'https://dev.events/hackathons/EU' },
-  { id: 'dev-events-istanbul', group: 'aggregator', url: 'https://dev.events/hackathons/AS/TR/Istanbul' },
-  { id: 'dev-events-rss', group: 'aggregator', url: 'https://dev.events/rss/hackathons.xml' },
-  { id: 'allhackathons', group: 'aggregator', url: 'https://allhackathons.com/' },
-  { id: 'allhackathons-tr', group: 'aggregator', url: 'https://tr.allhackathons.com/' },
   { id: 'hackathon-com-tr', group: 'aggregator', url: 'https://www.hackathon.com/country/turkey' },
 
   // ── Turkish organizers ─────────────────────────────────────────────────
@@ -184,6 +195,18 @@ function eventLinks(html, finalUrl) {
   return [...seen.entries()].slice(0, 25).map(([url, text]) => ({ url, text }))
 }
 
+/**
+ * Raw HTML around the first few /hackathon/<slug>/ anchors. A parser matches
+ * markup, not stripped text, so this is the only part of the report that can
+ * actually be written against.
+ */
+function rawCardSample(html) {
+  const idx = html.indexOf('/hackathon/')
+  if (idx === -1) return null
+  const start = Math.max(0, idx - 1200)
+  return html.slice(start, idx + 2400).replace(/\s+/g, ' ')
+}
+
 const results = []
 
 for (const target of TARGETS) {
@@ -233,7 +256,10 @@ for (const target of TARGETS) {
       // A JS-only SPA renders a tiny shell: high bytes + low words is the tell.
       spa_shell: body.length > 20000 && text.split(' ').length < 150,
       links: eventLinks(body, finalUrl),
-      text_excerpt: text.slice(0, 900),
+      // Raw markup around the first event link — this is what a parser has to
+      // match, and it cannot be inferred from stripped text.
+      raw_sample: target.sample ? rawCardSample(body) : undefined,
+      text_excerpt: text.slice(0, target.sample ? 2500 : 900),
       ms: Date.now() - started,
     })
   } catch (err) {
