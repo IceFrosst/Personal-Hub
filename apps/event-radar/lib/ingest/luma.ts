@@ -4,6 +4,7 @@ import { LUMA_BATCH1_QUERIES } from '@/lib/region-priority-batch1'
 import { LUMA_BATCH2_QUERIES } from '@/lib/region-priority-batch2'
 import { LUMA_BATCH3_QUERIES } from '@/lib/region-priority-batch3'
 import { LUMA_BATCH4_QUERIES } from '@/lib/region-priority-batch4'
+import { LUMA_TURKEY_QUERIES } from '@/lib/region-turkey'
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 const API = 'https://api.lu.ma/discover/get-paginated-events'
@@ -21,6 +22,7 @@ const QUERIES = [
   ...LUMA_BATCH2_QUERIES,
   ...LUMA_BATCH3_QUERIES,
   ...LUMA_BATCH4_QUERIES,
+  ...LUMA_TURKEY_QUERIES,
 ] as const
 
 const PAGES_PER_QUERY = 2

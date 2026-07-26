@@ -3,6 +3,7 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from './types'
 import { isTravelPriority, matchTravelPriority } from './travel-priority'
 import { isDormantCircuit } from './dormant-tier-a'
 import { normalizeHomeBase, travelUsefulForMe } from './travel-for-me'
+import { TURKEY_ALIASES } from './region-turkey'
 
 export type ScoreReason = { label: string; pts: number }
 export type ScoredHackathon = { score: number; reasons: ScoreReason[] }
@@ -104,12 +105,15 @@ export function scoreHackathon(
     .map((c) => c.toLowerCase().trim())
     .filter(Boolean)
 
-  // Normalize czech aliases for matching
-  const priorityExpanded = priorityList.flatMap((c) =>
-    c === 'czechia' || c === 'czech' || c === 'czech republic'
-      ? ['czechia', 'czech', 'czech republic']
-      : [c]
-  )
+  // Normalize aliases for matching. matchesCountry is a plain substring test,
+  // so a preference of "turkey" would otherwise miss every event that labels
+  // itself "Türkiye" — which is how Turkish organisers actually spell it.
+  const priorityExpanded = priorityList.flatMap((c) => {
+    if (c === 'czechia' || c === 'czech' || c === 'czech republic')
+      return ['czechia', 'czech', 'czech republic']
+    if ((TURKEY_ALIASES as readonly string[]).includes(c)) return [...TURKEY_ALIASES]
+    return [c]
+  })
 
   const inPriority = priorityExpanded.length > 0 && matchesCountry(h, priorityExpanded)
   const neighbors = NEIGHBOR_OF[home] ?? []

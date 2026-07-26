@@ -54,9 +54,37 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
   `status: publish` rows and passes through the exact `registrationClose` as
   `registration_deadline`. 111 hackathons mapped.
 
+- **allhackathons.com** (`lib/ingest/allhackathons.ts`, unit test
+  `test/allhackathons.test.ts`). Server-rendered Bootstrap listing —
+  `<!-- Job -->` card blocks with badge (IN-PERSON / ONLINE), title anchor
+  `/hackathon/<slug>/`, an AP-style date range ("Sept. 12, 2026 - Sept. 13,
+  2026") and a country as the tail text of the themes footer. Walks up to 5
+  pages, drops past events, and throws with a structural fingerprint if a page
+  fetches OK but parses to zero cards. Supplies **no registration deadline**, so
+  rows wait on enrichment before the fail-closed feed will show them.
+
 Both are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
 The shared fail-closed eligibility rule (`isUpcomingAndOpen`) drops the many
 already-started / closed-registration entries either source returns.
+
+## Ruled out by the 2026-07-26 open-egress probe
+
+Run `scripts/probe-turkey-sources.mjs` (workflow: *Event Radar Turkey source
+probe*) to re-check any of these — all were tested from a GitHub runner, not the
+sandbox, so these are not allowlist problems:
+
+| Domain | Result |
+|---|---|
+| `dev.events` | **403 Cloudflare interstitial even from open egress.** Was the most promising lead (structured per-country listings); unusable without a headless browser, which the no-headless rule forbids. |
+| `hackathon.com` | Reachable but empty — "no upcoming hackathons" for Turkey *and* Germany; the whole site's front page lists 4 events. |
+| `kworks.ku.edu.tr` | CloudFront 403 to automated requests. |
+| `istanbulblockchainweek.com` | Cloudflare challenge, 403. |
+| `hackathon.turkishairlines.com` | Does not resolve. |
+| `teknofest.org`, `t3vakfi.org`, `tubitak.gov.tr`, `bilisimvadisi.com.tr`, `itucekirdek.com`, `terminal.turkishairlines.com` | All reachable, none machine-readable — nav links and prose, no dated event lists. Tracked as a watch list in `lib/region-turkey.ts`. |
+| Luma `Istanbul` / `Ankara` / `Turkey` / `Türkiye` | 0 entries each. |
+
+Conclusion: Turkey's gap is **absence, not blockage**. Queries are wired anyway
+(`LUMA_TURKEY_QUERIES`) so the net is already cast.
 
 ## Next candidates (in rough effort order)
 

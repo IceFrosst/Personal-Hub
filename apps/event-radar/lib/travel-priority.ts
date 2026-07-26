@@ -1,4 +1,4 @@
-import type { Hackathon } from '@/lib/types'
+import type { Hackathon, TravelScope } from '@/lib/types'
 import {
   TIER_A_RESEARCH_BATCH,
   TIER_B_RESEARCH_BATCH,
@@ -11,6 +11,36 @@ import { AFRICA_AU_TIER_A, AFRICA_AU_TIER_B } from './travel-priority-africa-au'
  */
 export type TravelPriorityTier = 'A' | 'B'
 
+/**
+ * A circuit's travel policy in the SAME structured shape the LLM extracts.
+ *
+ * Why this exists: `travel_covered: true` alone can never make
+ * `travelUsefulForMe` return 'yes' — a bare boolean with no geography is
+ * deliberately downgraded to 'maybe' (see lib/travel-for-me.ts), which is what
+ * the Travel filter, the solid Travel tag, and the digest's travel count all
+ * key on. The scope was supposed to come from enrichment, but most flagship
+ * circuits ship a JS-only shell: the open-egress probe measured hackmit,
+ * pennapps, hackthenorth, bitcamp, hackgt, technica and bigredhacks at 1–3
+ * words of server-rendered text. Plain fetch cannot read them and the
+ * no-headless rule stands, so the registry is the only place their policy can
+ * live.
+ *
+ * Fill this ONLY from wording someone actually read — a dated probe quote or
+ * the official FAQ. Never from reputation or memory: an unverified 'global'
+ * here would forge exactly the false positive the 'maybe' downgrade exists to
+ * prevent. No policy is a perfectly good answer; the circuit stays 'maybe'.
+ */
+export type CircuitTravelPolicy = {
+  scope: TravelScope
+  /** Who is eligible, e.g. ['Europe'], ['India']. [] when the text sets no limit. */
+  regions?: string[]
+  /** Stated amount/cap, verbatim-ish, e.g. 'up to €120 from Europe'. */
+  cap?: string
+  /** The sentence this was read from, and when. */
+  quote: string
+  verifiedOn: string
+}
+
 export type TravelPriorityCircuit = {
   id: string
   label: string
@@ -21,6 +51,8 @@ export type TravelPriorityCircuit = {
   siteUrl: string
   evidence: string
   region: 'na' | 'eu' | 'asia' | 'oceania' | 'africa' | 'global'
+  /** Verified policy — see CircuitTravelPolicy. Absent = unknown, not "none". */
+  travelPolicy?: CircuitTravelPolicy
 }
 
 const CORE: TravelPriorityCircuit[] = [
@@ -45,6 +77,15 @@ const CORE: TravelPriorityCircuit[] = [
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://treehacks.com/',
     evidence: 'Official: meals, travels, and lodging for accepted (dormant until 2027 apps)',
+    travelPolicy: {
+      scope: 'global',
+      // States the support with no geographic qualifier anywhere on the page —
+      // 'global' per the same definition the enrichment prompt uses.
+      regions: [],
+      quote:
+        'We take care of meals, travels, and lodging so you can focus on building and dreaming big.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'pennapps',
@@ -201,6 +242,16 @@ const CORE: TravelPriorityCircuit[] = [
     siteUrl: 'https://hackupc.com/',
     evidence:
       '2026 policy: half of travel costs — max €50 Spain outside Catalonia, €120 Europe, €120–200 outside Europe (receipts + demo). Dormant until 2027 cycle.',
+    travelPolicy: {
+      scope: 'international',
+      // Names Europe explicitly AND funds arrivals from outside it — the one
+      // circuit in this registry whose own wording covers a Baltic traveller.
+      regions: ['Europe', 'global'],
+      cap: '50% of cost — up to €50 Spain, €120 Europe, €120–200 outside Europe',
+      quote:
+        'We pay half of the travel costs, with a maximum of €50 for Spaniards outside of Catalonia, up to €120 if you are coming from Europe and up to a range between €120 and €200 if you come from outside Europe.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'starthack',

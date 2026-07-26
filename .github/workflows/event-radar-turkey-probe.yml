@@ -1,0 +1,37 @@
+# Open-egress structure probe for the Turkey / international-aggregator gap.
+#
+# Every domain this touches is blocked by the interactive sandbox egress policy,
+# so agent sessions cannot see their markup. GitHub-hosted runners can — run this
+# workflow and read the job log (the report is printed to stdout as well as
+# uploaded) before writing or changing a parser for any of these sources.
+#
+# Trigger: Actions → Event Radar Turkey source probe → Run workflow
+
+name: Event Radar Turkey source probe
+
+on:
+  schedule:
+    # Monthly — these are slow-moving national programmes, not weekly feeds.
+    - cron: '0 7 1 * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: event-radar-turkey-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe Turkey + aggregator sources
+        run: node apps/event-radar/scripts/probe-turkey-sources.mjs
+
+      - name: Upload turkey-sources-probe.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turkey-sources-probe
+          path: turkey-sources-probe.json
+          retention-days: 30

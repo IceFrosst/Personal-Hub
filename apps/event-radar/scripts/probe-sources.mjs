@@ -87,6 +87,13 @@ const probes = [
     id: 'adventurex',
     url: 'https://adventure-x.org/en',
   },
+  {
+    id: 'allhackathons',
+    url: 'https://allhackathons.com/hackathons/',
+    // Count the card blocks the parser keys on, so a template change shows up
+    // here as "0 cards" before it shows up as a dead source in production.
+    cards: (html) => (html.match(/<!--\s*Job\s*-->/gi) ?? []).length,
+  },
 ]
 
 async function probeOne(p) {
@@ -123,6 +130,7 @@ async function probeOne(p) {
       }
     } else {
       hint = `html/text bytes=${text.length}`
+      if (p.cards) hint += ` cards=${p.cards(text)}`
     }
     return {
       id: p.id,

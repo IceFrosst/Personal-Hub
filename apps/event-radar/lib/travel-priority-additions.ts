@@ -14,6 +14,16 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://yhack.org/',
     evidence: 'Accepted can apply for reimbursement; East Coast priority',
+    travelPolicy: {
+      // "Opportunity to apply" + an explicit East Coast bias is discretionary,
+      // not a policy a Baltic traveller can count on — 'selective', not
+      // 'international'.
+      scope: 'selective',
+      regions: ['US East Coast'],
+      quote:
+        'Accepted participants will have the opportunity to apply for travel reimbursement. We expect to be able to support many participants traveling from the East Coast, with additional consideration given based on need or exceptional profiles.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'conuhacks',
@@ -25,6 +35,16 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://www.conuhacks.io/',
     evidence: 'Up to $150 CAD / $100 USD per person',
+    travelPolicy: {
+      // Open to anyone outside Quebec (so not 'domestic'), but pre-approval and
+      // "subject to our discretion" plus a $150 CAD ceiling make it selective —
+      // it would not move someone from Vilnius.
+      scope: 'selective',
+      cap: 'Up to $150 CAD / $100 USD per person',
+      quote:
+        'Reimbursement is limited to hackers travelling from outside of Quebec and is conditional on the submission and pre-approval… Reimbursement is conditional on proof of purchase of travel arrangements and is subject to our discretion.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'technica',
@@ -187,6 +207,13 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     faqPaths: [],
     siteUrl: 'https://hack2skill.com/event/bah2026/',
     evidence: 'Finalists only — national funnel <<15%',
+    travelPolicy: {
+      scope: 'domestic',
+      regions: ['India'],
+      cap: 'II AC rail fare, finalists only',
+      quote: 'II AC travel fare will be reimbursed for all finalists.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'mchacks',
@@ -198,6 +225,12 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     faqPaths: ['/faq'],
     siteUrl: 'https://mchacks.ca/',
     evidence: '2026 FAQ: not offering',
+    travelPolicy: {
+      scope: 'none',
+      quote:
+        'Will you be offering travel reimbursements? Unfortunately, at this time we are not able to provide travel reimbursements, however we will have sleeping areas available at the venue itself.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'sfhacks',
@@ -486,7 +519,13 @@ export const TIER_B_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     faqPaths: ['/faq', '/travel'],
     siteUrl: 'https://hack.tum.de/',
     evidence:
-      'TU Munich flagship (~1k hackers, November). Germany is a priority country. Travel support has historically been partial/selective rather than guaranteed — unverified, site unreachable from sandbox egress; awaiting weekly probe.',
+      'TU Munich flagship (~1k hackers, November). Germany is a priority country. The 2026-07-26 open-egress probe settled it: the FAQ says outright that travel is NOT reimbursed. Kept registered so its editions still match and carry the correct (negative) prior — being on this list is about knowing the policy, not about it being good.',
+    travelPolicy: {
+      scope: 'none',
+      quote:
+        'Do you provide travel reimbursements? Unfortunately, we cannot provide travel reimbursements.',
+      verifiedOn: '2026-07-26',
+    },
   },
   {
     id: 'hack-cambridge',
