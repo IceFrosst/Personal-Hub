@@ -33,6 +33,17 @@ const CIRCUITS = [
   { id: 'pearlhacks', tier: 'B', url: 'https://pearlhacks.com/', paths: ['/faq'] },
   { id: 'hackzurich', tier: 'B', url: 'https://hackzurich.com/', paths: ['/faq'] },
   { id: 'adventurex', tier: 'B', url: 'https://adventure-x.org/en', paths: [] },
+  // EU expansion — all unreachable from the sandbox, so this weekly open-egress
+  // run is the ONLY way they collect evidence. Promote a circuit to Tier A in
+  // lib/travel-priority-additions.ts once it reports travel_language here (and
+  // the wording is a real policy, not a sponsor blurb).
+  { id: 'hackatum', tier: 'B', url: 'https://hack.tum.de/', paths: ['/faq', '/travel'] },
+  { id: 'hack-cambridge', tier: 'B', url: 'https://hackcambridge.com/', paths: ['/faq'] },
+  { id: 'cassini', tier: 'B', url: 'https://www.cassini.eu/hackathons', paths: ['/faq'] },
+  { id: 'edth', tier: 'B', url: 'https://www.europeandefensetech.com/', paths: ['/faq'] },
+  { id: 'hackkosice', tier: 'A', url: 'https://www.hackkosice.com/', paths: ['/faq'] },
+  { id: 'ichack', tier: 'B', url: 'https://ichack.org/', paths: ['/faq'] },
+  { id: 'hacktheburgh', tier: 'B', url: 'https://hacktheburgh.com/', paths: ['/faq'] },
 ]
 
 async function fetchText(url) {
