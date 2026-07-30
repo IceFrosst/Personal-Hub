@@ -118,7 +118,15 @@ toggle, 20px logo / 18px gear) so it fits; at ≥390px (most phones) it scales u
 toggle on the row — 20px truncates even at ~411px. Verify at iPhone SE **and** ~411px if you rework
 this. **Yesterday is view-only** (no plan button — you don't schedule the
 past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
-still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
+still reach the plan they were living before the date rolled forward.
+
+**Past-day sweep** (`lib/game-plan/sweep.ts` → `sweepStalePastDays`): once a day is in the past, any
+block you **never checked off** is treated as not-done — its `plan_blocks` row is deleted **and its
+Google Calendar event removed**. Applies to every day strictly before today (catches multi-day gaps).
+Kept: `done`/`'continued'` blocks (history) and **locked** blocks (real calendar events we didn't
+create — never deleted). Runs from **both** the daily cron (`plan-day`, for every connected user,
+independent of auto-plan) **and** on app open (`POST /api/game-plan/sweep-past`, fired
+fire-and-forget from `GamePlanClient` init when connected) so it happens even if the cron missed you. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
 
 **The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;

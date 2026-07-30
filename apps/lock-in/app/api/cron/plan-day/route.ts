@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getOrCreateSettings } from '@/lib/game-plan/settings'
 import { runPlanForUser } from '@/lib/game-plan/run'
+import { sweepStalePastDays } from '@/lib/game-plan/sweep'
 import { hasOfflineCredentials, refreshAccessToken } from '@/lib/google/calendar'
 
 export const dynamic = 'force-dynamic'
@@ -33,24 +34,34 @@ export async function GET(request: Request) {
     .from('calendar_connections')
     .select('user_id, google_refresh_token')
 
-  const results: Array<{ user_id: string; scheduled?: number; error?: string }> = []
+  const results: Array<{ user_id: string; scheduled?: number; swept?: number; error?: string }> = []
 
   for (const conn of connections ?? []) {
     try {
       const settings = await getOrCreateSettings(admin, conn.user_id)
+      const accessToken = await refreshAccessToken(conn.google_refresh_token)
+
+      // Clear out past days' unchecked blocks (+ their calendar events) first —
+      // independent of auto-plan, so cleanup happens for everyone.
+      const swept = await sweepStalePastDays({
+        db: admin,
+        userId: conn.user_id,
+        accessToken,
+        timezone: settings.timezone,
+      })
+
       if (!settings.auto_plan) {
-        results.push({ user_id: conn.user_id, error: 'auto_plan_off' })
+        results.push({ user_id: conn.user_id, swept: swept.removed, error: 'auto_plan_off' })
         continue
       }
 
-      const accessToken = await refreshAccessToken(conn.google_refresh_token)
       const result = await runPlanForUser({
         db: admin,
         userId: conn.user_id,
         accessToken,
         settings,
       })
-      results.push({ user_id: conn.user_id, scheduled: result.scheduledCount })
+      results.push({ user_id: conn.user_id, scheduled: result.scheduledCount, swept: swept.removed })
     } catch (err) {
       results.push({
         user_id: conn.user_id,

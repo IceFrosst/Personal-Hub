@@ -153,6 +153,16 @@ export default function GamePlanClient() {
       setSettings(resolved)
       await loadBlocks(user.id, todayInTz(resolved.timezone))
       setLoading(false)
+
+      // Backstop for the daily cron: sweep past days' unchecked blocks (+ their
+      // calendar events). Fire-and-forget; only meaningful when connected.
+      if (connectionRow) {
+        fetch('/api/game-plan/sweep-past', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerToken: session?.provider_token ?? null }),
+        }).catch(() => {})
+      }
     }
     init()
   }, [supabase, loadBlocks])
