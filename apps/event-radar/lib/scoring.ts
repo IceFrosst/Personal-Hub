@@ -38,6 +38,24 @@ const INDIA_MARKERS = [
 
 export const MIN_LEAD_DAYS = 7
 
+/**
+ * How far ahead the feed looks. Most listings this far out are stale or will
+ * change, so they are not worth showing.
+ */
+export const MAX_HORIZON_DAYS = 240
+
+/**
+ * …except for an event with a DOCUMENTED international travel program, which is
+ * exactly the thing worth planning a year around. HackUPC is the case that
+ * forced this: verified to pay half of travel (up to €120 from Europe), open
+ * registration deadline, and invisible purely because it starts 279 days out.
+ *
+ * Gated on the scope being `international` or `global` — i.e. wording someone
+ * actually read — so this never widens the window for the far larger pile of
+ * events whose travel policy is merely unknown.
+ */
+export const TRAVEL_VERIFIED_HORIZON_DAYS = 400
+
 /** Full boost only when travel policy is useful for the user's home base. */
 export const TRAVEL_USEFUL_BOOST = 50
 /** Ambiguous / selective travel — small nudge, not the full boost. */
@@ -202,8 +220,14 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
   const minStart = nowTimestamp + MIN_LEAD_DAYS * 86400000
   if (startsAt < minStart) return false
 
-  const maxHorizonMs = 240 * 86400000
-  if (startsAt - nowTimestamp > maxHorizonMs) return false
+  // A verified international/global travel program earns a longer window; see
+  // TRAVEL_VERIFIED_HORIZON_DAYS. Scope must be one someone read off a page or
+  // recorded in the circuit registry — `travel_covered` alone is not enough.
+  const travelVerified =
+    h.travel_covered === true &&
+    (h.travel_scope === 'international' || h.travel_scope === 'global')
+  const horizonDays = travelVerified ? TRAVEL_VERIFIED_HORIZON_DAYS : MAX_HORIZON_DAYS
+  if (startsAt - nowTimestamp > horizonDays * 86400000) return false
 
   const registrationDeadline = validTimestamp(h.registration_deadline)
 

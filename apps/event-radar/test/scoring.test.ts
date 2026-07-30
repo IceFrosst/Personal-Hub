@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { isUpcomingAndOpen, scoreHackathon } from '../lib/scoring'
 import type { Hackathon } from '../lib/types'
+import { coerceHackathon } from '../lib/types'
 
 const NOW = new Date('2026-07-18T12:00:00.000Z')
 
@@ -215,4 +216,60 @@ test('full travel boost only when policy is useful for home base', () => {
     { priority_countries: [], home_base: 'lithuania' }
   )
   assert.ok(eu.reasons.some((r) => r.pts === 50 && r.label.includes('for you')))
+})
+
+// ── Travel-verified horizon ────────────────────────────────────────────────
+// HackUPC forced this: verified to pay half of travel from Europe, deadline
+// open, and invisible only because it starts 279 days out.
+function farFuture(over: Record<string, unknown> = {}) {
+  return coerceHackathon({
+    id: 'far-1',
+    source: 'known',
+    title: 'HackUPC',
+    url: 'https://hackupc.com/',
+    starts_at: '2027-05-01T08:00:00.000Z',
+    ends_at: '2027-05-03T18:00:00.000Z',
+    registration_deadline: '2027-04-15T23:59:59.000Z',
+    format: 'in_person',
+    travel_covered: true,
+    themes: ['travel_scope:international', 'travel_region:Europe'],
+    ...over,
+  })
+}
+
+const AT = new Date('2026-07-26T12:00:00Z') // 279 days before that start
+
+test('a verified international travel program is visible past the 240-day horizon', () => {
+  assert.equal(isUpcomingAndOpen(farFuture(), AT), true)
+})
+
+test('the same event without a verified scope stays behind the normal horizon', () => {
+  // travel_covered alone must not buy the longer window — that is the whole
+  // distinction between "documented" and "unknown".
+  assert.equal(isUpcomingAndOpen(farFuture({ themes: [] }), AT), false)
+})
+
+test('a verified but selective/domestic scope does not get the longer window', () => {
+  assert.equal(
+    isUpcomingAndOpen(farFuture({ themes: ['travel_scope:selective'] }), AT),
+    false
+  )
+  assert.equal(
+    isUpcomingAndOpen(farFuture({ themes: ['travel_scope:domestic'] }), AT),
+    false
+  )
+})
+
+test('the extended horizon still ends — nothing beyond 400 days', () => {
+  assert.equal(
+    isUpcomingAndOpen(farFuture({ starts_at: '2028-01-01T08:00:00.000Z' }), AT),
+    false
+  )
+})
+
+test('extended horizon does not bypass a closed registration deadline', () => {
+  assert.equal(
+    isUpcomingAndOpen(farFuture({ registration_deadline: '2026-01-01T00:00:00.000Z' }), AT),
+    false
+  )
 })
