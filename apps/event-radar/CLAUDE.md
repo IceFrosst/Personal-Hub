@@ -374,6 +374,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   European tech events and server-renders some of them. Probe its markup, then
   parse. Second cheapest win: pass `challenge_type[]=in-person` to the Devpost
   API, which it supports and `devpost.ts` does not use.
+- **Two events share the name UNIHACK** — `unihack.eu` (Timișoara, Romania) and
+  `unihack.net` (Australia). Only the Romanian one has a verified policy
+  ("No, we cannot cover your travel costs"); the registry entry is host-anchored
+  and its title pattern requires Romanian context so it can never claim the
+  Australian row by name. Watch for this shape when adding circuits.
 - **Grow the verified registry** — that is what moves the Travel chip. The weekly
   watch-agent probe now prints the actual policy sentences (not just a boolean), so
   promoting a circuit is a matter of reading the run log and adding a `travelPolicy`

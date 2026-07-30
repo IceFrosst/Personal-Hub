@@ -147,6 +147,28 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
   },
   // 2026-07-19 site-verified
   {
+    // CAREFUL: there are two unrelated events called UNIHACK. This is the
+    // Romanian one at unihack.eu (Timișoara); the catalog also carries an
+    // Australian UNIHACK at unihack.net, whose travel policy is NOT this one.
+    // Matching is therefore host-anchored, and the title pattern requires
+    // Romanian context so it can never claim the .net event by name alone.
+    id: 'unihack-ro',
+    label: 'UNIHACK (Timișoara)',
+    tier: 'B',
+    region: 'eu',
+    titlePattern: /\bunihack\b(?=.*\b(timi[sș]oara|romania)\b)/i,
+    hostPatterns: [/(^|\.)unihack\.eu$/i],
+    faqPaths: ['/faq'],
+    siteUrl: 'https://unihack.eu/',
+    evidence:
+      'Romanian student hackathon in Timișoara — one of the few events in a country the catalog had almost no coverage for. FAQ answer lives in an Angular JSON payload, invisible to a visible-text scrape, which is why it read as "no travel language" until the probe learned to read payloads.',
+    travelPolicy: {
+      scope: 'none',
+      quote: 'Can I receive travel reimbursement? No, we cannot cover your travel costs.',
+      verifiedOn: '2026-07-30',
+    },
+  },
+  {
     id: 'hackrice',
     label: 'HackRice',
     tier: 'A',
@@ -157,6 +179,15 @@ export const TIER_A_RESEARCH_BATCH: TravelPriorityCircuit[] = [
     siteUrl: 'https://hackrice.com/',
     evidence:
       'Official FAQ 2026: travel stipends offered — "majority of our budget goes towards" this; amounts later summer; Sep 11–13 2026 Houston',
+    travelPolicy: {
+      // A real, well-funded programme — but the page states no geography at all
+      // and explicitly defers the final status, so 'global' would be an
+      // invention. 'selective' is what the wording actually supports.
+      scope: 'selective',
+      quote:
+        'Do you offer travel stipends? We do! This is what the majority of our budget goes towards. Make sure to keep an eye on our pages and check back later this summer to see the final status of travel reimbursements.',
+      verifiedOn: '2026-07-30',
+    },
   },
   {
     id: 'vthacks',
