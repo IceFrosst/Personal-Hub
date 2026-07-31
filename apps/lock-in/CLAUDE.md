@@ -77,7 +77,15 @@ if busy); (2) **flexible routines reserved next, before any task, longest first*
 tasks** fill the *remaining* free time (Gemini estimates durations; deterministic packer fallback);
 (4) an **AI reorder pass** (`geminiOrder` → `reflowByOrder`) reorders the whole movable day (flex
 routines + tasks) into a logical flow around the fixed anchors — best-effort, only when phase-3's
-model call worked; on failure the phase 1–3 layout stands. Day-shape strategy applied throughout:
+model call worked; on failure the phase 1–3 layout stands.
+**`reflowByOrder` is all-or-nothing and returns `null` if it can't re-lay every block inside the
+window** — the caller then keeps the phase 1–3 layout (conflict-free by construction), and a final
+`hasOverlap` check rejects the reorder anyway if it would double-book. This matters: it used to push
+a block that didn't fit back at its *original* coordinates while laying the rest around it, so a long
+routine bumped past `work_end` by the day's meetings landed back on top of tasks already placed in its
+old slot (e.g. a 2 h Exercise at 10:00–12:00 with tasks at 10:05 and 10:20 inside it). It also places
+each block clear of **already-placed blocks**, not just the anchors, and consumes blocks **per id**
+so a task split into two sessions sharing one id doesn't lose a half. Day-shape strategy applied throughout:
 quick win first (**only on a fresh start-of-day / future-day plan** — a mid-day replan skips the
 quick-win opener since the day's already underway; gated on `earliestStart <= work_start`) · protect
 deep-work blocks · end on a high · meals after exercise · breaks after hard work · **tag-aware** (work/hustle in peak
