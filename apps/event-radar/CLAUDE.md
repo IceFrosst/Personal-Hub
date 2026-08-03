@@ -171,7 +171,17 @@
   - IRL ↔ Online: mutually exclusive switch
   - Multi-day: independent on/off toggle (`durationHours > 24`)
   - Travel: independent on/off toggle — confirmed-useful travel only (see above)
-  - Applied / Dormant: override lists — ignore format + multi-day + travel
+  - Applied / Dormant / New: override lists — ignore format + multi-day + travel
+  - **New tab** (`lib/new-arrivals.ts`, chip shows a live count): everything
+    ingested within `NEW_BADGE_HOURS` (72h), newest arrival first. It is the
+    one list that **deliberately skips `isUpcomingAndOpen`** — a row ingested
+    minutes ago has no `registration_deadline` yet (enrichment fills it on a
+    later pass) and the feed is fail-closed on that, so requiring eligibility
+    would leave the tab empty in exactly the minutes after a refresh when you
+    open it. Only the unknown-deadline gate is relaxed: already-started events
+    are still dropped, hidden rows stay hidden, and sorting is by arrival, not
+    score. Shares `isNewHackathon` with the card's blue New badge, so count,
+    list and badges can never disagree.
   - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
     (Applied only in Applied tab; hidden nowhere)
 
