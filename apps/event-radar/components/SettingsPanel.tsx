@@ -10,7 +10,7 @@ import {
 } from '@/lib/types'
 import PushToggle from './PushToggle'
 import ManualRefresh from './ManualRefresh'
-import { IconArrowLeft, IconChevronRight, IconFileText } from '@tabler/icons-react'
+import { IconArrowLeft } from '@tabler/icons-react'
 import Link from 'next/link'
 
 // Hide internal alias rows from the UI
@@ -181,22 +181,6 @@ export default function SettingsPanel({
         )}
       </section>
 
-      <section className="mt-8 flex flex-col gap-4">
-        <h2 className="text-lg font-medium">Apply Kit</h2>
-        <Link
-          href="/profile"
-          className="flex min-h-11 items-center justify-between rounded-md border border-border px-3 text-sm text-text transition-colors duration-150 ease-out hover:border-border-focus"
-        >
-          <span className="flex items-center gap-2">
-            <IconFileText size={18} stroke={1.5} className="text-purple" />
-            Application profile
-          </span>
-          <IconChevronRight size={18} stroke={1.5} className="text-text-low" />
-        </Link>
-        <p className="-mt-2 text-xs text-text-muted">
-          Fill it once — Apply Kit drafts application answers from it on any hackathon.
-        </p>
-      </section>
 
       {canRefreshSources && (
         <section className="mt-8 flex flex-col gap-4">

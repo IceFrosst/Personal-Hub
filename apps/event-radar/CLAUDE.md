@@ -157,15 +157,9 @@
 - Global `hackathons` writes use the service-role client (`lib/supabase/admin.ts`). RLS has
   a select-only policy for authenticated users; no other browser or API path gets admin
   access.
-- Per-user tables (`user_hackathon_status`, `user_preferences`, `push_subscriptions`,
-  `application_profiles`, `application_drafts`) are written from the browser client or a
-  cookie-authed route; RLS scopes rows to `auth.uid()`. No service role outside the shared
+- Per-user tables (`user_hackathon_status`, `user_preferences`, `push_subscriptions`)
+  are written from the browser client or a cookie-authed route; RLS scopes rows to `auth.uid()`. No service role outside the shared
   ingest runner.
-- Apply Kit: the profile's jsonb shape is owned by `lib/apply-kit.ts` (`coerceProfile`
-  merges older/partial documents onto the current shape — evolve it there, never with a
-  migration). Draft answers come from `POST /api/apply-kit/draft` (Groq primary, Gemini
-  fallback, same split as enrichment); the drafter must never invent facts — profile gaps
-  come back as inline `[TODO: …]` markers.
 - Notes ride on the `user_hackathon_status` row (status is NOT NULL): saving a note with
   no status starts one at `interested`; clearing a status deletes the row, notes included.
 - **Feed UI filters** (`components/Feed.tsx`):
@@ -189,12 +183,17 @@
 ## Data model
 
 Schema `hackathon` (additive-only forever). Migrations `0001_init.sql` and
-`0002_apply_kit.sql` both **applied 2026-07-18** via the Management API. 0002 adds:
+`0002_apply_kit.sql` both **applied 2026-07-18** via the Management API.
 
-- `application_profiles` — PK `user_id`, `profile` jsonb (shape owned by
-  `lib/apply-kit.ts`), RLS own-rows.
-- `application_drafts` — PK `(user_id, hackathon_id)`, `questions`/`answers` jsonb,
-  `model` text, RLS own-rows.
+**0002's tables are retired but NOT dropped.** The Apply Kit feature (application
+profile + AI-drafted answers) was scratched entirely; all of its code is gone.
+The tables stay because iron rule #2 is additive-only forever — dropping them
+would break any older client still running, and the migration file is the record
+of what was actually applied to the database. Do not "clean these up":
+
+- `application_profiles` — PK `user_id`, `profile` jsonb, RLS own-rows. Unused.
+- `application_drafts` — PK `(user_id, hackathon_id)`, `questions`/`answers`
+  jsonb, `model` text, RLS own-rows. Unused.
 
 From 0001:
 
@@ -423,4 +422,5 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - Optionally tighten Ignored Build Step on non-event-radar Vercel projects to save
   the 100 deploys/day quota.
 - Re-probe Junction / Hackster from production egress if needed (Topcoder tried & removed).
-- Roadmap: more EU travel-reimbursing sources, approval-gated auto-fill, night agents.
+- Roadmap: more EU travel-reimbursing sources, night agents. (Application
+  auto-fill/Apply Kit was scratched — see Data model for why its tables remain.)

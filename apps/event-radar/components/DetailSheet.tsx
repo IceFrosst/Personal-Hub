@@ -1,21 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useRef, useState } from 'react'
 import type { Hackathon, UserStatus } from '@/lib/types'
 import type { ScoredHackathon } from '@/lib/scoring'
-import type { DraftAnswer } from '@/lib/apply-kit'
 import {
   IconX,
   IconExternalLink,
-  IconCopy,
-  IconCheck,
-  IconSparkles,
   IconStar,
   IconChecks,
   IconEyeOff,
 } from '@tabler/icons-react'
-import Link from 'next/link'
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null
@@ -38,26 +32,6 @@ function travelSummary(h: Hackathon): string | null {
   return null
 }
 
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text)
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1500)
-        } catch {
-          // clipboard denied
-        }
-      }}
-      className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border border-border px-2 text-xs text-text-muted transition-colors duration-150 ease-out hover:border-border-focus"
-      aria-label={label}
-    >
-      {copied ? <IconCheck size={16} stroke={1.5} className="text-green" /> : <IconCopy size={16} stroke={1.5} />}
-    </button>
-  )
-}
 
 export default function DetailSheet({
   hackathon: h,
@@ -76,36 +50,8 @@ export default function DetailSheet({
   onSaveNotes: (notes: string) => void
   onClose: () => void
 }) {
-  const supabase = useMemo(() => createClient(), [])
   const [notes, setNotes] = useState(initialNotes)
   const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const [questionsText, setQuestionsText] = useState('')
-  const [answers, setAnswers] = useState<DraftAnswer[]>([])
-  const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [draftError, setDraftError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    supabase
-      .schema('hackathon')
-      .from('application_drafts')
-      .select('questions, answers')
-      .eq('hackathon_id', h.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        if (Array.isArray(data.questions) && data.questions.length > 0) {
-          setQuestionsText((prev) => prev || (data.questions as string[]).join('\n'))
-        }
-        if (Array.isArray(data.answers)) {
-          setAnswers(data.answers as DraftAnswer[])
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [supabase, h.id])
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -121,41 +67,6 @@ export default function DetailSheet({
     notesTimer.current = setTimeout(() => onSaveNotes(value), 700)
   }
 
-  const draft = async () => {
-    const questions = questionsText
-      .split('\n')
-      .map((q) => q.trim())
-      .filter(Boolean)
-    if (questions.length === 0) return
-    setDraftState('loading')
-    setDraftError(null)
-    try {
-      const res = await fetch('/api/apply-kit/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hackathon_id: h.id, questions }),
-      })
-      const body = await res.json()
-      if (!res.ok) {
-        setDraftState('error')
-        setDraftError(
-          body.error === 'profile_empty'
-            ? 'profile_empty'
-            : body.error === 'apply_kit_not_provisioned'
-              ? "Apply Kit isn't provisioned yet — migration 0002 needs applying."
-              : body.error === 'drafting_unavailable'
-                ? 'The drafting models are unavailable right now — try again in a minute.'
-                : `Drafting failed (${body.error ?? res.status}).`
-        )
-        return
-      }
-      setAnswers(body.answers as DraftAnswer[])
-      setDraftState('idle')
-    } catch {
-      setDraftState('error')
-      setDraftError('Network error — try again.')
-    }
-  }
 
   const place =
     h.format === 'online'
@@ -282,61 +193,6 @@ export default function DetailSheet({
               className="rounded-md border border-border bg-bg px-3 py-2.5 text-base text-text placeholder:text-text-low focus:border-border-focus focus:outline-none"
             />
           </label>
-
-          <section className="mb-4 rounded-2xl border border-purple/30 bg-purple/5 p-3">
-            <h3 className="mb-1 flex items-center gap-1.5 text-sm font-medium text-purple">
-              <IconSparkles size={16} stroke={1.5} />
-              Apply Kit
-            </h3>
-            <p className="mb-2 text-xs text-text-muted">
-              Paste the application questions (one per line) — answers are drafted from your{' '}
-              <Link href="/profile" className="text-purple underline">
-                profile
-              </Link>
-              .
-            </p>
-            <textarea
-              value={questionsText}
-              onChange={(e) => setQuestionsText(e.target.value)}
-              placeholder={'Why do you want to attend?\nTell us about a project you built.'}
-              rows={3}
-              className="mb-2 w-full rounded-md border border-border bg-bg px-3 py-2.5 text-base text-text placeholder:text-text-low focus:border-border-focus focus:outline-none"
-            />
-            <button
-              onClick={draft}
-              disabled={draftState === 'loading' || questionsText.trim() === ''}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-purple px-4 text-sm font-medium text-white transition-colors duration-150 ease-out hover:bg-purple/90 disabled:opacity-50"
-            >
-              <IconSparkles size={16} stroke={1.5} />
-              {draftState === 'loading' ? 'Drafting…' : answers.length > 0 ? 'Redraft answers' : 'Draft answers'}
-            </button>
-
-            {draftError === 'profile_empty' ? (
-              <p className="mt-2 text-xs text-amber">
-                Your Apply Kit profile is empty —{' '}
-                <Link href="/profile" className="underline">
-                  fill it in first
-                </Link>
-                .
-              </p>
-            ) : draftError ? (
-              <p className="mt-2 text-xs text-coral">{draftError}</p>
-            ) : null}
-
-            {answers.length > 0 && (
-              <div className="mt-3 flex flex-col gap-3">
-                {answers.map((a, i) => (
-                  <div key={i} className="rounded-md bg-bg p-3">
-                    {a.question && <p className="mb-1.5 text-xs text-text-muted">{a.question}</p>}
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="whitespace-pre-wrap text-sm text-text">{a.answer}</p>
-                      <CopyButton text={a.answer} label={`Copy answer ${i + 1}`} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
 
           {h.raw_description && (
             <section>
