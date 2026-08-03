@@ -44,6 +44,13 @@ const CIRCUITS = [
   { id: 'hackkosice', tier: 'A', url: 'https://www.hackkosice.com/', paths: ['/faq'] },
   { id: 'ichack', tier: 'B', url: 'https://ichack.org/', paths: ['/faq'] },
   { id: 'hacktheburgh', tier: 'B', url: 'https://hacktheburgh.com/', paths: ['/faq'] },
+  // Still scope=null in the registry and eligible in the feed, so each of these
+  // is currently stuck on "Travel · check FAQ". EU ones first — they are the
+  // ones that would actually change the Travel filter for a Baltic traveller.
+  { id: 'starthack', tier: 'A', url: 'https://www.startglobal.org/start-hack/home', paths: ['/faq'] },
+  { id: 'junction-2026', tier: 'B', url: 'https://www.hackjunction.com/', paths: ['/faq', '/about'] },
+  { id: 'unihack', tier: 'B', url: 'https://unihack.eu/', paths: ['/faq'] },
+  { id: 'hackrice', tier: 'B', url: 'https://hackrice.com/', paths: ['/faq'] },
 ]
 
 async function fetchText(url) {
@@ -82,8 +89,26 @@ function visibleText(html) {
  * a circuit B → A (and picking its travel scope) needs the actual wording, so
  * pull the sentences around each travel match into the report.
  */
+/**
+ * Accordion FAQs render only their questions; the answers sit in a Next.js /
+ * Nuxt JSON payload. Unescaping the raw body and searching that as well is what
+ * makes MHacks- and LA Hacks-shaped sites readable — a visible-text-only scan
+ * returns their question list and nothing else.
+ */
+function payloadText(html) {
+  const blobs = []
+  for (const m of html.matchAll(/<script[^>]*>([\s\S]{200,}?)<\/script>/gi)) blobs.push(m[1])
+  return blobs
+    .join(' ')
+    .replace(/\\u0026/g, '&')
+    .replace(/\\"/g, '"')
+    .replace(/\\n/g, ' ')
+    .replace(/\\t/g, ' ')
+    .replace(/\s+/g, ' ')
+}
+
 function travelQuotes(html) {
-  const text = visibleText(html)
+  const text = visibleText(html) + ' ' + payloadText(html)
   const quotes = []
   const re =
     /travel|reimburs|stipend|bursary|airfare|flight|scholarship|covered up to|we (?:cover|will cover|reimburse)/gi

@@ -63,6 +63,19 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
   fetches OK but parses to zero cards. Supplies **no registration deadline**, so
   rows wait on enrichment before the fail-closed feed will show them.
 
+- **HackTrack EU** (`lib/ingest/hacktrack.ts`, unit test `test/hacktrack.test.ts`).
+  Community-run European hackathon index with a public, no-auth JSON API
+  (`hacktrack-eu.vercel.app/api/hackathons?status=upcoming`), refreshed 3–4×/day.
+  The first source with real breadth across the countries the catalog had
+  nothing for: its archive on 2026-07-26 spanned 28 European countries —
+  France 52, Switzerland 31, Ireland 11, Romania 6, Bulgaria 4, Croatia 4,
+  Turkey 14, Luxembourg 1, Serbia 1 — against **15 total EU rows** the whole
+  14-source catalog had for those same countries. Returns ISO country codes,
+  which the source expands to names because every geography check downstream is
+  a substring test (`FR` would never match `france`). Supplies no registration
+  deadline, and an empty `upcoming` list is normal off-season, so it does **not**
+  throw on zero — only on a malformed response.
+
 Both are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
 The shared fail-closed eligibility rule (`isUpcomingAndOpen`) drops the many
 already-started / closed-registration entries either source returns.

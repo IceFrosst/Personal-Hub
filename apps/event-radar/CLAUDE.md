@@ -116,7 +116,8 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, startuplithuania, allhackathons (`lib/ingest/*.ts`), plus known/watch.
+  taikai, dorahacks, startuplithuania, allhackathons, hacktrack (`lib/ingest/*.ts`),
+  plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
@@ -171,7 +172,17 @@
   - IRL ↔ Online: mutually exclusive switch
   - Multi-day: independent on/off toggle (`durationHours > 24`)
   - Travel: independent on/off toggle — confirmed-useful travel only (see above)
-  - Applied / Dormant: override lists — ignore format + multi-day + travel
+  - Applied / Dormant / New: override lists — ignore format + multi-day + travel
+  - **New tab** (`lib/new-arrivals.ts`, chip shows a live count): everything
+    ingested within `NEW_BADGE_HOURS` (72h), newest arrival first. It is the
+    one list that **deliberately skips `isUpcomingAndOpen`** — a row ingested
+    minutes ago has no `registration_deadline` yet (enrichment fills it on a
+    later pass) and the feed is fail-closed on that, so requiring eligibility
+    would leave the tab empty in exactly the minutes after a refresh when you
+    open it. Only the unknown-deadline gate is relaxed: already-started events
+    are still dropped, hidden rows stay hidden, and sorting is by arrival, not
+    score. Shares `isNewHackathon` with the card's blue New badge, so count,
+    list and badges can never disagree.
   - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
     (Applied only in Applied tab; hidden nowhere)
 
@@ -349,6 +360,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   Everything else measured 0 for July, including the Balkans and small states —
   those ran properly on the paced re-run, so 0 is real, not a rate-limit
   artifact.
+- **HackTrack EU live as an ingest source** — public JSON, EU-shaped by
+  construction, 28 countries in its archive including the eight the catalog had
+  zero rows for (Malta, Bulgaria, Croatia, Slovakia, Serbia, Cyprus, Luxembourg,
+  Iceland). Off-season its `upcoming` list is near-empty; that is the European
+  calendar, not a fault, so it never throws on zero.
+- **New tab** in the feed — see Feed UI filters.
 - **allhackathons.com live as an ingest source** — server-rendered international
   listing, the one aggregator that survived the open-egress probe.
 - **Turkey groundwork** (`lib/region-turkey.ts`): Türkiye/İstanbul spellings recognised,
@@ -374,6 +391,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   European tech events and server-renders some of them. Probe its markup, then
   parse. Second cheapest win: pass `challenge_type[]=in-person` to the Devpost
   API, which it supports and `devpost.ts` does not use.
+- **Two events share the name UNIHACK** — `unihack.eu` (Timișoara, Romania) and
+  `unihack.net` (Australia). Only the Romanian one has a verified policy
+  ("No, we cannot cover your travel costs"); the registry entry is host-anchored
+  and its title pattern requires Romanian context so it can never claim the
+  Australian row by name. Watch for this shape when adding circuits.
 - **Grow the verified registry** — that is what moves the Travel chip. The weekly
   watch-agent probe now prints the actual policy sentences (not just a boolean), so
   promoting a circuit is a matter of reading the run log and adding a `travelPolicy`

@@ -133,3 +133,24 @@ test('every registered policy cites a quote and a verification date', () => {
     assert.match(p.verifiedOn, /^\d{4}-\d{2}-\d{2}$/)
   }
 })
+
+// Two unrelated events are called UNIHACK. The Romanian one (unihack.eu) says
+// outright it cannot cover travel; the Australian one (unihack.net) has made no
+// such statement. Matching the .net row by name would attach a policy nobody
+// verified for it.
+test('UNIHACK.eu policy never attaches to the unrelated UNIHACK.net event', () => {
+  const ro = matchTravelPriority({ title: 'UNIHACK Timișoara', url: 'https://unihack.eu/' })
+  assert.equal(ro?.id, 'unihack-ro')
+  assert.equal(ro?.travelPolicy?.scope, 'none')
+
+  const au = matchTravelPriority({ title: 'UNIHACK', url: 'https://www.unihack.net/' })
+  assert.notEqual(au?.id, 'unihack-ro')
+})
+
+test('HackRice records a real stipend programme as selective, not global', () => {
+  const hit = matchTravelPriority({ title: 'HackRice', url: 'https://hackrice.com/' })
+  // The page states a funded programme but no geography — promoting that to
+  // global would manufacture the exact false positive the design prevents.
+  assert.equal(hit?.travelPolicy?.scope, 'selective')
+  assert.match(hit?.travelPolicy?.quote ?? '', /majority of our budget/)
+})

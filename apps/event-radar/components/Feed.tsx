@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { durationHours, isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { isDormantCircuit, matchDormantCircuit } from '@/lib/dormant-tier-a'
+import { isNewHackathon, NEW_BADGE_HOURS } from '@/lib/digest'
+import { selectNewArrivals } from '@/lib/new-arrivals'
 import { hasUsefulTravel } from '@/lib/digest'
 import {
   coerceHackathon,
@@ -19,7 +21,7 @@ import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
 type FormatMode = 'irl' | 'online'
-type ListMode = 'feed' | 'applied' | 'dormant'
+type ListMode = 'feed' | 'applied' | 'dormant' | 'new'
 
 export default function Feed({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), [])
@@ -157,6 +159,23 @@ export default function Feed({ userId }: { userId: string }) {
         .sort((a, b) => a.h.title.localeCompare(b.h.title))
     }
 
+    // "New" answers one question: what did the last refresh actually bring in?
+    //
+    // It deliberately does NOT apply isUpcomingAndOpen. A freshly ingested row
+    // usually has no registration_deadline yet — enrichment fills that on a
+    // later pass — and the feed is fail-closed, so requiring eligibility here
+    // would show an empty tab immediately after a refresh, which is precisely
+    // the moment you want to look. Past events are still dropped; the only gate
+    // relaxed is the unknown deadline.
+    if (listMode === 'new') {
+      const now = new Date()
+      return selectNewArrivals(hackathons, (h) => statuses[h.id] === 'hidden', now).map((h) => ({
+        h,
+        scored: scoreHackathon(h, now, scoreOpts),
+        status: statuses[h.id] ?? null,
+      }))
+    }
+
     if (listMode === 'applied') {
       return hackathons
         .filter((h) => statuses[h.id] === 'applied')
@@ -209,6 +228,18 @@ export default function Feed({ userId }: { userId: string }) {
     })
   }, [hackathons, statuses, listMode, formatMode, multiDayOnly, travelOnly, prefs.home_base, scoreOpts])
 
+  /**
+   * Count on the tab, so a refresh is visible without opening it. Uses the same
+   * predicate as the tab body and as the card's blue "New" badge, so the number,
+   * the list and the badges can never disagree.
+   */
+  const newCount = useMemo(() => {
+    const now = new Date()
+    return hackathons.filter(
+      (h) => isNewHackathon(h, now) && statuses[h.id] !== 'hidden'
+    ).length
+  }, [hackathons, statuses])
+
   const selected = useMemo(() => {
     if (!selectedId) return null
     const h = hackathons.find((x) => x.id === selectedId)
@@ -220,6 +251,8 @@ export default function Feed({ userId }: { userId: string }) {
     if (listMode === 'applied') return 'No applied events yet — mark one from a card.'
     if (listMode === 'dormant')
       return 'No dormant circuit rows in the catalog. Weekly probe watches TreeHacks, PennApps, HackUPC, etc.'
+    if (listMode === 'new')
+      return `Nothing new in the last ${NEW_BADGE_HOURS} hours. Pull to refresh, or wait for the nightly sweep.`
     if (travelOnly)
       return 'No events with confirmed travel cover from your home base right now.'
     if (formatMode === 'online') return 'No open online events right now.'
@@ -290,6 +323,14 @@ export default function Feed({ userId }: { userId: string }) {
           Travel{travelOnly ? ' ✓' : ''}
         </button>
 
+        <button
+          type="button"
+          onClick={() => setListMode(listMode === 'new' ? 'feed' : 'new')}
+          className={chipClass(listMode === 'new')}
+          title={`Everything ingested in the last ${NEW_BADGE_HOURS} hours, newest first`}
+        >
+          New{newCount > 0 ? ` ${newCount}` : ''}
+        </button>
         <button
           type="button"
           onClick={() => setListMode(listMode === 'applied' ? 'feed' : 'applied')}
