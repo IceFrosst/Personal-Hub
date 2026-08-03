@@ -116,7 +116,8 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, startuplithuania, allhackathons (`lib/ingest/*.ts`), plus known/watch.
+  taikai, dorahacks, startuplithuania, allhackathons, hacktrack (`lib/ingest/*.ts`),
+  plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
@@ -359,6 +360,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   Everything else measured 0 for July, including the Balkans and small states —
   those ran properly on the paced re-run, so 0 is real, not a rate-limit
   artifact.
+- **HackTrack EU live as an ingest source** — public JSON, EU-shaped by
+  construction, 28 countries in its archive including the eight the catalog had
+  zero rows for (Malta, Bulgaria, Croatia, Slovakia, Serbia, Cyprus, Luxembourg,
+  Iceland). Off-season its `upcoming` list is near-empty; that is the European
+  calendar, not a fault, so it never throws on zero.
+- **New tab** in the feed — see Feed UI filters.
 - **allhackathons.com live as an ingest source** — server-rendered international
   listing, the one aggregator that survived the open-egress probe.
 - **Turkey groundwork** (`lib/region-turkey.ts`): Türkiye/İstanbul spellings recognised,
