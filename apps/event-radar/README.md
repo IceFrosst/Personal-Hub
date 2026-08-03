@@ -17,17 +17,16 @@ high-match appears.
 - **Detail sheet**: tap a card for the full picture — dates, deadline, score breakdown,
   the extracted description — plus per-hackathon notes
 - **Status tracking**: interested → applying → applied, or hide it
-- **Apply Kit**: fill an application profile once, then paste any hackathon's form
-  questions and get first-person draft answers (Groq/Gemini) with copy buttons — gaps in
-  your profile come back as `[TODO]`s, never invented facts
 - **Web push** when a new hackathon clears your score threshold (adjustable in settings)
 - **Manual source refresh** for the app owner in Settings, with per-source results and no
   test-run push notifications
-- **Sources**: Devpost, MLH, ETHGlobal, Hack Club, HackerEarth — enriched via Groq/Gemini
+- **New tab**: everything ingested in the last 72h, newest first — see what a refresh found
+- **Sources**: Devpost, MLH, ETHGlobal, Hack Club, HackerEarth, Luma, HackQuest, Devfolio,
+  Taikai, DoraHacks, Startup Lithuania, All Hackathons, HackTrack EU — enriched via Groq/Gemini
   (all free tiers)
 
-Submitting is still on you — approval-gated auto-fill is the next roadmap phase, tracked
-in the root `EVENT_RADAR_PLAN.md`.
+Applying is entirely on you — Event Radar finds and ranks events, it does not fill in or
+submit anything.
 
 ## Run it locally
 

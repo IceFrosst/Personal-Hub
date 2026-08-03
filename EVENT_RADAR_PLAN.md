@@ -8,7 +8,7 @@
 > Live state now tracked in `apps/event-radar/CLAUDE.md`.
 >
 > **2026-07-18 (overnight):** roadmap phase 2 built on `claude/stoic-volta-e8or22` —
-> Apply Kit (profile + drafted answers, ex-roadmap, now shipped), hackathon detail
+> Apply Kit (profile + drafted answers) — **SCRATCHED, removed 2026-07-30**; hackathon detail
 > sheet with notes, three new sources (ETHGlobal / Hack Club / HackerEarth), and the
 > MLH parser fixed for their www.mlh.com rebuild. Migration `0002_apply_kit.sql`
 > pending application. Live state in `apps/event-radar/CLAUDE.md`.
@@ -22,7 +22,8 @@ so I only spend minutes instead of hours.
 ## v1 Scope (final)
 
 **Pure discovery + ranking + status tracking + notifications.**
-You still apply yourself. Apply Kit and auto-apply come later once the core works.
+You apply yourself. Apply Kit and auto-apply were built, then scratched entirely —
+Event Radar finds and ranks events, it does not fill in or submit anything.
 
 ### Core actions
 - Browse a ranked feed of matching open tech hackathons
@@ -102,8 +103,8 @@ No application_profiles or application_drafts tables in v1.
 
 ## Roadmap (post-v1)
 
-- Apply Kit (profile + drafted answers)
-- Approval-gated browser auto-fill (Claude Code cloud sessions + Playwright)
+- ~~Apply Kit (profile + drafted answers)~~ — built, then scratched 2026-07-30
+- ~~Approval-gated browser auto-fill~~ — scratched with it; not planned
 - Broader source coverage + night search agents
 - Opt-in auto-submit on trusted platforms
 
