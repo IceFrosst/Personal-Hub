@@ -27,6 +27,18 @@ Users running older installed copies of any app (PWAs linger on phones) must alw
 
 This rule applies for the **entire lifetime of the project**. There's no migration window. Treat every schema change as forever.
 
+## Exceptions granted so far
+
+Only the project owner can grant one, and each is recorded here so the rule stays
+honest rather than quietly eroded. **You may not grant yourself one.**
+
+| Date | Change | Why it was safe |
+|------|--------|-----------------|
+| 2026-07-30 | Dropped `hackathon.application_profiles` and `hackathon.application_drafts` (`apps/event-radar/supabase/migrations/0003_drop_apply_kit.sql`) | The Apply Kit feature was scratched entirely in the same change. Both tables were verified **empty** (0 rows) with **no** foreign keys or views referencing them, and no shipped client — including a stale cached PWA — retains code that touches them, because the feature was removed rather than migrated. |
+
+The reasoning above is the bar. A table that any shipped version still reads or
+writes does **not** qualify, no matter how unused it looks.
+
 ## What to do when you wish you could rename / drop
 
 - **Rename:** add the new column, dual-write from app code until older versions retire, leave the old column in place forever.

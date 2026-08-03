@@ -185,17 +185,15 @@
 Schema `hackathon` (additive-only forever). Migrations `0001_init.sql` and
 `0002_apply_kit.sql` both **applied 2026-07-18** via the Management API.
 
-**0002's tables are retired but NOT dropped.** The Apply Kit feature (application
-profile + AI-drafted answers) was scratched entirely; all of its code is gone.
-The tables stay because iron rule #2 is additive-only forever — dropping them
-would break any older client still running, and the migration file is the record
-of what was actually applied to the database. Do not "clean these up":
+**0002's tables were DROPPED on 2026-07-30** (`0003_drop_apply_kit.sql`) — a
+deliberate, owner-authorised exception to iron rule #2, recorded rather than
+done silently. It was safe because both tables were empty, nothing referenced
+them, and the Apply Kit feature had been removed entirely, so no shipped client
+(including a stale PWA copy) has code that touches them. **This is not a
+precedent**: the rule still stands for any table a shipped version still reads
+or writes.
 
-- `application_profiles` — PK `user_id`, `profile` jsonb, RLS own-rows. Unused.
-- `application_drafts` — PK `(user_id, hackathon_id)`, `questions`/`answers`
-  jsonb, `model` text, RLS own-rows. Unused.
-
-From 0001:
+The live tables, all from 0001:
 
 - `hackathons` — global catalog. `unique (source, url)`; enrichment-owned columns
   (`travel_covered`, `accommodation_covered`, `open_to_business_students`, `format`,
