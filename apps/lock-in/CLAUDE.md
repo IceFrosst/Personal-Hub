@@ -77,7 +77,15 @@ if busy); (2) **flexible routines reserved next, before any task, longest first*
 tasks** fill the *remaining* free time (Gemini estimates durations; deterministic packer fallback);
 (4) an **AI reorder pass** (`geminiOrder` → `reflowByOrder`) reorders the whole movable day (flex
 routines + tasks) into a logical flow around the fixed anchors — best-effort, only when phase-3's
-model call worked; on failure the phase 1–3 layout stands. Day-shape strategy applied throughout:
+model call worked; on failure the phase 1–3 layout stands.
+**`reflowByOrder` is all-or-nothing and returns `null` if it can't re-lay every block inside the
+window** — the caller then keeps the phase 1–3 layout (conflict-free by construction), and a final
+`hasOverlap` check rejects the reorder anyway if it would double-book. This matters: it used to push
+a block that didn't fit back at its *original* coordinates while laying the rest around it, so a long
+routine bumped past `work_end` by the day's meetings landed back on top of tasks already placed in its
+old slot (e.g. a 2 h Exercise at 10:00–12:00 with tasks at 10:05 and 10:20 inside it). It also places
+each block clear of **already-placed blocks**, not just the anchors, and consumes blocks **per id**
+so a task split into two sessions sharing one id doesn't lose a half. Day-shape strategy applied throughout:
 quick win first (**only on a fresh start-of-day / future-day plan** — a mid-day replan skips the
 quick-win opener since the day's already underway; gated on `earliestStart <= work_start`) · protect
 deep-work blocks · end on a high · meals after exercise · breaks after hard work · **tag-aware** (work/hustle in peak
@@ -118,7 +126,15 @@ toggle, 20px logo / 18px gear) so it fits; at ≥390px (most phones) it scales u
 toggle on the row — 20px truncates even at ~411px. Verify at iPhone SE **and** ~411px if you rework
 this. **Yesterday is view-only** (no plan button — you don't schedule the
 past — but its blocks are still tickable/editable): it exists so late-night hours past midnight can
-still reach the plan they were living before the date rolled forward. Blocks show a repeat glyph for routines and a tag-colored left
+still reach the plan they were living before the date rolled forward.
+
+**Past-day sweep** (`lib/game-plan/sweep.ts` → `sweepStalePastDays`): once a day is in the past, any
+block you **never checked off** is treated as not-done — its `plan_blocks` row is deleted **and its
+Google Calendar event removed**. Applies to every day strictly before today (catches multi-day gaps).
+Kept: `done`/`'continued'` blocks (history) and **locked** blocks (real calendar events we didn't
+create — never deleted). Runs from **both** the daily cron (`plan-day`, for every connected user,
+independent of auto-plan) **and** on app open (`POST /api/game-plan/sweep-past`, fired
+fire-and-forget from `GamePlanClient` init when connected) so it happens even if the cron missed you. Blocks show a repeat glyph for routines and a tag-colored left
 border + chip (`plan_blocks.category` denormalised, `0007`; `recurring_id` link, `0006`).
 
 **The user's real calendar events are shown as locked blocks** (`plan_blocks.locked`, `0009`;

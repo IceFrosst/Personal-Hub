@@ -196,11 +196,18 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
       (b) => [hmToMinutes(b.start), hmToMinutes(b.end)] as [number, number]
     ),
   ]
-  let movable = [...flexRoutineBlocks, ...taskBlocks]
+  const baseMovable = [...flexRoutineBlocks, ...taskBlocks]
+  let movable = baseMovable
   if (key && movable.length > 1 && ai === 'ok') {
     try {
       const order = await geminiOrder(movable, anchors, winStart, winEnd, input.today, fresh, key)
-      if (order) movable = reflowByOrder(movable, order, anchors, winStart, winEnd)
+      if (order) {
+        const reflowed = reflowByOrder(movable, order, anchors, winStart, winEnd)
+        // null = couldn't re-lay the whole day cleanly; keep phase 1–3.
+        if (reflowed && !hasOverlap([...fixedBlocks, ...reflowed], lockedIntervals)) {
+          movable = reflowed
+        }
+      }
     } catch {
       // Keep the phase 1–3 layout.
     }
@@ -210,6 +217,26 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     (a, b) => hmToMinutes(a.start) - hmToMinutes(b.start)
   )
   return { blocks, ai }
+}
+
+/**
+ * True if any two of these blocks overlap each other, or a block overlaps a
+ * busy interval. Last line of defence before a plan is written: a plan with
+ * two things booked at once is never worth shipping, so the caller falls back
+ * to the layout it already knows is clean.
+ */
+export function hasOverlap(
+  blocks: ProposedBlock[],
+  busy: Array<[number, number]> = []
+): boolean {
+  const spans = blocks
+    .map((b) => [hmToMinutes(b.start), hmToMinutes(b.end)] as [number, number])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0])
+  for (let i = 1; i < spans.length; i++) {
+    if (spans[i][0] < spans[i - 1][1]) return true
+  }
+  return spans.some(([s, e]) => busy.some(([bs, be]) => s < be && e > bs))
 }
 
 /** Nearest free start to `desired` that fits `dur` inside the window, or null. */
@@ -557,47 +584,64 @@ Return ONLY JSON, every movable id exactly once, in your chosen order:
 
 /**
  * Re-lay the movable blocks in `order` (task/recurring ids) into the free time
- * around the immovable `anchors`, bounded by the window. Keeps each block's
- * duration; any id the model dropped is appended in its original position so
- * nothing is lost. Never overflows `winEnd`.
+ * around the immovable `anchors`, bounded by the window, keeping each block's
+ * duration.
+ *
+ * Returns `null` when the whole set can't be re-laid inside the window — the
+ * caller then keeps the phase 1–3 layout, which is conflict-free by
+ * construction. That "all or nothing" contract matters: previously a block that
+ * didn't fit was pushed back at its ORIGINAL coordinates while the rest were
+ * laid out around it, which silently produced overlapping blocks (a long
+ * routine bumped past `work_end` by the day's meetings would land back on top
+ * of tasks already placed in its old slot).
+ *
+ * A block is placed only where it clashes with neither an anchor nor a block
+ * already placed in this pass. Ids may repeat (the prompt may split a big task
+ * into two sessions sharing one id), so blocks are consumed per id rather than
+ * deduped — otherwise half a split task disappears.
  */
-function reflowByOrder(
+export function reflowByOrder(
   movable: ProposedBlock[],
   order: string[],
   anchors: Array<[number, number]>,
   winStart: number,
   winEnd: number
-): ProposedBlock[] {
-  const byId = new Map(movable.map((b) => [blockId(b), b]))
-  const seen = new Set<string>()
+): ProposedBlock[] | null {
+  // Bucket per id so repeated ids (split sessions) each keep a slot.
+  const byId = new Map<string, ProposedBlock[]>()
+  for (const b of movable) {
+    const key = blockId(b)
+    const bucket = byId.get(key)
+    if (bucket) bucket.push(b)
+    else byId.set(key, [b])
+  }
   const seq: ProposedBlock[] = []
   for (const id of order) {
-    const b = byId.get(id)
-    if (b && !seen.has(id)) {
-      seq.push(b)
-      seen.add(id)
-    }
+    const bucket = byId.get(id)
+    if (bucket && bucket.length > 0) seq.push(bucket.shift() as ProposedBlock)
   }
-  for (const b of movable) if (!seen.has(blockId(b))) seq.push(b)
+  // Anything the model left out keeps its original relative order.
+  for (const b of movable) {
+    const bucket = byId.get(blockId(b))
+    if (bucket && bucket.length > 0 && bucket[0] === b) seq.push(bucket.shift() as ProposedBlock)
+  }
 
-  const sortedAnchors = [...anchors].sort((a, b) => a[0] - b[0])
+  const blocked: Array<[number, number]> = [...anchors]
   const out: ProposedBlock[] = []
   let cursor = winStart
   for (const b of seq) {
     const dur = hmToMinutes(b.end) - hmToMinutes(b.start)
     let start = cursor
-    for (let guard = 0; guard < 200; guard++) {
-      const clash = sortedAnchors.find(([as, ae]) => start < ae && start + dur > as)
+    // Step past anything in the way — anchors AND blocks already placed here.
+    // Every clash ends after `start`, so `start` strictly increases and settles.
+    for (let guard = 0; guard < 400; guard++) {
+      const clash = blocked.find(([as, ae]) => start < ae && start + dur > as)
       if (!clash) break
       start = clash[1] + GAP
     }
-    if (start + dur > winEnd) {
-      // The set already fit before reordering, so this is only a safety net —
-      // keep the block's existing placement rather than overflow the day.
-      out.push(b)
-      continue
-    }
+    if (start + dur > winEnd) return null // can't reorder cleanly — keep phase 1–3
     out.push({ ...b, start: toHM(start), end: toHM(start + dur) })
+    blocked.push([start, start + dur])
     cursor = start + dur + GAP
   }
   return out
