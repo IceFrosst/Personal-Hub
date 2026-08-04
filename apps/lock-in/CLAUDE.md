@@ -120,8 +120,12 @@ session is a container. `POST /api/game-plan/session-tasks` adds/removes. **Repl
 block rows, so `run.ts` captures each session's task list before the delete and re-attaches it to the
 new sessions in start order** (dropping anything completed) — otherwise a hand-built list would
 vanish on every replan. In the timeline a session renders as `DeepWorkCard`: gold-tinted, first
-3 tasks inline with checkboxes, then "+N more · tap to manage" opening a sheet (manage + task
-picker). Adding a one-off task from the Game Plan bar auto-assigns it to the current/next session
+3 tasks inline (priority dot + checkbox), then "+N more · tap to manage" opening a sheet.
+**Both session sheets reuse the main list's visual language** via `SessionTaskLine` — the same
+priority rail, square gold checkbox and tag/due chips as `TaskRow`, sharing `PRIO_ACCENT` /
+`formatDueChip` with the Replace picker. The manage sheet lists the session's tasks (check off in
+place, ✕ to remove); the picker turns each row into one tap target with a gold tint + ring when
+selected. Both have grab handles, illustrated empty states and a full-width gold action button. Adding a one-off task from the Game Plan bar auto-assigns it to the current/next session
 (`insert.ts`); an errand still gets its own slot.
 
 **Timeline is interactive:** tap a block's checkbox to mark it done → the underlying task is completed

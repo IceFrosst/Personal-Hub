@@ -891,73 +891,42 @@ export default function GamePlanClient() {
           onClick={() => setSessionSheet(null)}
         >
           <div
-            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4"
-            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border px-4 pt-3"
+            style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 px-1 mb-1">
-              <IconBolt size={18} className="text-gold" stroke={2} />
-              <p className="flex-1 text-gold text-lg font-semibold">Deep Work</p>
-              <span className="text-[11px] font-semibold text-gold bg-gold/15 px-2 py-0.5 rounded-full tabular-nums">
-                {(sessionItems[sessionSheet.id] ?? []).filter((t) => t.is_completed).length}/
-                {(sessionItems[sessionSheet.id] ?? []).length} done
+            <div className="h-1 w-9 rounded-full bg-border mx-auto mb-4" />
+
+            <div className="flex items-center gap-2 px-1">
+              <IconBolt size={19} className="text-gold shrink-0" stroke={2} />
+              <p className="flex-1 text-gold text-lg font-semibold tracking-tight">Deep Work</p>
+              <span className="text-[11px] font-semibold text-gold bg-gold/15 px-2 py-1 rounded-full tabular-nums">
+                {sessionDone(sessionItems[sessionSheet.id])}/
+                {(sessionItems[sessionSheet.id] ?? []).length}
               </span>
             </div>
-            <p className="text-text-low text-xs mb-3 px-1 tabular-nums">
+            <p className="text-text-low text-xs mt-0.5 mb-3 px-1 tabular-nums">
               {sessionSheet.start_local}–{sessionSheet.end_local}
+              {sessionSheet.estimated_minutes ? ` · ${fmtDuration(sessionSheet.estimated_minutes)}` : ''}
             </p>
 
-            <div className="max-h-[45dvh] overflow-y-auto -mx-1 px-1">
-              {(sessionItems[sessionSheet.id] ?? []).length === 0 && (
-                <p className="text-text-low text-sm py-6 text-center">
-                  Nothing in this session yet.
-                </p>
-              )}
-              {(sessionItems[sessionSheet.id] ?? []).map((t) => {
-                const cat = t.category ? TASK_CATEGORIES.find((c) => c.value === t.category) : null
-                return (
-                  <div
+            <div className="max-h-[46dvh] overflow-y-auto -mx-1 px-1">
+              {(sessionItems[sessionSheet.id] ?? []).length === 0 ? (
+                <div className="py-8 text-center">
+                  <IconBolt size={26} className="text-border-focus mx-auto mb-2" stroke={1.5} />
+                  <p className="text-text-muted text-sm">This session is empty</p>
+                  <p className="text-text-low text-xs mt-1">Add what you want to focus on.</p>
+                </div>
+              ) : (
+                (sessionItems[sessionSheet.id] ?? []).map((t) => (
+                  <SessionTaskLine
                     key={t.id}
-                    className="flex items-center gap-2.5 p-2.5 mb-1.5 rounded-xl bg-surface border border-border"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleSessionTask(sessionSheet.id, t)}
-                      aria-label={t.is_completed ? 'Mark not done' : 'Mark done'}
-                      className={`shrink-0 h-5 w-5 rounded-[5px] border-2 flex items-center justify-center transition-colors ${
-                        t.is_completed
-                          ? 'bg-gold/10 border-gold text-gold'
-                          : 'border-border-focus text-transparent active:border-gold'
-                      }`}
-                    >
-                      <IconCheck size={12} stroke={3} />
-                    </button>
-                    <span
-                      className={`flex-1 min-w-0 text-sm leading-snug break-words ${
-                        t.is_completed ? 'line-through text-text-low' : 'text-text'
-                      }`}
-                    >
-                      {t.title}
-                    </span>
-                    {cat && (
-                      <span
-                        className="text-[10px] leading-none px-1.5 py-0.5 rounded-md font-medium shrink-0"
-                        style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
-                      >
-                        {cat.label}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeFromSession(sessionSheet.id, t.id)}
-                      aria-label="Remove from session"
-                      className="shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-text-low active:text-text transition-colors"
-                    >
-                      <IconX size={16} />
-                    </button>
-                  </div>
-                )
-              })}
+                    task={t}
+                    onToggleDone={() => toggleSessionTask(sessionSheet.id, t)}
+                    onRemove={() => removeFromSession(sessionSheet.id, t.id)}
+                  />
+                ))
+              )}
             </div>
 
             <button
@@ -967,9 +936,10 @@ export default function GamePlanClient() {
                 setSessionSheet(null)
                 openPicker(b)
               }}
-              className="lock-in-gold-button mt-3 w-full min-h-11 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform"
+              className="lock-in-gold-button mt-3 w-full min-h-12 rounded-xl text-black font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
             >
-              ＋ Add tasks to this session
+              <IconPlus size={18} stroke={2.6} />
+              Add tasks
             </button>
           </div>
         </div>
@@ -982,28 +952,37 @@ export default function GamePlanClient() {
           onClick={() => setPickerFor(null)}
         >
           <div
-            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4"
-            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border px-4 pt-3"
+            style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-text text-lg font-semibold px-1">Add to Deep Work</p>
-            <p className="text-text-low text-xs mb-3 px-1">
-              Pick from your open tasks — no times needed
+            <div className="h-1 w-9 rounded-full bg-border mx-auto mb-4" />
+
+            <div className="flex items-center gap-2 px-1">
+              <p className="flex-1 text-text text-lg font-semibold tracking-tight">Add to session</p>
+              <span className="text-[11px] font-medium text-text-muted bg-surface border border-border px-2 py-1 rounded-full tabular-nums">
+                {pickerFor.start_local}–{pickerFor.end_local}
+              </span>
+            </div>
+            <p className="text-text-low text-xs mt-0.5 mb-3 px-1">
+              Tap to choose — these need no time of their own.
             </p>
-            <div className="max-h-[45dvh] overflow-y-auto -mx-1 px-1">
-              {pickerTasks.length === 0 && (
-                <p className="text-text-low text-sm py-6 text-center">
-                  Nothing unassigned right now.
-                </p>
-              )}
-              {pickerTasks.map((t) => {
-                const on = picked.has(t.id)
-                const cat = t.category ? TASK_CATEGORIES.find((c) => c.value === t.category) : null
-                return (
-                  <button
+
+            <div className="max-h-[46dvh] overflow-y-auto -mx-1 px-1">
+              {pickerTasks.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-text-muted text-sm">Nothing left to add</p>
+                  <p className="text-text-low text-xs mt-1">
+                    Every open task is already scheduled or in a session.
+                  </p>
+                </div>
+              ) : (
+                pickerTasks.map((t) => (
+                  <SessionTaskLine
                     key={t.id}
-                    type="button"
-                    onClick={() =>
+                    task={t}
+                    selected={picked.has(t.id)}
+                    onSelect={() =>
                       setPicked((prev) => {
                         const next = new Set(prev)
                         if (next.has(t.id)) next.delete(t.id)
@@ -1011,39 +990,20 @@ export default function GamePlanClient() {
                         return next
                       })
                     }
-                    className={`w-full flex items-center gap-2.5 p-2.5 mb-1.5 rounded-xl border text-left transition-colors ${
-                      on ? 'bg-gold/10 border-gold/50' : 'bg-surface border-border'
-                    }`}
-                  >
-                    <span
-                      className={`shrink-0 h-5 w-5 rounded-[5px] border-2 flex items-center justify-center ${
-                        on ? 'bg-gold/15 border-gold text-gold' : 'border-border-focus text-transparent'
-                      }`}
-                    >
-                      <IconCheck size={12} stroke={3} />
-                    </span>
-                    <span className="flex-1 min-w-0 text-sm text-text leading-snug break-words">
-                      {t.title}
-                    </span>
-                    {cat && (
-                      <span
-                        className="text-[10px] leading-none px-1.5 py-0.5 rounded-md font-medium shrink-0"
-                        style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
-                      >
-                        {cat.label}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
+                  />
+                ))
+              )}
             </div>
+
             <button
               type="button"
               onClick={commitPicked}
               disabled={picked.size === 0}
-              className="lock-in-gold-button mt-3 w-full min-h-11 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-50"
+              className="lock-in-gold-button mt-3 w-full min-h-12 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
             >
-              {picked.size ? `Add ${picked.size} task${picked.size > 1 ? 's' : ''}` : 'Select tasks'}
+              {picked.size
+                ? `Add ${picked.size} task${picked.size > 1 ? 's' : ''}`
+                : 'Select tasks to add'}
             </button>
           </div>
         </div>
@@ -1343,7 +1303,6 @@ function DeepWorkCard({
   const preview = tasks.slice(0, SESSION_PREVIEW)
   const rest = tasks.length - preview.length
   const mins = block.estimated_minutes ?? 0
-  const hours = mins >= 60 ? `${Math.round((mins / 60) * 10) / 10}h` : `${mins} min`
 
   return (
     <div className="flex-1 min-w-0 relative rounded-xl border border-gold/40 bg-gradient-to-b from-gold/10 to-gold/[0.03] overflow-hidden">
@@ -1358,7 +1317,7 @@ function DeepWorkCard({
           <IconBolt size={16} className="text-gold shrink-0" stroke={2} />
           <span className="flex-1 text-base font-semibold text-gold">Deep Work</span>
           <span className="text-[11px] font-semibold text-gold bg-gold/15 px-2 py-0.5 rounded-full tabular-nums">
-            {tasks.length ? `${doneCount}/${tasks.length}` : hours}
+            {tasks.length ? `${doneCount}/${tasks.length}` : fmtDuration(mins)}
           </span>
         </div>
       </button>
@@ -1381,6 +1340,12 @@ function DeepWorkCard({
                 <IconCheck size={12} stroke={3} />
               </button>
               <span
+                aria-hidden
+                className={`shrink-0 h-1.5 w-1.5 rounded-full ${
+                  t.priority ? PRIO_ACCENT[t.priority] : 'bg-border-focus'
+                }`}
+              />
+              <span
                 className={`flex-1 min-w-0 text-sm leading-snug break-words ${
                   t.is_completed ? 'line-through text-text-low' : 'text-text'
                 }`}
@@ -1401,6 +1366,124 @@ function DeepWorkCard({
         {rest > 0 ? `+${rest} more · tap to manage` : '+ Add task to this session'}
       </button>
     </div>
+  )
+}
+
+const sessionDone = (tasks?: Task[]) => (tasks ?? []).filter((t) => t.is_completed).length
+
+/** 135 → "2h 15m", 180 → "3h", 45 → "45 min". */
+function fmtDuration(mins: number): string {
+  if (mins < 60) return `${mins} min`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m ? `${h}h ${m}m` : `${h}h`
+}
+
+/**
+ * One task line inside a Deep Work sheet — deliberately the same shape as the
+ * main list's `TaskRow` (priority rail, square gold checkbox, tag + due chips)
+ * so a session reads as part of the app rather than a separate widget.
+ * Selecting mode (the picker) turns the whole row into one big tap target.
+ */
+function SessionTaskLine({
+  task,
+  selected,
+  onToggleDone,
+  onRemove,
+  onSelect,
+}: {
+  task: Task
+  selected?: boolean
+  onToggleDone?: () => void
+  onRemove?: () => void
+  onSelect?: () => void
+}) {
+  const cat = task.category ? TASK_CATEGORIES.find((c) => c.value === task.category) : null
+  const due = formatDueChip(task.due_date)
+  const checked = onSelect ? !!selected : task.is_completed
+
+  const body = (
+    <>
+      <span
+        aria-hidden
+        className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+          task.priority ? PRIO_ACCENT[task.priority] : 'bg-border'
+        }`}
+      />
+      {onSelect ? (
+        <span
+          aria-hidden
+          className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${
+            checked ? 'bg-gold/10 border-gold text-gold' : 'border-border-focus text-transparent'
+          }`}
+        >
+          <IconCheck size={14} stroke={3} />
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggleDone}
+          aria-label={checked ? 'Mark not done' : 'Mark done'}
+          className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${
+            checked
+              ? 'bg-gold/10 border-gold text-gold'
+              : 'border-border-focus text-transparent active:border-gold'
+          }`}
+        >
+          <IconCheck size={14} stroke={3} />
+        </button>
+      )}
+
+      <div className="flex-1 min-w-0">
+        <p
+          className={`text-base leading-snug break-words ${
+            !onSelect && checked ? 'text-text-low line-through' : 'text-text'
+          }`}
+        >
+          {task.title}
+        </p>
+        {(cat || due) && (
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            {cat && (
+              <span
+                className="text-[11px] leading-none px-1.5 py-0.5 rounded-md font-medium"
+                style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
+              >
+                {cat.label}
+              </span>
+            )}
+            {due && (
+              <span className={`text-xs ${due.overdue ? 'text-priority-high' : 'text-text-muted'}`}>
+                {due.text}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove from session"
+          className="mt-0.5 shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-text-low active:text-text active:bg-border/40 transition-colors"
+        >
+          <IconX size={16} />
+        </button>
+      )}
+    </>
+  )
+
+  const shell = `relative flex items-start gap-3 py-3 pl-5 pr-2 mb-2 rounded-xl overflow-hidden transition-colors ${
+    selected ? 'bg-gold/10 ring-1 ring-gold/40' : 'bg-surface'
+  }`
+
+  return onSelect ? (
+    <button type="button" onClick={onSelect} className={`${shell} w-full text-left active:bg-surface-elevated`}>
+      {body}
+    </button>
+  ) : (
+    <div className={shell}>{body}</div>
   )
 }
 
