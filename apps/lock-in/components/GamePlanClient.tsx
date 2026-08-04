@@ -1360,9 +1360,6 @@ function DeepWorkCard({
             {tasks.length ? `${doneCount}/${tasks.length}` : hours}
           </span>
         </div>
-        <p className="text-text-low text-xs mt-0.5">
-          {tasks.length ? `${hours} focus block` : `${hours} · empty — tap to fill`}
-        </p>
       </button>
 
       {preview.length > 0 && (

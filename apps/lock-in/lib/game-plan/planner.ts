@@ -121,9 +121,13 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
   // exactly like a flexible one — missing that is what let lunch sit before
   // exercise even with the rule in place.
   const mealStarts: number[] = []
+  // Lunch/dinner only (not breakfast) — the morning focus session has to land
+  // before these, and before the workout that gets anchored to them.
+  const mainMealStarts: number[] = []
 
   // Phase 1 — fixed-time routines, pinned.
   const out: ProposedBlock[] = []
+  const sessions: ProposedBlock[] = []
   for (const r of [...input.recurringFixed].sort(
     (a, b) => hmToMinutes(a.fixedTime) - hmToMinutes(b.fixedTime)
   )) {
@@ -131,8 +135,55 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const start = findNearestSlot(hmToMinutes(r.fixedTime), dur, occupied, winStart, winEnd)
     if (start == null) continue
     occupied.push([start, start + dur])
-    if (naturalMinutes(r.title) != null) mealStarts.push(start)
+    const natural = naturalMinutes(r.title)
+    if (natural != null) {
+      mealStarts.push(start)
+      if (natural >= 12 * 60) mainMealStarts.push(start)
+    }
     out.push(routineBlock(r.id, r.title, start, dur))
+  }
+
+  const addSession = (start: number, dur: number, breakAfter = true) => {
+    // Reserve the session plus a break, so two sessions never run back-to-back.
+    // A session that ends at a meal needs no break — the meal is the break, and
+    // reserving one would only shove lunch half an hour later.
+    occupied.push([start, Math.min(winEnd, start + dur + (breakAfter ? SESSION_BREAK : 0))])
+    const block: ProposedBlock = {
+      task_id: null,
+      recurring_id: null,
+      title: 'Deep Work',
+      start: toHM(start),
+      end: toHM(start + dur),
+      estimated_minutes: dur,
+      category: null,
+      priority: null,
+      kind: 'deep_work',
+    }
+    sessions.push(block)
+    out.push(block)
+  }
+
+  // **Protect the morning: one focus session before you train and eat.** Carved
+  // before the workout is placed, because the workout otherwise takes the whole
+  // pre-lunch stretch and leaves nothing big enough in front of it. Where a
+  // morning session and an exercise→lunch pairing can't both fit, this wins and
+  // the workout pairs with dinner instead — both orderings the user asked for.
+  if (input.deepWorkCount > 0) {
+    const plannedMeals = [
+      ...mainMealStarts,
+      ...(input.recurringFlex
+        .map((r) => naturalMinutes(r.title))
+        .filter((n): n is number => n != null && n >= 12 * 60)),
+    ]
+    const firstMeal = plannedMeals.length ? Math.min(...plannedMeals) : winEnd
+    const morning = freeGaps(occupied, winStart, winEnd)
+      .filter(([s, e]) => s < firstMeal && Math.min(e, firstMeal) - s >= input.deepWorkMinMinutes)
+      .sort((a, b) => a[0] - b[0])[0]
+    if (morning) {
+      const until = Math.min(morning[1], firstMeal)
+      const dur = Math.min(input.deepWorkMaxMinutes, until - morning[0])
+      addSession(morning[0], dur, morning[0] + dur < firstMeal)
+    }
   }
 
   // Phase 2 — flexible routines, longest first, before anything else competes.
@@ -164,6 +215,7 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     if (start == null) continue
     occupied.push([start, start + dur])
     mealStarts.push(start)
+    if ((naturalMinutes(r.title) as number) >= 12 * 60) mainMealStarts.push(start)
     out.push(routineBlock(r.id, r.title, start, dur))
   }
 
@@ -213,27 +265,15 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     out.push(routineBlock(r.id, r.title, start, dur))
   }
 
-  // Phase 3 — Deep Work sessions in the biggest stretches that are left.
-  for (let i = 0; i < Math.max(0, input.deepWorkCount); i++) {
+  // Phase 3 — top up to the requested number of sessions from the biggest
+  // stretches that are left (the morning one is already reserved above).
+  while (sessions.length < Math.max(0, input.deepWorkCount)) {
     const candidates = freeGaps(occupied, winStart, winEnd)
       .filter(([s, e]) => e - s >= input.deepWorkMinMinutes)
       .sort((a, b) => b[1] - b[0] - (a[1] - a[0]))
     if (candidates.length === 0) break
     const [gs, ge] = candidates[0]
-    const dur = Math.min(input.deepWorkMaxMinutes, ge - gs)
-    // Reserve the session plus a break, so two sessions never run back-to-back.
-    occupied.push([gs, Math.min(winEnd, gs + dur + SESSION_BREAK)])
-    out.push({
-      task_id: null,
-      recurring_id: null,
-      title: 'Deep Work',
-      start: toHM(gs),
-      end: toHM(gs + dur),
-      estimated_minutes: dur,
-      category: null,
-      priority: null,
-      kind: 'deep_work',
-    })
+    addSession(gs, Math.min(input.deepWorkMaxMinutes, ge - gs))
   }
 
   // Phase 4 — errands fill the remaining time, earliest gap that fits.
