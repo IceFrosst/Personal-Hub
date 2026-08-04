@@ -132,7 +132,10 @@ vanish on every replan. In the timeline a session renders as `DeepWorkCard`: gol
 **Both session sheets reuse the main list's visual language** via `SessionTaskLine` — the same
 priority rail, square gold checkbox and tag/due chips as `TaskRow`, sharing `PRIO_ACCENT` /
 `formatDueChip` with the Replace picker. The manage sheet lists the session's tasks (check off in
-place, ✕ to remove); the picker turns each row into one tap target with a gold tint + ring when
+place, ✕ to remove, **press-and-hold a row to drag it up or down** — the list reshuffles live and
+`POST session-tasks {order}` renumbers `position` on release; the checkbox and ✕ carry `data-no-drag`
+so they keep their taps, and rows deliberately don't set `touch-action:none` or the list would stop
+scrolling before a drag arms); the picker turns each row into one tap target with a gold tint + ring when
 selected. Both have grab handles, illustrated empty states and a full-width gold action button. Adding a one-off task from the Game Plan bar auto-assigns it to the current/next session
 (`insert.ts`); an errand still gets its own slot.
 
@@ -227,8 +230,6 @@ add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/du
   - **On a packed day no session fits** (routines + meetings leave no 2 h stretch) and the client
     just says so. Open question for the user: should Deep Work outrank *flexible* routines (so a
     session is guaranteed and e.g. a 2 h workout gets dropped instead)? Right now routines win.
-  - Reordering tasks **inside** a session isn't wired yet (`deep_work_items.position` exists and is
-    respected on read/write — only drag UI is missing).
   - "Let AI pick what fits" (one-tap fill of a session from open tasks) is designed but not built.
 - **Open (needs the user's call — don't just change defaults):**
   - **Planning window vs. evening routines.** Default is `09:00–18:00` (`DEFAULT_SETTINGS` in

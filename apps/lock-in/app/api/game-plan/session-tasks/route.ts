@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic'
  * Add or remove tasks in a Deep Work session. A session is just a container —
  * nothing here touches times or the calendar, so it's a plain DB write.
  *
- * body: { blockId, add?: string[], remove?: string[] }
+ * body: { blockId, add?: string[], remove?: string[], order?: string[] }
+ * `order` rewrites `position` for the whole session in one go (drag to reorder).
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -19,15 +20,18 @@ export async function POST(request: Request) {
   let blockId: string | undefined
   let add: string[] = []
   let remove: string[] = []
+  let order: string[] | null = null
   try {
     const body = (await request.json()) as {
       blockId?: string
       add?: string[]
       remove?: string[]
+      order?: string[]
     }
     blockId = body?.blockId
     add = Array.isArray(body?.add) ? body.add : []
     remove = Array.isArray(body?.remove) ? body.remove : []
+    order = Array.isArray(body?.order) ? body.order : null
   } catch {
     // fall through to the missing-block check
   }
@@ -77,6 +81,22 @@ export async function POST(request: Request) {
         })),
         { onConflict: 'block_id,task_id' }
       )
+  }
+
+  if (order && order.length > 0) {
+    // Renumber in the given order. Positions are only ever read back sorted, so
+    // a plain 0..n-1 rewrite is enough — no gaps to preserve.
+    await Promise.all(
+      order.map((taskId, position) =>
+        supabase
+          .schema('lock_in')
+          .from('deep_work_items')
+          .update({ position })
+          .eq('user_id', user.id)
+          .eq('block_id', blockId)
+          .eq('task_id', taskId)
+      )
+    )
   }
 
   const { data: items } = await supabase

@@ -337,6 +337,74 @@ export default function GamePlanClient() {
     [supabase, userId]
   )
 
+  // --- reorder tasks inside a session ------------------------------------
+  // Press and hold a row in the manage sheet to pick it up, then drag: the list
+  // reshuffles live and the new order is written to `position` on release.
+  const [dragItemId, setDragItemId] = useState<string | null>(null)
+  const itemHold = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const itemDrag = useRef<{ blockId: string; taskId: string } | null>(null)
+  const itemRefs = useRef(new Map<string, HTMLElement>())
+
+  function onItemDown(e: React.PointerEvent, blockId: string, taskId: string) {
+    // The checkbox and the remove button own their taps.
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    itemHold.current = setTimeout(() => {
+      itemDrag.current = { blockId, taskId }
+      setDragItemId(taskId)
+    }, 200)
+  }
+
+  function onItemMove(e: React.PointerEvent) {
+    if (!itemDrag.current) {
+      if (itemHold.current) clearTimeout(itemHold.current)
+      itemHold.current = null
+      return
+    }
+    const { blockId, taskId } = itemDrag.current
+    const list = sessionItems[blockId] ?? []
+    const from = list.findIndex((t) => t.id === taskId)
+    if (from < 0) return
+    // Which row is the finger over right now?
+    let to = -1
+    list.forEach((t, i) => {
+      const el = itemRefs.current.get(t.id)
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      if (e.clientY >= r.top && e.clientY <= r.bottom) to = i
+    })
+    if (to >= 0 && to !== from) {
+      const next = [...list]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      setSessionItems((prev) => ({ ...prev, [blockId]: next }))
+    }
+  }
+
+  const onItemUp = useCallback(() => {
+    if (itemHold.current) clearTimeout(itemHold.current)
+    itemHold.current = null
+    const d = itemDrag.current
+    itemDrag.current = null
+    setDragItemId(null)
+    if (!d) return
+    const order = (sessionItems[d.blockId] ?? []).map((t) => t.id)
+    if (order.length < 2) return
+    fetch('/api/game-plan/session-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockId: d.blockId, order }),
+    }).catch(() => setError('Couldn’t save the new order.'))
+  }, [sessionItems])
+
+  // Keep the page still while a row is held.
+  useEffect(() => {
+    if (!dragItemId) return
+    const stop = (e: TouchEvent) => e.preventDefault()
+    document.addEventListener('touchmove', stop, { passive: false })
+    return () => document.removeEventListener('touchmove', stop)
+  }, [dragItemId])
+
   // --- drag a tray task onto the day -------------------------------------
   // Press and hold a chip to lift it, drag over the timeline, release on a Deep
   // Work session to put it inside, or anywhere else on the day to give it its
@@ -1135,6 +1203,14 @@ export default function GamePlanClient() {
                   <SessionTaskLine
                     key={t.id}
                     task={t}
+                    dragging={dragItemId === t.id}
+                    innerRef={(el) => {
+                      if (el) itemRefs.current.set(t.id, el)
+                      else itemRefs.current.delete(t.id)
+                    }}
+                    onPointerDown={(e) => onItemDown(e, sessionSheet.id, t.id)}
+                    onPointerMove={onItemMove}
+                    onPointerUp={onItemUp}
                     onToggleDone={() => toggleSessionTask(sessionSheet.id, t)}
                     onRemove={() => removeFromSession(sessionSheet.id, t.id)}
                   />
@@ -1610,12 +1686,22 @@ function fmtDuration(mins: number): string {
 function SessionTaskLine({
   task,
   selected,
+  dragging,
+  innerRef,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
   onToggleDone,
   onRemove,
   onSelect,
 }: {
   task: Task
   selected?: boolean
+  dragging?: boolean
+  innerRef?: (el: HTMLElement | null) => void
+  onPointerDown?: (e: React.PointerEvent) => void
+  onPointerMove?: (e: React.PointerEvent) => void
+  onPointerUp?: () => void
   onToggleDone?: () => void
   onRemove?: () => void
   onSelect?: () => void
@@ -1644,6 +1730,7 @@ function SessionTaskLine({
       ) : (
         <button
           type="button"
+          data-no-drag
           onClick={onToggleDone}
           aria-label={checked ? 'Mark not done' : 'Mark done'}
           className={`mt-0.5 shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${
@@ -1683,9 +1770,16 @@ function SessionTaskLine({
         )}
       </div>
 
+      {onPointerDown && (
+        <span aria-hidden className="mt-2 shrink-0 text-text-low">
+          <IconGripVertical size={15} />
+        </span>
+      )}
+
       {onRemove && (
         <button
           type="button"
+          data-no-drag
           onClick={onRemove}
           aria-label="Remove from session"
           className="mt-0.5 shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-text-low active:text-text active:bg-border/40 transition-colors"
@@ -1698,6 +1792,10 @@ function SessionTaskLine({
 
   const shell = `relative flex items-start gap-3 py-3 pl-5 pr-2 mb-2 rounded-xl overflow-hidden transition-colors ${
     selected ? 'bg-gold/10 ring-1 ring-gold/40' : 'bg-surface'
+  } ${
+    dragging
+      ? 'ring-1 ring-border-focus shadow-[0_8px_24px_rgba(0,0,0,0.5)] scale-[1.02] bg-surface-elevated select-none'
+      : ''
   }`
 
   return onSelect ? (
@@ -1705,7 +1803,17 @@ function SessionTaskLine({
       {body}
     </button>
   ) : (
-    <div className={shell}>{body}</div>
+    <div
+      ref={innerRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onContextMenu={(e) => e.preventDefault()}
+      className={shell}
+    >
+      {body}
+    </div>
   )
 }
 
