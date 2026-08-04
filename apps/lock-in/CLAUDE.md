@@ -80,6 +80,9 @@ deterministic phases against one running `occupied` list, so the output **cannot
    breakfast 08:30, lunch 13:00, dinner/supper 19:00) → **workouts** (`isWorkout`) placed to *end
    exactly when a meal starts*, so the day always reads **exercise → lunch** or **exercise →
    dinner** → everything else longest-first into the **roomiest** gap.
+   **Meal times are collected from *both* fixed and flexible routines** (`mealStarts` is filled in
+   phase 1 as well as phase 2) — the user's Lunch/Dinner are **fixed** routines, and only counting
+   the flexible ones left the workout with nothing to anchor to, which put lunch before exercise.
    **You eat after you train — a meal never comes directly before a workout.** When a calendar event
    makes adjacency impossible, the workout still goes in the roomiest gap that finishes *before* a
    meal, so the ordering survives. (This rule used to live in the AI prompt and was lost when that

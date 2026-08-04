@@ -116,6 +116,12 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     .map((b) => [hmToMinutes(b.start), hmToMinutes(b.end)] as [number, number])
     .filter(([s, e]) => e > s)
 
+  // Where the day's meals land, whether they were pinned or auto-placed. The
+  // workout anchors to these, so a meal set as a **fixed** routine has to count
+  // exactly like a flexible one — missing that is what let lunch sit before
+  // exercise even with the rule in place.
+  const mealStarts: number[] = []
+
   // Phase 1 — fixed-time routines, pinned.
   const out: ProposedBlock[] = []
   for (const r of [...input.recurringFixed].sort(
@@ -125,6 +131,7 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const start = findNearestSlot(hmToMinutes(r.fixedTime), dur, occupied, winStart, winEnd)
     if (start == null) continue
     occupied.push([start, start + dur])
+    if (naturalMinutes(r.title) != null) mealStarts.push(start)
     out.push(routineBlock(r.id, r.title, start, dur))
   }
 
@@ -145,7 +152,6 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     .filter((r) => naturalMinutes(r.title) == null && !isWorkout(r.title))
     .sort((a, b) => b.durationMinutes - a.durationMinutes)
 
-  const mealStarts: number[] = []
   for (const r of meals) {
     const dur = Math.max(5, r.durationMinutes)
     const start = findNearestSlot(
