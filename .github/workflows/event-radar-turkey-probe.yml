@@ -36,6 +36,9 @@ jobs:
       - name: Probe Codemotion markup
         run: node apps/event-radar/scripts/probe-codemotion.mjs
 
+      - name: Audit source pagination caps
+        run: node apps/event-radar/scripts/probe-source-caps.mjs
+
       - name: Upload probe reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,4 +47,5 @@ jobs:
           path: |
             turkey-sources-probe.json
             eu-coverage-probe.json
+            source-cap-audit.json
           retention-days: 30
