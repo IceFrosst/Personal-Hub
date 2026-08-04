@@ -9,6 +9,7 @@ import {
   IconBrandGoogle,
   IconCalendarBolt,
   IconCheck,
+  IconGripVertical,
   IconLock,
   IconPencil,
   IconPlus,
@@ -60,6 +61,13 @@ export default function GamePlanClient() {
   const [pickerFor, setPickerFor] = useState<PlanBlock | null>(null)
   const [pickerTasks, setPickerTasks] = useState<Task[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  // Tasks created here that haven't been placed yet — they wait in a tray under
+  // the day until you drag them onto it or into a session.
+  const [unscheduled, setUnscheduled] = useState<Task[]>([])
+  const [dragTask, setDragTask] = useState<Task | null>(null)
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [placing, setPlacing] = useState(false)
   // Long-press on a block opens an action sheet; Edit opens the shared editor.
   const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -73,6 +81,24 @@ export default function GamePlanClient() {
   const activeDate = useMemo(
     () => addDays(todayStr, DAY_OFFSET[day]),
     [day, todayStr]
+  )
+
+  /** Open tasks with nowhere to be yet: no block of their own, no session. */
+  const refreshUnscheduled = useCallback(
+    async (uid: string, rows: PlanBlock[], grouped: Record<string, Task[]>) => {
+      const scheduled = new Set(rows.map((b) => b.task_id).filter(Boolean) as string[])
+      const inSession = new Set(Object.values(grouped).flat().map((t) => t.id))
+      const { data } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('is_completed', false)
+      setUnscheduled(
+        ((data ?? []) as Task[]).filter((t) => !scheduled.has(t.id) && !inSession.has(t.id))
+      )
+    },
+    [supabase]
   )
 
   const loadBlocks = useCallback(
@@ -91,6 +117,7 @@ export default function GamePlanClient() {
       const sessionIds = rows.filter((b) => b.kind === 'deep_work').map((b) => b.id)
       if (sessionIds.length === 0) {
         setSessionItems({})
+        await refreshUnscheduled(uid, rows, {})
         return
       }
       const { data: items } = await supabase
@@ -112,8 +139,9 @@ export default function GamePlanClient() {
         ;(grouped[it.block_id] ??= []).push(t)
       }
       setSessionItems(grouped)
+      await refreshUnscheduled(uid, rows, grouped)
     },
-    [supabase]
+    [supabase, refreshUnscheduled]
   )
 
   useEffect(() => {
@@ -289,11 +317,132 @@ export default function GamePlanClient() {
         return
       }
       setError(null)
-      setMessage(`“${title}” added — scheduling…`)
-      if (data?.id) await fitTaskIntoPlan(data.id as string, title)
+      setMessage(null)
+      // Don't place it — it drops into the tray under the day, and you decide
+      // whether it belongs in a session or gets a slot of its own.
+      if (data?.id) {
+        setUnscheduled((prev) => [
+          ...prev,
+          {
+            id: data.id as string,
+            title,
+            priority,
+            due_date: dueDate,
+            category,
+            is_completed: false,
+          } as Task,
+        ])
+      }
     },
-    [supabase, userId, fitTaskIntoPlan]
+    [supabase, userId]
   )
+
+  // --- drag a tray task onto the day -------------------------------------
+  // Press and hold a chip to lift it, drag over the timeline, release on a Deep
+  // Work session to put it inside, or anywhere else on the day to give it its
+  // own slot. Hit-testing is done with elementFromPoint against `data-drop`
+  // markers so the drop zones stay declarative.
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dragRef = useRef<Task | null>(null)
+
+  const hitTest = useCallback((x: number, y: number) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null
+    setDropTarget(el?.closest('[data-drop]')?.getAttribute('data-drop') ?? null)
+  }, [])
+
+  // While a chip is held, swallow touchmove so the page doesn't scroll under it.
+  useEffect(() => {
+    if (!dragTask) return
+    const stop = (e: TouchEvent) => e.preventDefault()
+    document.addEventListener('touchmove', stop, { passive: false })
+    return () => document.removeEventListener('touchmove', stop)
+  }, [dragTask])
+
+  function onChipDown(e: React.PointerEvent, task: Task) {
+    const { clientX: x, clientY: y } = e
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    holdRef.current = setTimeout(() => {
+      dragRef.current = task
+      setDragTask(task)
+      setDragPos({ x, y })
+      hitTest(x, y)
+    }, 220)
+  }
+
+  function onChipMove(e: React.PointerEvent) {
+    if (!dragRef.current) {
+      // Moved before the hold armed — treat it as a scroll, not a drag.
+      if (holdRef.current) clearTimeout(holdRef.current)
+      holdRef.current = null
+      return
+    }
+    setDragPos({ x: e.clientX, y: e.clientY })
+    hitTest(e.clientX, e.clientY)
+  }
+
+  /** Drop a tray task into a Deep Work session. */
+  const placeInSession = useCallback(
+    async (task: Task, blockId: string) => {
+      setUnscheduled((prev) => prev.filter((t) => t.id !== task.id))
+      setSessionItems((prev) => ({ ...prev, [blockId]: [...(prev[blockId] ?? []), task] }))
+      const res = await fetch('/api/game-plan/session-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockId, add: [task.id] }),
+      })
+      if (!res.ok) {
+        setError('Couldn’t add that to the session.')
+        if (userId) await loadBlocks(userId, activeDate)
+      }
+    },
+    [userId, activeDate, loadBlocks]
+  )
+
+  /** Drop a tray task onto the day itself — it gets a time block of its own. */
+  const placeInDay = useCallback(
+    async (task: Task) => {
+      setPlacing(true)
+      setUnscheduled((prev) => prev.filter((t) => t.id !== task.id))
+      try {
+        const res = await fetch('/api/game-plan/insert-task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: task.id, day, providerToken }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError('Couldn’t fit that into the day.')
+        } else if (data.inserted) {
+          setMessage(
+            `“${data.inserted.title}” at ${data.inserted.start}–${data.inserted.end}${
+              data.pastHours ? ' (past your work hours)' : ''
+            }.`
+          )
+        }
+      } catch {
+        setError('Couldn’t fit that into the day.')
+      } finally {
+        setPlacing(false)
+        if (userId) await loadBlocks(userId, activeDate)
+      }
+    },
+    [day, providerToken, userId, activeDate, loadBlocks]
+  )
+
+  const endDrag = useCallback(() => {
+    if (holdRef.current) clearTimeout(holdRef.current)
+    holdRef.current = null
+    const task = dragRef.current
+    const target = dropTarget
+    dragRef.current = null
+    setDragTask(null)
+    setDragPos(null)
+    setDropTarget(null)
+    if (!task || !target) return
+    if (target.startsWith('session:')) placeInSession(task, target.slice('session:'.length))
+    else if (target === 'day') placeInDay(task)
+  }, [dropTarget, placeInSession, placeInDay])
+
 
   // Create a routine from Game Plan → same table as the main list.
   const addRecurring = useCallback(
@@ -866,12 +1015,55 @@ export default function GamePlanClient() {
             <Timeline
               blocks={blocks}
               sessionItems={sessionItems}
+              dragging={!!dragTask}
+              dropTarget={dropTarget}
               onToggleDone={toggleBlockDone}
               onToggleSessionTask={toggleSessionTask}
               onOpenSession={setSessionSheet}
               onReorder={reorderBlocks}
               onLongPress={onBlockLongPress}
             />
+
+            {/* Not placed yet — drag a chip onto the day or into a session. */}
+            {day !== 'yesterday' && unscheduled.length > 0 && (
+              <div className="mt-1">
+                <div className="flex items-center gap-2 px-1 mb-2">
+                  <p className="text-text-low text-[11px] uppercase tracking-wide font-semibold">
+                    Not scheduled
+                  </p>
+                  <span className="text-text-low text-[11px]">
+                    {dragTask ? 'drop on the day or a session' : 'hold to drag onto your day'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {unscheduled.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onPointerDown={(e) => onChipDown(e, t)}
+                      onPointerMove={onChipMove}
+                      onPointerUp={endDrag}
+                      onPointerCancel={endDrag}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className={`relative max-w-full flex items-center gap-2 pl-3.5 pr-3 py-2 rounded-xl border overflow-hidden text-left select-none transition-opacity ${
+                        dragTask?.id === t.id
+                          ? 'opacity-30 border-border bg-surface'
+                          : 'bg-surface border-border active:bg-surface-elevated'
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`absolute left-0 top-0 bottom-0 w-1 ${
+                          t.priority ? PRIO_ACCENT[t.priority] : 'bg-border-focus'
+                        }`}
+                      />
+                      <IconGripVertical size={14} className="text-text-low shrink-0" />
+                      <span className="text-sm text-text truncate">{t.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Add task / routine directly from Game Plan → same tables as main list.
                 Lives at the bottom, below the planned day. */}
@@ -883,6 +1075,27 @@ export default function GamePlanClient() {
           </>
         )}
       </div>
+
+      {/* The chip riding the finger while dragging */}
+      {dragTask && dragPos && (
+        <div
+          className="fixed z-[60] pointer-events-none -translate-x-1/2 -translate-y-1/2"
+          style={{ left: dragPos.x, top: dragPos.y }}
+        >
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-gold/60 shadow-[0_8px_24px_rgba(0,0,0,0.5)] max-w-[240px]">
+            <IconGripVertical size={14} className="text-gold shrink-0" />
+            <span className="text-sm text-text truncate">{dragTask.title}</span>
+          </div>
+        </div>
+      )}
+
+      {placing && (
+        <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center pointer-events-none">
+          <span className="text-xs text-text-muted bg-surface-elevated border border-border rounded-full px-3 py-1.5">
+            Finding a slot…
+          </span>
+        </div>
+      )}
 
       {/* Manage a Deep Work session */}
       {sessionSheet && (
@@ -1293,11 +1506,13 @@ function DeepWorkCard({
   tasks,
   onToggleTask,
   onOpen,
+  dropActive,
 }: {
   block: PlanBlock
   tasks: Task[]
   onToggleTask: (blockId: string, t: Task) => void
   onOpen: (b: PlanBlock) => void
+  dropActive?: boolean
 }) {
   const doneCount = tasks.filter((t) => t.is_completed).length
   const preview = tasks.slice(0, SESSION_PREVIEW)
@@ -1305,7 +1520,14 @@ function DeepWorkCard({
   const mins = block.estimated_minutes ?? 0
 
   return (
-    <div className="flex-1 min-w-0 relative rounded-xl border border-gold/40 bg-gradient-to-b from-gold/10 to-gold/[0.03] overflow-hidden">
+    <div
+      data-drop={`session:${block.id}`}
+      className={`flex-1 min-w-0 relative rounded-xl border overflow-hidden transition-colors ${
+        dropActive
+          ? 'border-gold bg-gold/20 ring-2 ring-gold/60'
+          : 'border-gold/40 bg-gradient-to-b from-gold/10 to-gold/[0.03]'
+      }`}
+    >
       <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 bg-gold" />
       <button
         type="button"
@@ -1490,6 +1712,8 @@ function SessionTaskLine({
 function Timeline({
   blocks,
   sessionItems,
+  dragging,
+  dropTarget,
   onToggleDone,
   onToggleSessionTask,
   onOpenSession,
@@ -1498,6 +1722,8 @@ function Timeline({
 }: {
   blocks: PlanBlock[]
   sessionItems: Record<string, Task[]>
+  dragging: boolean
+  dropTarget: string | null
   onToggleDone: (b: PlanBlock) => void
   onToggleSessionTask: (blockId: string, t: Task) => void
   onOpenSession: (b: PlanBlock) => void
@@ -1644,7 +1870,16 @@ function Timeline({
   }
 
   return (
-    <section className="flex flex-col mt-1">
+    <section
+      data-drop="day"
+      className={`flex flex-col mt-1 rounded-2xl transition-colors ${
+        dragging
+          ? dropTarget === 'day'
+            ? 'ring-2 ring-gold/60 bg-gold/[0.06]'
+            : 'ring-1 ring-dashed ring-border-focus'
+          : ''
+      }`}
+    >
       {order.map((id) => {
         const b = byId.get(id)
         if (!b) return null
@@ -1694,6 +1929,7 @@ function Timeline({
                   tasks={sessionItems[b.id] ?? []}
                   onToggleTask={onToggleSessionTask}
                   onOpen={onOpenSession}
+                  dropActive={dropTarget === `session:${b.id}`}
                 />
               ) : (
               <div

@@ -59,10 +59,18 @@ tag) lives at the **bottom** of the Game Plan page (today/tomorrow only), below 
 Creating a task or routine here writes to the same tables as the main list (`focus_gate.tasks` /
 `lock_in.recurring_tasks`), so it appears in the real to-do list immediately.
 
-**Fit it in** (one-off tasks only) — adding a one-off task from the Game Plan bar **automatically**
-slots it into the existing plan (no button): a *non-destructive* insert that places just that task
-**without moving anything already there** (no full replan). `addTask` awaits `fitTaskIntoPlan` right
-after the insert; the add-bar spinner covers both. `POST /api/game-plan/insert-task` →
+**Adding a task drops it in the "Not scheduled" tray, not into the plan.** A task created on the
+Game Plan tab is deliberately *not* placed (this replaced the old auto-fit-on-add — the two can't
+coexist, an auto-placed task never reaches a tray). It appears as a chip under the day, and you
+**press-and-hold (~220 ms) to lift it and drag**: drop on a **Deep Work session** to put it inside
+(`session-tasks`), or anywhere else on the **day** to give it a slot of its own (`insert-task`).
+The tray lists every open task that has neither a block nor a session, so it doubles as the "what
+still needs a home" list. Drop zones are declarative `data-drop` markers (`day`, `session:<id>`)
+hit-tested with `elementFromPoint`; a non-passive `touchmove` listener stops the page scrolling
+while a chip is held, and a `pointer-events:none` ghost follows the finger.
+
+**`insert-task`** (the drag-onto-the-day path) — a *non-destructive* insert that places just that
+task **without moving anything already there** (no full replan). `POST /api/game-plan/insert-task` →
 `insertTaskIntoPlan` (`lib/game-plan/insert.ts`): busy = the day's existing `plan_blocks` (planned +
 locked) **plus** a fresh `listDayEvents` read (covers a never-planned day); duration is
 `estimateTaskMinutes` (Gemini from the title, `planner.ts`; priority default fallback). It places the
