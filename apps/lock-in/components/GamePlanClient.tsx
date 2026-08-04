@@ -23,6 +23,7 @@ import { addDays, todayInTz } from '@/lib/game-plan/time'
 import {
   TASK_CATEGORIES,
   type Priority,
+  type TaskPriority,
   type RecurringTask,
   type Task,
   type TaskCategory,
@@ -265,7 +266,7 @@ export default function GamePlanClient() {
   const addTask = useCallback(
     async (
       title: string,
-      priority: Priority,
+      priority: TaskPriority,
       dueDate: string | null,
       category: TaskCategory | null
     ) => {
@@ -585,7 +586,12 @@ export default function GamePlanClient() {
   const saveTaskEdit = useCallback(
     async (
       task: Task,
-      updates: { title: string; priority: Priority; due_date: string | null; category: TaskCategory | null }
+      updates: {
+        title: string
+        priority: TaskPriority
+        due_date: string | null
+        category: TaskCategory | null
+      }
     ) => {
       setEditTask(null)
       setBlocks((prev) =>
@@ -1134,7 +1140,9 @@ export default function GamePlanClient() {
                     >
                       <span
                         aria-hidden
-                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${PRIO_ACCENT[t.priority]}`}
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                          t.priority ? PRIO_ACCENT[t.priority] : 'bg-border'
+                        }`}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-base leading-snug break-words text-text">{t.title}</p>

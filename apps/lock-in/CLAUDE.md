@@ -76,15 +76,24 @@ the whole day; **Fit it in** is the keep-everything alternative.)
 blocks** instead of time-boxing every task. `planDay` (`lib/game-plan/planner.ts`) runs four
 deterministic phases against one running `occupied` list, so the output **cannot** double-book:
 1. **Fixed-time routines** pinned to their clock time (nearest free slot if busy).
-2. **Flexible routines** — meals first, near their natural hour (`naturalMinutes`: breakfast 08:30,
-   lunch 13:00, dinner/supper 19:00), then everything else longest-first into the **roomiest** gap.
-   (Packing them from the top of the day stacked lunch + dinner back-to-back at 10:45.)
+2. **Flexible routines**, in this order: **meals** near their natural hour (`naturalMinutes`:
+   breakfast 08:30, lunch 13:00, dinner/supper 19:00) → **workouts** (`isWorkout`) placed to *end
+   exactly when a meal starts*, so the day always reads **exercise → lunch** or **exercise →
+   dinner** → everything else longest-first into the **roomiest** gap.
+   **You eat after you train — a meal never comes directly before a workout.** When a calendar event
+   makes adjacency impossible, the workout still goes in the roomiest gap that finishes *before* a
+   meal, so the ordering survives. (This rule used to live in the AI prompt and was lost when that
+   pass was deleted — it is now deterministic. Don't drop it again.)
 3. **Deep Work sessions** — up to `plan_settings.deep_work_count` (default 2), carved from the
    biggest remaining stretches, clamped to `deep_work_min/max_minutes` (120/240), each reserving a
    30 min `SESSION_BREAK` after it so two sessions are never back-to-back. `kind = 'deep_work'`,
    one calendar event titled "Deep Work". **They start empty** — tasks go in by hand.
 4. **Errands** — only `social` / `other` tasks (`isErrand`) get a slot of their own; focus work is
    never time-boxed, it lives in a session. Duration is the priority default.
+   **A task with no priority (`priority = null`) is never auto-scheduled at all** — it stays a plain
+   to-do on the list and can still be dropped into a session by hand. `priority` is nullable and its
+   CHECK passes on NULL, so this needed no migration. `priorityRank()` sorts null below Low; the row
+   accent is a muted rail; "None" is the first chip in `AddTaskBar` / `EditTaskSheet`.
 
 There is **no model call in the planning path** — which is why the old `geminiSchedule` / `sanitize`
 / `geminiOrder` / `reflowByOrder` passes are gone, along with the whole class of overlap bugs they

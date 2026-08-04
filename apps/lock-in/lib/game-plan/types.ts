@@ -69,7 +69,8 @@ export interface DeepWorkItem {
 export interface PlannableTask {
   id: string
   title: string
-  priority: 'low' | 'medium' | 'high'
+  /** null = "no priority": never auto-scheduled. */
+  priority: 'low' | 'medium' | 'high' | null
   due_date: string | null
   category: TaskCategory | null
 }

@@ -11,11 +11,13 @@ type Props = {
   completing?: boolean
 }
 
-const PRIORITY_ACCENT: Record<Task['priority'], string> = {
+const PRIORITY_ACCENT: Record<'low' | 'medium' | 'high', string> = {
   low: 'bg-prio-low',
   medium: 'bg-prio-medium',
   high: 'bg-prio-high',
 }
+/** No priority = a muted rail, so it reads as "not triaged" at a glance. */
+const NO_PRIORITY_ACCENT = 'bg-border'
 
 function formatDueChip(due: string | null): { text: string; overdue: boolean } | null {
   if (!due) return null
@@ -82,7 +84,9 @@ export default function TaskRow({ task, onToggle, onLongPress, completing }: Pro
     >
       <span
         aria-hidden
-        className={`absolute left-0 top-0 bottom-0 w-1.5 ${PRIORITY_ACCENT[task.priority]}`}
+        className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+          task.priority ? PRIORITY_ACCENT[task.priority] : NO_PRIORITY_ACCENT
+        }`}
       />
 
       <button

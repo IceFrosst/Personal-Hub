@@ -11,8 +11,9 @@ import EditTaskSheet from '@/components/EditTaskSheet'
 import EditRecurringSheet, { type RecurringUpdate } from '@/components/EditRecurringSheet'
 import LockInLogo from '@/components/LockInLogo'
 import {
-  PRIORITY_RANK,
+  priorityRank,
   type Priority,
+  type TaskPriority,
   type RecurringCompletion,
   type RecurringTask,
   type Task,
@@ -22,7 +23,7 @@ import { currentStreak, isDueOnWeekday, isoWeekday, localDateKey } from '@/lib/r
 
 function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
-    const p = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority]
+    const p = priorityRank(b.priority) - priorityRank(a.priority)
     if (p !== 0) return p
     if (a.due_date && b.due_date) {
       if (a.due_date !== b.due_date) return a.due_date < b.due_date ? -1 : 1
@@ -121,7 +122,7 @@ export default function HomePage() {
   const addTask = useCallback(
     async (
       title: string,
-      priority: Priority,
+      priority: TaskPriority,
       dueDate: string | null,
       category: TaskCategory | null
     ) => {
@@ -246,7 +247,7 @@ export default function HomePage() {
       task: Task,
       updates: {
         title: string
-        priority: Priority
+        priority: TaskPriority
         due_date: string | null
         category: TaskCategory | null
       }

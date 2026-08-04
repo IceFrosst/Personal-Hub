@@ -86,7 +86,9 @@ const SESSION_BREAK = 30
  * errands and appointments. Everything else (focus work) lives inside a Deep
  * Work session, added by hand — so it is deliberately not time-boxed here.
  */
-export function isErrand(task: { category: string | null }): boolean {
+export function isErrand(task: { category: string | null; priority: string | null }): boolean {
+  // No priority = a plain to-do the planner never places on its own.
+  if (task.priority == null) return false
   return task.category === 'social' || task.category === 'other'
 }
 
@@ -135,15 +137,16 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
   const flex = [...input.recurringFlex]
   // Meals belong at meal times. Place those near their natural hour first, so a
   // long routine can't take the lunch slot and leave you eating at 10:45.
-  // Anything else spreads into whatever is roomiest, longest first.
-  const mealFirst = flex
+  const meals = flex
     .filter((r) => naturalMinutes(r.title) != null)
     .sort((a, b) => (naturalMinutes(a.title) as number) - (naturalMinutes(b.title) as number))
+  const workouts = flex.filter((r) => naturalMinutes(r.title) == null && isWorkout(r.title))
   const theRest = flex
-    .filter((r) => naturalMinutes(r.title) == null)
+    .filter((r) => naturalMinutes(r.title) == null && !isWorkout(r.title))
     .sort((a, b) => b.durationMinutes - a.durationMinutes)
 
-  for (const r of mealFirst) {
+  const mealStarts: number[] = []
+  for (const r of meals) {
     const dur = Math.max(5, r.durationMinutes)
     const start = findNearestSlot(
       naturalMinutes(r.title) as number,
@@ -154,8 +157,45 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     )
     if (start == null) continue
     occupied.push([start, start + dur])
+    mealStarts.push(start)
     out.push(routineBlock(r.id, r.title, start, dur))
   }
+
+  // **You eat after you train.** A workout is placed to finish exactly when a
+  // meal begins, so the day reads "exercise → lunch" or "exercise → dinner" —
+  // never a meal straight before training, and never a workout stranded between
+  // two focus blocks. Falls back to the roomiest gap only if no meal has room
+  // in front of it.
+  for (const r of workouts) {
+    const dur = Math.max(5, r.durationMinutes)
+    let start: number | null = null
+    for (const mealStart of [...mealStarts].sort((a, b) => a - b)) {
+      const from = mealStart - dur
+      if (from < winStart) continue
+      const fits = freeGaps(occupied, winStart, winEnd).some(([s, e]) => s <= from && e >= mealStart)
+      if (fits) {
+        start = from
+        break
+      }
+    }
+    if (start == null) {
+      // Nothing sits directly in front of a meal (a meeting is usually in the
+      // way). Keep the *order* even when adjacency is impossible: prefer the
+      // roomiest gap that still finishes before a meal, so you never train
+      // after your last meal of the day.
+      const roomy = freeGaps(occupied, winStart, winEnd)
+        .filter(([s, e]) => e - s >= dur)
+        .sort((a, b) => b[1] - b[0] - (a[1] - a[0]))
+      if (roomy.length === 0) continue
+      const lastMeal = mealStarts.length ? Math.max(...mealStarts) : null
+      const beforeAMeal =
+        lastMeal == null ? undefined : roomy.find(([s]) => s + dur <= lastMeal)
+      start = (beforeAMeal ?? roomy[0])[0]
+    }
+    occupied.push([start, start + dur])
+    out.push(routineBlock(r.id, r.title, start, dur))
+  }
+
   for (const r of theRest) {
     const dur = Math.max(5, r.durationMinutes)
     const roomy = freeGaps(occupied, winStart, winEnd)
@@ -195,7 +235,7 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const overdue = (t: PlannableTask) => (t.due_date && t.due_date <= input.today ? 1 : 0)
     if (overdue(a) !== overdue(b)) return overdue(b) - overdue(a)
     const rank = { high: 3, medium: 2, low: 1 } as const
-    return rank[b.priority] - rank[a.priority]
+    return rank[b.priority ?? 'medium'] - rank[a.priority ?? 'medium']
   })
   for (const t of errands) {
     const dur = DEFAULT_MINUTES[t.priority ?? 'medium']
@@ -233,6 +273,11 @@ function naturalMinutes(title: string): number | null {
   if (/\blunch\b/.test(t)) return 13 * 60
   if (/\b(dinner|supper)\b/.test(t)) return 19 * 60
   return null
+}
+
+/** A training routine — the one thing a meal must follow, never precede. */
+function isWorkout(title: string): boolean {
+  return /\b(exercise|workout|work out|gym|training|run|running|lift|lifting|cardio)\b/i.test(title)
 }
 
 function routineBlock(id: string, title: string, start: number, dur: number): ProposedBlock {

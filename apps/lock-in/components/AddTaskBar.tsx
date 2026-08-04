@@ -16,6 +16,7 @@ import {
   TASK_CATEGORIES,
   WEEKDAY_LABELS,
   type Priority,
+  type TaskPriority,
   type TaskCategory,
   type TimeMode,
 } from '@/lib/types'
@@ -30,7 +31,7 @@ export type RecurringDraft = {
 type Props = {
   onAdd: (
     title: string,
-    priority: Priority,
+    priority: TaskPriority,
     dueDate: string | null,
     category: TaskCategory | null
   ) => Promise<void> | void
@@ -38,7 +39,9 @@ type Props = {
   disabled?: boolean
 }
 
-const PRIORITY_OPTIONS: { value: Priority; label: string; dot: string }[] = [
+// `null` = "no priority": a plain to-do the Game Plan never schedules on its own.
+const PRIORITY_OPTIONS: { value: TaskPriority; label: string; dot: string }[] = [
+  { value: null, label: 'None', dot: 'bg-border' },
   { value: 'low', label: 'Low', dot: 'bg-prio-low' },
   { value: 'medium', label: 'Med', dot: 'bg-prio-medium' },
   { value: 'high', label: 'High', dot: 'bg-prio-high' },
@@ -76,7 +79,7 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
 
 export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
   const [title, setTitle] = useState('')
-  const [priority, setPriority] = useState<Priority>('medium')
+  const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueDate, setDueDate] = useState<string | null>(null)
   const [category, setCategory] = useState<TaskCategory | null>(null)
   const [showTagModal, setShowTagModal] = useState(false)
@@ -272,7 +275,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
                 const active = priority === opt.value
                 return (
                   <button
-                    key={opt.value}
+                    key={opt.label}
                     type="button"
                     onClick={() => setPriority(opt.value)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${

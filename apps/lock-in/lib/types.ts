@@ -1,5 +1,12 @@
 export type Priority = 'low' | 'medium' | 'high'
 
+/**
+ * A task's priority, or `null` for "no priority" — a plain to-do the Game Plan
+ * never schedules on its own. It still shows on the list and can be dropped into
+ * a Deep Work session by hand; it just never claims a slot by itself.
+ */
+export type TaskPriority = Priority | null
+
 export type TaskCategory = 'work' | 'hustle' | 'social' | 'other'
 
 // Tag options for one-off tasks. Colors are inline hex (the Lock In theme is
@@ -20,7 +27,7 @@ export interface Task {
   created_at: string
   last_suggested_at: string | null
   suggestion_count: number
-  priority: Priority
+  priority: TaskPriority
   due_date: string | null
   category: TaskCategory | null
   /** Excluded from Game Plan scheduling before this date ("continue tomorrow"). */
@@ -31,6 +38,11 @@ export const PRIORITY_RANK: Record<Priority, number> = {
   high: 3,
   medium: 2,
   low: 1,
+}
+
+/** Sort weight for any priority — "no priority" sinks below Low. */
+export function priorityRank(p: TaskPriority): number {
+  return p ? PRIORITY_RANK[p] : 0
 }
 
 export type TimeMode = 'fixed' | 'flexible'

@@ -2,20 +2,27 @@
 
 import { useRef, useState } from 'react'
 import { IconCalendar } from '@tabler/icons-react'
-import { TASK_CATEGORIES, type Priority, type Task, type TaskCategory } from '@/lib/types'
+import {
+  TASK_CATEGORIES,
+  type Priority,
+  type Task,
+  type TaskCategory,
+  type TaskPriority,
+} from '@/lib/types'
 
 type Props = {
   task: Task
   onSave: (updates: {
     title: string
-    priority: Priority
+    priority: TaskPriority
     due_date: string | null
     category: TaskCategory | null
   }) => Promise<void> | void
   onClose: () => void
 }
 
-const PRIORITY_OPTIONS: { value: Priority; label: string; dot: string }[] = [
+const PRIORITY_OPTIONS: { value: TaskPriority; label: string; dot: string }[] = [
+  { value: null, label: 'None', dot: 'bg-border' },
   { value: 'low', label: 'Low', dot: 'bg-prio-low' },
   { value: 'medium', label: 'Med', dot: 'bg-prio-medium' },
   { value: 'high', label: 'High', dot: 'bg-prio-high' },
@@ -36,7 +43,7 @@ function formatChip(value: string | null): string {
 
 export default function EditTaskSheet({ task, onSave, onClose }: Props) {
   const [title, setTitle] = useState(task.title)
-  const [priority, setPriority] = useState<Priority>(task.priority)
+  const [priority, setPriority] = useState<TaskPriority>(task.priority)
   const [dueDate, setDueDate] = useState<string | null>(task.due_date)
   const [category, setCategory] = useState<TaskCategory | null>(task.category)
   const [saving, setSaving] = useState(false)
@@ -90,7 +97,7 @@ export default function EditTaskSheet({ task, onSave, onClose }: Props) {
               const active = priority === opt.value
               return (
                 <button
-                  key={opt.value}
+                  key={opt.label}
                   type="button"
                   onClick={() => setPriority(opt.value)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
