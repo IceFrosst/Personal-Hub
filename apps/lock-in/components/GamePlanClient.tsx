@@ -61,9 +61,10 @@ export default function GamePlanClient() {
   const [pickerFor, setPickerFor] = useState<PlanBlock | null>(null)
   const [pickerTasks, setPickerTasks] = useState<Task[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  // Tasks created here that haven't been placed yet — they wait in a tray under
-  // the day until you drag them onto it or into a session.
-  const [unscheduled, setUnscheduled] = useState<Task[]>([])
+  // Only tasks created right here, still waiting to be placed. Deliberately not
+  // backfilled from the DB: the tray is the tail end of "I just added this",
+  // not a second copy of the task list.
+  const [justAdded, setJustAdded] = useState<Task[]>([])
   const [dragTask, setDragTask] = useState<Task | null>(null)
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
@@ -83,24 +84,6 @@ export default function GamePlanClient() {
     [day, todayStr]
   )
 
-  /** Open tasks with nowhere to be yet: no block of their own, no session. */
-  const refreshUnscheduled = useCallback(
-    async (uid: string, rows: PlanBlock[], grouped: Record<string, Task[]>) => {
-      const scheduled = new Set(rows.map((b) => b.task_id).filter(Boolean) as string[])
-      const inSession = new Set(Object.values(grouped).flat().map((t) => t.id))
-      const { data } = await supabase
-        .schema('focus_gate')
-        .from('tasks')
-        .select('*')
-        .eq('user_id', uid)
-        .eq('is_completed', false)
-      setUnscheduled(
-        ((data ?? []) as Task[]).filter((t) => !scheduled.has(t.id) && !inSession.has(t.id))
-      )
-    },
-    [supabase]
-  )
-
   const loadBlocks = useCallback(
     async (uid: string, dateKey: string) => {
       const { data } = await supabase
@@ -117,7 +100,6 @@ export default function GamePlanClient() {
       const sessionIds = rows.filter((b) => b.kind === 'deep_work').map((b) => b.id)
       if (sessionIds.length === 0) {
         setSessionItems({})
-        await refreshUnscheduled(uid, rows, {})
         return
       }
       const { data: items } = await supabase
@@ -139,9 +121,8 @@ export default function GamePlanClient() {
         ;(grouped[it.block_id] ??= []).push(t)
       }
       setSessionItems(grouped)
-      await refreshUnscheduled(uid, rows, grouped)
     },
-    [supabase, refreshUnscheduled]
+    [supabase]
   )
 
   useEffect(() => {
@@ -321,7 +302,7 @@ export default function GamePlanClient() {
       // Don't place it — it drops into the tray under the day, and you decide
       // whether it belongs in a session or gets a slot of its own.
       if (data?.id) {
-        setUnscheduled((prev) => [
+        setJustAdded((prev) => [
           ...prev,
           {
             id: data.id as string,
@@ -451,7 +432,7 @@ export default function GamePlanClient() {
   /** Drop a tray task into a Deep Work session. */
   const placeInSession = useCallback(
     async (task: Task, blockId: string) => {
-      setUnscheduled((prev) => prev.filter((t) => t.id !== task.id))
+      setJustAdded((prev) => prev.filter((t) => t.id !== task.id))
       setSessionItems((prev) => ({ ...prev, [blockId]: [...(prev[blockId] ?? []), task] }))
       const res = await fetch('/api/game-plan/session-tasks', {
         method: 'POST',
@@ -470,7 +451,7 @@ export default function GamePlanClient() {
   const placeInDay = useCallback(
     async (task: Task) => {
       setPlacing(true)
-      setUnscheduled((prev) => prev.filter((t) => t.id !== task.id))
+      setJustAdded((prev) => prev.filter((t) => t.id !== task.id))
       try {
         const res = await fetch('/api/game-plan/insert-task', {
           method: 'POST',
@@ -1093,18 +1074,18 @@ export default function GamePlanClient() {
             />
 
             {/* Not placed yet — drag a chip onto the day or into a session. */}
-            {day !== 'yesterday' && unscheduled.length > 0 && (
+            {day !== 'yesterday' && justAdded.length > 0 && (
               <div className="mt-1">
                 <div className="flex items-center gap-2 px-1 mb-2">
                   <p className="text-text-low text-[11px] uppercase tracking-wide font-semibold">
-                    Not scheduled
+                    Just added
                   </p>
                   <span className="text-text-low text-[11px]">
                     {dragTask ? 'drop on the day or a session' : 'hold to drag onto your day'}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {unscheduled.map((t) => (
+                  {justAdded.map((t) => (
                     <button
                       key={t.id}
                       type="button"

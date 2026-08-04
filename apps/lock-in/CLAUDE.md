@@ -64,8 +64,9 @@ Game Plan tab is deliberately *not* placed (this replaced the old auto-fit-on-ad
 coexist, an auto-placed task never reaches a tray). It appears as a chip under the day, and you
 **press-and-hold (~220 ms) to lift it and drag**: drop on a **Deep Work session** to put it inside
 (`session-tasks`), or anywhere else on the **day** to give it a slot of its own (`insert-task`).
-The tray lists every open task that has neither a block nor a session, so it doubles as the "what
-still needs a home" list. Drop zones are declarative `data-drop` markers (`day`, `session:<id>`)
+The tray holds **only tasks created right here that haven't been placed yet** — it is deliberately
+*not* backfilled from the database. It's the tail end of "I just added this", not a second copy of
+the task list, so it's empty on load and empties itself as you place things. Drop zones are declarative `data-drop` markers (`day`, `session:<id>`)
 hit-tested with `elementFromPoint`; a non-passive `touchmove` listener stops the page scrolling
 while a chip is held, and a `pointer-events:none` ghost follows the finger.
 
