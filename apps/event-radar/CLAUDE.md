@@ -166,7 +166,14 @@
   - IRL ↔ Online: mutually exclusive switch
   - Multi-day: independent on/off toggle (`durationHours > 24`)
   - Travel: independent on/off toggle — confirmed-useful travel only (see above)
-  - Applied / Dormant / New: override lists — ignore format + multi-day + travel
+  - Applied / Dormant: override lists — ignore format + multi-day + travel
+  - **The chip row applies to the feed AND to New.** Tapping IRL/Online/
+    Multi-day/Travel while New is open refines that list instead of throwing you
+    back to the feed; from Applied/Dormant it still exits, because those two
+    genuinely ignore the chips. The predicate itself lives in
+    `lib/feed-filters.ts` (`matchesFeedFilters`) and is shared, not duplicated —
+    "New + Travel ✓" has to mean exactly what "Travel ✓" means in the feed, or
+    the same event would appear under one and not the other.
   - **New tab** (`lib/new-arrivals.ts`, chip shows a live count): everything
     ingested within `NEW_BADGE_HOURS` (72h), newest arrival first. It is the
     one list that **deliberately skips `isUpcomingAndOpen`** — a row ingested
@@ -176,7 +183,11 @@
     open it. Only the unknown-deadline gate is relaxed: already-started events
     are still dropped, hidden rows stay hidden, and sorting is by arrival, not
     score. Shares `isNewHackathon` with the card's blue New badge, so count,
-    list and badges can never disagree.
+    list and badges can never disagree. The chip count runs the **same** pipeline
+    as the tab body (arrivals → chip filters), so it always equals the number of
+    cards you get on tap — which means it moves as you toggle chips. That is
+    intended: it answers "how many new ones match what I'm looking at", not "how
+    many rows landed in the database".
   - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
     (Applied only in Applied tab; hidden nowhere)
 

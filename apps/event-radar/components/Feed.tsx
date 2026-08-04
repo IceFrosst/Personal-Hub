@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { durationHours, isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
+import { isUpcomingAndOpen, scoreHackathon } from '@/lib/scoring'
 import { isDormantCircuit, matchDormantCircuit } from '@/lib/dormant-tier-a'
 import { isNewHackathon, NEW_BADGE_HOURS } from '@/lib/digest'
 import { selectNewArrivals } from '@/lib/new-arrivals'
-import { hasUsefulTravel } from '@/lib/digest'
+import { matchesFeedFilters, type FormatMode } from '@/lib/feed-filters'
 import {
   coerceHackathon,
   coerceNotificationSettings,
@@ -20,7 +20,6 @@ import DetailSheet from './DetailSheet'
 import { IconRadar2, IconSettings } from '@tabler/icons-react'
 import Link from 'next/link'
 
-type FormatMode = 'irl' | 'online'
 type ListMode = 'feed' | 'applied' | 'dormant' | 'new'
 
 export default function Feed({ userId }: { userId: string }) {
@@ -139,12 +138,28 @@ export default function Feed({ userId }: { userId: string }) {
     [prefs.priority_countries, prefs.home_base]
   )
 
+  /**
+   * The chips apply to the feed AND to New, so tapping one while New is open
+   * must refine that list rather than throw you back to the feed. Applied and
+   * Dormant genuinely ignore the chips, so tapping a chip there still exits.
+   */
+  const keepListMode = () => {
+    if (listMode === 'applied' || listMode === 'dormant') setListMode('feed')
+  }
+  /** True when the chip row is actually in force — feed and New. */
+  const chipsApply = listMode === 'feed' || listMode === 'new'
+
   const chipClass = (active: boolean) =>
     `min-h-11 shrink-0 rounded-md border px-3 text-sm transition-colors duration-150 ease-out ${
       active
         ? 'border-purple/50 bg-purple/15 text-purple'
         : 'border-border text-text-muted hover:border-border-focus'
     }`
+
+  const filters = useMemo(
+    () => ({ formatMode, multiDayOnly, travelOnly, homeBase: prefs.home_base }),
+    [formatMode, multiDayOnly, travelOnly, prefs.home_base]
+  )
 
   const visible = useMemo(() => {
     // Applied / Dormant override format + multi-day entirely
@@ -169,11 +184,13 @@ export default function Feed({ userId }: { userId: string }) {
     // relaxed is the unknown deadline.
     if (listMode === 'new') {
       const now = new Date()
-      return selectNewArrivals(hackathons, (h) => statuses[h.id] === 'hidden', now).map((h) => ({
-        h,
-        scored: scoreHackathon(h, now, scoreOpts),
-        status: statuses[h.id] ?? null,
-      }))
+      return selectNewArrivals(hackathons, (h) => statuses[h.id] === 'hidden', now)
+        .filter((h) => matchesFeedFilters(h, filters))
+        .map((h) => ({
+          h,
+          scored: scoreHackathon(h, now, scoreOpts),
+          status: statuses[h.id] ?? null,
+        }))
     }
 
     if (listMode === 'applied') {
@@ -208,16 +225,7 @@ export default function Feed({ userId }: { userId: string }) {
 
     const filtered = scored.filter(({ h, status }) => {
       if (status === 'hidden' || status === 'applied') return false
-      if (formatMode === 'irl' && h.format === 'online') return false
-      if (formatMode === 'online' && h.format !== 'online') return false
-      if (multiDayOnly) {
-        const hours = durationHours(h)
-        if (hours === null || hours <= 24) return false
-      }
-      // Same predicate as the solid "Travel" tag on the card — filter and tag
-      // can never disagree about what counts as covered.
-      if (travelOnly && !hasUsefulTravel(h, prefs.home_base)) return false
-      return true
+      return matchesFeedFilters(h, filters)
     })
 
     return filtered.sort((a, b) => {
@@ -226,19 +234,22 @@ export default function Feed({ userId }: { userId: string }) {
       const db = b.h.registration_deadline ?? b.h.starts_at ?? '9999'
       return da < db ? -1 : 1
     })
-  }, [hackathons, statuses, listMode, formatMode, multiDayOnly, travelOnly, prefs.home_base, scoreOpts])
+  }, [hackathons, statuses, listMode, filters, scoreOpts])
 
   /**
-   * Count on the tab, so a refresh is visible without opening it. Uses the same
-   * predicate as the tab body and as the card's blue "New" badge, so the number,
-   * the list and the badges can never disagree.
+   * Count on the tab, so a refresh is visible without opening it. Runs the exact
+   * pipeline the tab body runs — arrivals, then the chip filters — so the number
+   * always equals the number of cards you get when you tap it. That means the
+   * count moves when you toggle IRL/Online/Multi-day/Travel, which is the point:
+   * it answers "how many new ones match what I'm looking at", not "how many rows
+   * landed in the database".
    */
   const newCount = useMemo(() => {
     const now = new Date()
-    return hackathons.filter(
-      (h) => isNewHackathon(h, now) && statuses[h.id] !== 'hidden'
+    return selectNewArrivals(hackathons, (h) => statuses[h.id] === 'hidden', now).filter((h) =>
+      matchesFeedFilters(h, filters)
     ).length
-  }, [hackathons, statuses])
+  }, [hackathons, statuses, filters])
 
   const selected = useMemo(() => {
     if (!selectedId) return null
@@ -251,8 +262,12 @@ export default function Feed({ userId }: { userId: string }) {
     if (listMode === 'applied') return 'No applied events yet — mark one from a card.'
     if (listMode === 'dormant')
       return 'No dormant circuit rows in the catalog. Weekly probe watches TreeHacks, PennApps, HackUPC, etc.'
-    if (listMode === 'new')
-      return `Nothing new in the last ${NEW_BADGE_HOURS} hours. Pull to refresh, or wait for the nightly sweep.`
+    if (listMode === 'new') {
+      const anyNew = hackathons.some((h) => isNewHackathon(h))
+      return anyNew
+        ? `Nothing new matches these filters — ${formatMode === 'irl' ? 'try Online' : 'try IRL'}, or clear Multi-day/Travel.`
+        : `Nothing new in the last ${NEW_BADGE_HOURS} hours. Pull to refresh, or wait for the nightly sweep.`
+    }
     if (travelOnly)
       return 'No events with confirmed travel cover from your home base right now.'
     if (formatMode === 'online') return 'No open online events right now.'
@@ -280,20 +295,20 @@ export default function Feed({ userId }: { userId: string }) {
         <button
           type="button"
           onClick={() => {
-            setListMode('feed')
+            keepListMode()
             setFormatMode('irl')
           }}
-          className={chipClass(listMode === 'feed' && formatMode === 'irl')}
+          className={chipClass(chipsApply && formatMode === 'irl')}
         >
           IRL
         </button>
         <button
           type="button"
           onClick={() => {
-            setListMode('feed')
+            keepListMode()
             setFormatMode('online')
           }}
-          className={chipClass(listMode === 'feed' && formatMode === 'online')}
+          className={chipClass(chipsApply && formatMode === 'online')}
         >
           Online
         </button>
@@ -301,10 +316,10 @@ export default function Feed({ userId }: { userId: string }) {
         <button
           type="button"
           onClick={() => {
-            setListMode('feed')
+            keepListMode()
             setMultiDayOnly((v) => !v)
           }}
-          className={chipClass(listMode === 'feed' && multiDayOnly)}
+          className={chipClass(chipsApply && multiDayOnly)}
           aria-pressed={multiDayOnly}
         >
           Multi-day{multiDayOnly ? ' ✓' : ''}
@@ -313,10 +328,10 @@ export default function Feed({ userId }: { userId: string }) {
         <button
           type="button"
           onClick={() => {
-            setListMode('feed')
+            keepListMode()
             setTravelOnly((v) => !v)
           }}
-          className={chipClass(listMode === 'feed' && travelOnly)}
+          className={chipClass(chipsApply && travelOnly)}
           aria-pressed={travelOnly}
           title="Only events whose travel policy covers someone based in your home country"
         >
