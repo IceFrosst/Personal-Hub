@@ -251,6 +251,12 @@ export default function Feed({ userId }: { userId: string }) {
     ).length
   }, [hackathons, statuses, filters])
 
+  /** Arrivals before the chips — the denominator for "X of Y new". */
+  const newTotal = useMemo(
+    () => selectNewArrivals(hackathons, (h) => statuses[h.id] === 'hidden').length,
+    [hackathons, statuses]
+  )
+
   const selected = useMemo(() => {
     if (!selectedId) return null
     const h = hackathons.find((x) => x.id === selectedId)
@@ -361,6 +367,28 @@ export default function Feed({ userId }: { userId: string }) {
           Dormant
         </button>
       </div>
+
+      {listMode === 'new' && newTotal > 0 && (
+        <p className="mb-3 text-xs text-text-low">
+          {newCount === newTotal ? (
+            <>
+              {newTotal} new in the last {NEW_BADGE_HOURS}h
+            </>
+          ) : (
+            <>
+              Showing <span className="text-text-muted">{newCount}</span> of {newTotal} new —{' '}
+              {[
+                formatMode === 'irl' ? 'IRL' : 'Online',
+                multiDayOnly ? 'Multi-day' : null,
+                travelOnly ? 'Travel' : null,
+              ]
+                .filter(Boolean)
+                .join(' + ')}{' '}
+              is hiding the rest
+            </>
+          )}
+        </p>
+      )}
 
       {loading ? (
         <p className="mt-16 text-center text-sm text-text-low">Scanning the radar…</p>
