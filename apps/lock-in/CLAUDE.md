@@ -25,11 +25,12 @@ button lands here. Pure-black theme with a gold accent.
 - `supabase/migrations/0002_grant_focus_gate_api_access.sql` exposes the `focus_gate` schema to PostgREST (grants + exposed-schema list) so both apps can read the table over the API.
 - **`lock_in` schema (Lock In's own)** — `supabase/migrations/0003_game_plan.sql`, exposed to PostgREST (`db_schema` now includes `lock_in`). Three tables, all RLS by `user_id`:
   - `calendar_connections (user_id pk, google_refresh_token, google_email, connected_at, updated_at)` — the Google offline refresh token for Game Plan. The cron reads it with the **service_role** key; the browser only ever selects the non-token columns.
-  - `plan_settings (user_id pk, work_start, work_end, timezone, auto_plan, updated_at)` — planning prefs; created lazily.
+  - `plan_settings (user_id pk, work_start, work_end, timezone, auto_plan, deep_work_count, deep_work_min_minutes, deep_work_max_minutes, updated_at)` — planning prefs; created lazily. (`0011` added the three `deep_work_*` columns: how many focus sessions to reserve and their length range.)
   - `plan_blocks (id, user_id, task_id, title, plan_date, start_local, end_local, timezone, estimated_minutes, gcal_event_id, status)` — the scheduled day. Times are **local wall-clock strings + timezone** (no offset math; Google gets `dateTime`+`timeZone` directly). `title` denormalised so the timeline renders without joining tasks.
 - **Recurring tasks** — `supabase/migrations/0004_recurring_tasks.sql`, `lock_in` schema, RLS by `user_id`:
   - `recurring_tasks (id, user_id, title, weekdays smallint[] /* ISO 1=Mon…7=Sun */, time_mode 'fixed'|'flexible', fixed_time, duration_minutes, is_active, created_at)` — a **template**, not a per-day row. No priority (routines aren't triaged).
   - `recurring_completions (id, recurring_id, user_id, completed_date, completed_at)`, unique `(recurring_id, completed_date)` — one row per day a routine is checked off. Streaks derive from these; the template is never deleted by a check-off.
+- **Deep Work** — `supabase/migrations/0011_deep_work.sql`: `plan_blocks.kind text` (`'deep_work'` = a reserved focus session; **null on every pre-existing row**, which keeps behaving as a task / routine / locked block), plus `deep_work_items (id, user_id, block_id → plan_blocks on delete cascade, task_id, position)` unique `(block_id, task_id)`, RLS by `user_id` — which tasks the user put in a session. No times: a session is a container.
 - Additive-only (`SCHEMA_RULES.md`); RLS by `user_id`. (`0004` also drops the temporary `oauth_debug` diagnostic table.)
 
 ## Gotchas
@@ -40,7 +41,8 @@ button lands here. Pure-black theme with a gold accent.
 - **Two token paths** in `app/api/game-plan/plan/route.ts`: durable (stored refresh token + Google client secret) and a fallback that uses the browser session's live `provider_token` (works ~1h after connecting, before the OAuth secrets are set). The cron only has the durable path.
 - **Never import `lib/supabase/admin.ts` into client code** — it's the service_role client (bypasses RLS), for the cron only.
 - The cron (`app/api/cron/plan-day`, scheduled in `vercel.json`) returns **503** until `SUPABASE_SERVICE_ROLE_KEY` and the Google OAuth secrets are set — by design, so the on-demand button still works meanwhile.
-- Planner (`lib/game-plan/planner.ts`) always has a deterministic fallback if Gemini is unavailable — the day still gets planned. `sanitize()` drops any model block that overlaps a busy interval / another block / the window.
+- **Planning is fully deterministic** (`lib/game-plan/planner.ts`) — no model call. Everything is placed against one running `occupied` list and `hasOverlap` exists to assert that invariant. If you reintroduce an AI pass, it must not be able to emit a block at coordinates the rest of the layout doesn't know about; that exact shape caused a live double-booking.
+- **A Deep Work session's task list is not in `plan_blocks`** — it's `deep_work_items`, keyed by `block_id`. Replanning deletes and recreates the block rows, so anything that rebuilds a day must carry those lists over (see `run.ts`) or the user's hand-built session empties itself.
 
 ## Current state
 Live and working: add tasks (text + voice), priorities, due dates, complete/delete, and an
@@ -70,45 +72,34 @@ Writes one calendar event + one `plan_blocks` row; existing blocks/events are un
 missing/completed task → no-op; task already in the day → no duplicate. (Full **Replan** still rebuilds
 the whole day; **Fit it in** is the keep-everything alternative.)
 
-The planner (`lib/game-plan/planner.ts`) runs in **four phases so routines always win a slot before
-one-off tasks**: (1) **fixed-time routines** pinned to their clock time (slide to nearest free slot
-if busy); (2) **flexible routines reserved next, before any task, longest first** — so a big routine
-(e.g. a 2 h workout) is guaranteed room and can't be crowded out by smaller tasks; (3) **one-off
-tasks** fill the *remaining* free time (Gemini estimates durations; deterministic packer fallback);
-(4) an **AI reorder pass** (`geminiOrder` → `reflowByOrder`) reorders the whole movable day (flex
-routines + tasks) into a logical flow around the fixed anchors — best-effort, only when phase-3's
-model call worked; on failure the phase 1–3 layout stands.
-**`reflowByOrder` is all-or-nothing and returns `null` if it can't re-lay every block inside the
-window** — the caller then keeps the phase 1–3 layout (conflict-free by construction), and a final
-`hasOverlap` check rejects the reorder anyway if it would double-book. This matters: it used to push
-a block that didn't fit back at its *original* coordinates while laying the rest around it, so a long
-routine bumped past `work_end` by the day's meetings landed back on top of tasks already placed in its
-old slot (e.g. a 2 h Exercise at 10:00–12:00 with tasks at 10:05 and 10:20 inside it). It also places
-each block clear of **already-placed blocks**, not just the anchors, and consumes blocks **per id**
-so a task split into two sessions sharing one id doesn't lose a half. Day-shape strategy applied throughout:
-quick win first (**only on a fresh start-of-day / future-day plan** — a mid-day replan skips the
-quick-win opener since the day's already underway; gated on `earliestStart <= work_start`) · protect
-deep-work blocks · end on a high · meals after exercise · breaks after hard work · **tag-aware** (work/hustle in peak
-hours, social/other later; group same-tag). `run.ts` loads routines due for the target date
-(skipping ones completed that day). One-off durations are Gemini-estimated from the title; routine
-durations are exact. **Replanning keeps only what you finished, then restarts the day at now:** on
-today, the cutoff is now (rounded to the 5-min grid, never before `work_start`). `run.ts` keeps a
-block **only if its status is `done` or `'continued'`** and it started before the cutoff (a done block that runs past
-the cutoff — finished early — is **truncated to end at now**, row + calendar event patched). Blocks
-that are **not done** and sit before the cutoff are **dropped**, and their task/routine goes back into
-the pool to be re-planned from now — so if you wake up and replan at 10:00, the untouched 09:00 blocks
-don't linger as "missed"; they get rescheduled into your real day. New work starts at the cutoff.
-(Marking a block done is what preserves it; future days replan in full.) `sanitize()` now
-**repairs** a mis-placed model block (shifts it to the nearest free slot) instead of dropping it;
-the prompt may **split** tasks >90 min into two sessions (same id); and the deterministic fallback
-applies the day-shape strategy too (quick win first · heavy work early · light item last).
-Model: `process.env.GEMINI_MODEL || 'gemini-flash-latest'` (rolling free alias;
-pinned names lose free quota). **`gemini-2.5-pro` has no free tier — it 429s on every call**, so it's
-opt-in via `GEMINI_MODEL`, not the default. `planDay` returns an `ai` status (`ok` / `fallback` /
-`rate_limited`); the client shows a note when the model didn't actually plan (this is the safety net
-for silent model-death). Blocks are coloured by **priority** (`plan_blocks.priority`, `0008`;
-prio-low/medium/high like the task list); **recurring blocks are white**. Timeline uses the same
-square checkbox as `TaskRow`/`RecurringRow` (gold for tasks, white for routines).
+**Deep Work sessions (the core of the planner).** The day is built around **1–2 long focus
+blocks** instead of time-boxing every task. `planDay` (`lib/game-plan/planner.ts`) runs four
+deterministic phases against one running `occupied` list, so the output **cannot** double-book:
+1. **Fixed-time routines** pinned to their clock time (nearest free slot if busy).
+2. **Flexible routines** — meals first, near their natural hour (`naturalMinutes`: breakfast 08:30,
+   lunch 13:00, dinner/supper 19:00), then everything else longest-first into the **roomiest** gap.
+   (Packing them from the top of the day stacked lunch + dinner back-to-back at 10:45.)
+3. **Deep Work sessions** — up to `plan_settings.deep_work_count` (default 2), carved from the
+   biggest remaining stretches, clamped to `deep_work_min/max_minutes` (120/240), each reserving a
+   30 min `SESSION_BREAK` after it so two sessions are never back-to-back. `kind = 'deep_work'`,
+   one calendar event titled "Deep Work". **They start empty** — tasks go in by hand.
+4. **Errands** — only `social` / `other` tasks (`isErrand`) get a slot of their own; focus work is
+   never time-boxed, it lives in a session. Duration is the priority default.
+
+There is **no model call in the planning path** — which is why the old `geminiSchedule` / `sanitize`
+/ `geminiOrder` / `reflowByOrder` passes are gone, along with the whole class of overlap bugs they
+caused. Gemini is still used for a single task's duration estimate (`estimateTaskMinutes`).
+A packed day can legitimately yield **zero** sessions (no 2 h stretch left); the client says so
+rather than looking broken.
+
+**Session task lists** live in `lock_in.deep_work_items (block_id, task_id, position)` — no times, a
+session is a container. `POST /api/game-plan/session-tasks` adds/removes. **Replanning rebuilds the
+block rows, so `run.ts` captures each session's task list before the delete and re-attaches it to the
+new sessions in start order** (dropping anything completed) — otherwise a hand-built list would
+vanish on every replan. In the timeline a session renders as `DeepWorkCard`: gold-tinted, first
+3 tasks inline with checkboxes, then "+N more · tap to manage" opening a sheet (manage + task
+picker). Adding a one-off task from the Game Plan bar auto-assigns it to the current/next session
+(`insert.ts`); an errand still gets its own slot.
 
 **Timeline is interactive:** tap a block's checkbox to mark it done → the underlying task is completed
 (`focus_gate.tasks.is_completed`) or the routine checked (`recurring_completions` for that date),
@@ -197,6 +188,13 @@ for today and it returns next due day. Long-press → delete routine. **Fixed** 
 add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/duration stay neutral.
 
 ## Next
+- **Deep Work follow-ups (just shipped — watch these first):**
+  - **On a packed day no session fits** (routines + meetings leave no 2 h stretch) and the client
+    just says so. Open question for the user: should Deep Work outrank *flexible* routines (so a
+    session is guaranteed and e.g. a 2 h workout gets dropped instead)? Right now routines win.
+  - Reordering tasks **inside** a session isn't wired yet (`deep_work_items.position` exists and is
+    respected on read/write — only drag UI is missing).
+  - "Let AI pick what fits" (one-tap fill of a session from open tasks) is designed but not built.
 - **Open (needs the user's call — don't just change defaults):**
   - **Planning window vs. evening routines.** Default is `09:00–18:00` (`DEFAULT_SETTINGS` in
     `lib/game-plan/types.ts`), but the user schedules evening routines (~20:00–22:00). Discuss:

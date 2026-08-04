@@ -1,12 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PlanBlock, PlanSettings } from './types'
-import { estimateTaskMinutes, freeGaps } from './planner'
+import { estimateTaskMinutes, freeGaps, isErrand } from './planner'
 import { dayBoundsIso, hmToMinutes, isoToLocalHM, nowLocalHM, todayInTz } from './time'
 import { insertEvent, listDayEvents } from '@/lib/google/calendar'
 
 export interface InsertResult {
   blocks: PlanBlock[]
   inserted: { title: string; start: string; end: string } | null
+  /** Set when the task joined a Deep Work session instead of getting its own slot. */
+  assignedTo: { start: string; end: string } | null
   pastHours: boolean
   reason?: 'already_scheduled' | 'no_task'
 }
@@ -45,14 +47,63 @@ export async function insertTaskIntoPlan(args: {
     | { id: string; title: string; priority: string | null; category: string | null; is_completed: boolean }
     | null
   if (!task || task.is_completed) {
-    return { blocks: await readDay(db, userId, today), inserted: null, pastHours: false, reason: 'no_task' }
+    return {
+      blocks: await readDay(db, userId, today),
+      inserted: null,
+      assignedTo: null,
+      pastHours: false,
+      reason: 'no_task',
+    }
   }
 
   // 2. Existing plan for the day (planned + locked blocks = busy).
   const existing = await readDay(db, userId, today)
   if (existing.some((b) => b.task_id === taskId)) {
     // Already scheduled today — don't create a duplicate.
-    return { blocks: existing, inserted: null, pastHours: false, reason: 'already_scheduled' }
+    return { blocks: existing, inserted: null, assignedTo: null, pastHours: false, reason: 'already_scheduled' }
+  }
+
+  // 2a. Focus work belongs in a Deep Work session, not on the clock. Drop it in
+  // the session that hasn't finished yet (or the last one on a past/future day)
+  // and we're done — no time to pick, no calendar event, nothing else moves.
+  // Errands (social / other) fall through and get a slot of their own.
+  if (!isErrand(task)) {
+    const nowMin = hmToMinutes(nowLocalHM(tz))
+    const sessions = existing
+      .filter((b) => b.kind === 'deep_work')
+      .sort((a, b) => hmToMinutes(a.start_local) - hmToMinutes(b.start_local))
+    const target =
+      sessions.find((b) => !isToday || hmToMinutes(b.end_local) > nowMin) ??
+      sessions[sessions.length - 1]
+    if (target) {
+      const { data: last } = await db
+        .schema('lock_in')
+        .from('deep_work_items')
+        .select('position')
+        .eq('user_id', userId)
+        .eq('block_id', target.id)
+        .order('position', { ascending: false })
+        .limit(1)
+      await db
+        .schema('lock_in')
+        .from('deep_work_items')
+        .upsert(
+          {
+            user_id: userId,
+            block_id: target.id,
+            task_id: task.id,
+            position: ((last ?? [])[0]?.position ?? -1) + 1,
+          },
+          { onConflict: 'block_id,task_id' }
+        )
+      return {
+        blocks: existing,
+        inserted: null,
+        assignedTo: { start: target.start_local, end: target.end_local },
+        pastHours: false,
+      }
+    }
+    // No session today (e.g. the day was never planned) — fall through to a slot.
   }
 
   const blockBusy = existing
@@ -135,7 +186,12 @@ export async function insertTaskIntoPlan(args: {
     status: 'scheduled',
   })
 
-  return { blocks: await readDay(db, userId, today), inserted: { title: task.title, start, end }, pastHours }
+  return {
+    blocks: await readDay(db, userId, today),
+    inserted: { title: task.title, start, end },
+    assignedTo: null,
+    pastHours,
+  }
 }
 
 async function readDay(db: SupabaseClient, userId: string, today: string): Promise<PlanBlock[]> {

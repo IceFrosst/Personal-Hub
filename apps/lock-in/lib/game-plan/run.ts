@@ -169,6 +169,34 @@ export async function runPlanForUser(args: {
 
   const { timeMin, timeMax } = dayBoundsIso(today, tz)
 
+  // 1c. A Deep Work session is a container the user filled by hand, so its task
+  // list must survive a replan even though the block row is rebuilt. Capture the
+  // assignments per session (in start order) and re-attach them to the new
+  // sessions below, dropping anything that has since been completed.
+  const priorSessions = existing
+    .filter((b) => b.kind === 'deep_work')
+    .sort((a, b) => hmToMinutes(a.start_local) - hmToMinutes(b.start_local))
+  let carriedItems: string[][] = []
+  if (priorSessions.length > 0) {
+    const { data: itemRows } = await db
+      .schema('lock_in')
+      .from('deep_work_items')
+      .select('block_id, task_id, position')
+      .eq('user_id', userId)
+      .in(
+        'block_id',
+        priorSessions.map((b) => b.id)
+      )
+    const openTaskIds = new Set(tasks.map((t) => t.id))
+    const items = (itemRows ?? []) as { block_id: string; task_id: string; position: number }[]
+    carriedItems = priorSessions.map((b) =>
+      items
+        .filter((i) => i.block_id === b.id && openTaskIds.has(i.task_id))
+        .sort((x, y) => x.position - y.position)
+        .map((i) => i.task_id)
+    )
+  }
+
   // 2. Clear any existing Game Plan for the day FIRST (events + rows) — before
   // reading the calendar, so our own old events aren't read back as "real"
   // events. Deletes every tagged event in the window (sweeps orphans too).
@@ -248,6 +276,9 @@ export async function runPlanForUser(args: {
     workEnd: settings.work_end,
     earliestStart,
     today,
+    deepWorkCount: settings.deep_work_count ?? 2,
+    deepWorkMinMinutes: settings.deep_work_min_minutes ?? 120,
+    deepWorkMaxMinutes: settings.deep_work_max_minutes ?? 240,
   })
 
   // 5. Write a calendar event per planned block (parallel, to beat the timeout).
@@ -262,7 +293,8 @@ export async function runPlanForUser(args: {
           endLocal: b.end,
           timeZone: tz,
           description: 'Scheduled by Lock In · Game Plan',
-          colorId: eventColorId(b.recurring_id != null, b.priority),
+          colorId:
+            b.kind === 'deep_work' ? '9' : eventColorId(b.recurring_id != null, b.priority),
         })
       } catch {
         eventId = ''
@@ -281,6 +313,7 @@ export async function runPlanForUser(args: {
         priority: b.priority,
         gcal_event_id: eventId || null,
         locked: false,
+        kind: b.kind ?? null,
         status: 'scheduled' as const,
       }
     })
@@ -309,12 +342,33 @@ export async function runPlanForUser(args: {
     priority: null,
     gcal_event_id: e.id,
     locked: true,
+    kind: null,
     status: (lockedDoneEventIds.has(e.id) ? 'done' : 'scheduled') as 'done' | 'scheduled',
   }))
 
   const toInsert = [...plannedRows, ...lockedRows]
   if (toInsert.length > 0) {
-    await db.schema('lock_in').from('plan_blocks').insert(toInsert)
+    const { data: insertedRows } = await db
+      .schema('lock_in')
+      .from('plan_blocks')
+      .insert(toInsert)
+      .select('id, kind, start_local')
+
+    // Re-attach the carried task lists to the new sessions, first to first.
+    const newSessions = ((insertedRows ?? []) as { id: string; kind: string | null; start_local: string }[])
+      .filter((r) => r.kind === 'deep_work')
+      .sort((a, b) => hmToMinutes(a.start_local) - hmToMinutes(b.start_local))
+    const rebuilt = newSessions.flatMap((session, i) =>
+      (carriedItems[i] ?? []).map((taskId, position) => ({
+        user_id: userId,
+        block_id: session.id,
+        task_id: taskId,
+        position,
+      }))
+    )
+    if (rebuilt.length > 0) {
+      await db.schema('lock_in').from('deep_work_items').insert(rebuilt)
+    }
   }
 
   // Re-read the whole day so the result includes the kept blocks + the new ones.

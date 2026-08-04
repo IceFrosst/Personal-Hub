@@ -15,6 +15,10 @@ export interface PlanSettings {
   work_end: string // 'HH:MM' local
   timezone: string // IANA tz, e.g. 'Europe/Vilnius'
   auto_plan: boolean
+  // Deep Work: how many long focus blocks to reserve, and their length range.
+  deep_work_count: number
+  deep_work_min_minutes: number
+  deep_work_max_minutes: number
   updated_at: string
 }
 
@@ -23,6 +27,9 @@ export const DEFAULT_SETTINGS: Omit<PlanSettings, 'user_id' | 'updated_at'> = {
   work_end: '18:00',
   timezone: 'Europe/Vilnius',
   auto_plan: true,
+  deep_work_count: 2,
+  deep_work_min_minutes: 120,
+  deep_work_max_minutes: 240,
 }
 
 export type PlanBlockStatus = 'scheduled' | 'done' | 'skipped' | 'continued'
@@ -42,8 +49,20 @@ export interface PlanBlock {
   category: TaskCategory | null
   priority: 'low' | 'medium' | 'high' | null
   locked: boolean
+  /** 'deep_work' = a reserved focus session. null = task / routine / calendar block. */
+  kind: BlockKind
   status: PlanBlockStatus
   created_at: string
+}
+
+export type BlockKind = 'deep_work' | null
+
+/** A task the user put inside a Deep Work session (no time of its own). */
+export interface DeepWorkItem {
+  id: string
+  block_id: string
+  task_id: string
+  position: number
 }
 
 // The minimal task shape the planner reasons over.
@@ -79,6 +98,7 @@ export interface ProposedBlock {
   estimated_minutes: number
   category: TaskCategory | null
   priority: 'low' | 'medium' | 'high' | null
+  kind?: BlockKind
 }
 
 // Whether the model actually planned, or we fell back (and why).

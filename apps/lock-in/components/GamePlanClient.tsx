@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   IconArrowLeft,
   IconArrowRight,
+  IconBolt,
   IconBrandGoogle,
   IconCalendarBolt,
   IconCheck,
@@ -14,6 +15,7 @@ import {
   IconRefresh,
   IconRepeat,
   IconSettings,
+  IconX,
 } from '@tabler/icons-react'
 import { createClient } from '@/lib/supabase/client'
 import { DEFAULT_SETTINGS, type PlanBlock, type PlanSettings } from '@/lib/game-plan/types'
@@ -51,6 +53,12 @@ export default function GamePlanClient() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  // Deep Work: tasks assigned to each session block, plus the open manage sheet.
+  const [sessionItems, setSessionItems] = useState<Record<string, Task[]>>({})
+  const [sessionSheet, setSessionSheet] = useState<PlanBlock | null>(null)
+  const [pickerFor, setPickerFor] = useState<PlanBlock | null>(null)
+  const [pickerTasks, setPickerTasks] = useState<Task[]>([])
+  const [picked, setPicked] = useState<Set<string>>(new Set())
   // Long-press on a block opens an action sheet; Edit opens the shared editor.
   const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -75,7 +83,34 @@ export default function GamePlanClient() {
         .eq('user_id', uid)
         .eq('plan_date', dateKey)
         .order('start_local', { ascending: true })
-      setBlocks((data ?? []) as PlanBlock[])
+      const rows = (data ?? []) as PlanBlock[]
+      setBlocks(rows)
+
+      // Pull the task list for each Deep Work session in one round trip.
+      const sessionIds = rows.filter((b) => b.kind === 'deep_work').map((b) => b.id)
+      if (sessionIds.length === 0) {
+        setSessionItems({})
+        return
+      }
+      const { data: items } = await supabase
+        .schema('lock_in')
+        .from('deep_work_items')
+        .select('block_id, task_id, position')
+        .eq('user_id', uid)
+        .in('block_id', sessionIds)
+        .order('position', { ascending: true })
+      const ids = [...new Set(((items ?? []) as { task_id: string }[]).map((i) => i.task_id))]
+      const { data: taskRows } = ids.length
+        ? await supabase.schema('focus_gate').from('tasks').select('*').in('id', ids)
+        : { data: [] as Task[] }
+      const byTask = new Map((taskRows ?? []).map((t) => [(t as Task).id, t as Task]))
+      const grouped: Record<string, Task[]> = {}
+      for (const it of (items ?? []) as { block_id: string; task_id: string }[]) {
+        const t = byTask.get(it.task_id)
+        if (!t) continue
+        ;(grouped[it.block_id] ??= []).push(t)
+      }
+      setSessionItems(grouped)
     },
     [supabase]
   )
@@ -305,7 +340,18 @@ export default function GamePlanClient() {
         return
       }
 
-      setBlocks((data.blocks ?? []) as PlanBlock[])
+      const planned = (data.blocks ?? []) as PlanBlock[]
+      setBlocks(planned)
+      await loadBlocks(userId as string, activeDate)
+      // A day with no 2h stretch left gets no session — say so, otherwise the
+      // feature just looks broken on a heavily booked day.
+      const wantSessions = settings?.deep_work_count ?? 0
+      if (wantSessions > 0 && !planned.some((b) => b.kind === 'deep_work')) {
+        setMessage(
+          'No room for a Deep Work session — routines and calendar events fill the day. Free up a stretch or shorten a routine.'
+        )
+        return
+      }
       const when = day === 'today' ? 'today' : 'tomorrow'
       if (data.scheduledCount === 0) {
         setMessage(
@@ -360,6 +406,88 @@ export default function GamePlanClient() {
     },
     [activeDate, providerToken]
   )
+
+  // --- Deep Work sessions -------------------------------------------------
+  // Complete a task from inside a session (same write as the main list).
+  const toggleSessionTask = useCallback(
+    async (blockId: string, task: Task) => {
+      const done = !task.is_completed
+      setSessionItems((prev) => ({
+        ...prev,
+        [blockId]: (prev[blockId] ?? []).map((t) =>
+          t.id === task.id ? { ...t, is_completed: done } : t
+        ),
+      }))
+      const { error: writeError } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .update({ is_completed: done })
+        .eq('id', task.id)
+      if (writeError) {
+        setSessionItems((prev) => ({
+          ...prev,
+          [blockId]: (prev[blockId] ?? []).map((t) =>
+            t.id === task.id ? { ...t, is_completed: !done } : t
+          ),
+        }))
+        setError(writeError.message)
+      }
+    },
+    [supabase]
+  )
+
+  // Open tasks that aren't already in a session and don't have their own block.
+  const openPicker = useCallback(
+    async (block: PlanBlock) => {
+      if (!userId) return
+      setPickerFor(block)
+      setPicked(new Set())
+      const { data } = await supabase
+        .schema('focus_gate')
+        .from('tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_completed', false)
+      const assigned = new Set(Object.values(sessionItems).flat().map((t) => t.id))
+      const scheduled = new Set(blocks.map((b) => b.task_id).filter(Boolean) as string[])
+      setPickerTasks(
+        ((data ?? []) as Task[]).filter((t) => !assigned.has(t.id) && !scheduled.has(t.id))
+      )
+    },
+    [supabase, userId, sessionItems, blocks]
+  )
+
+  const commitPicked = useCallback(async () => {
+    if (!pickerFor || picked.size === 0) return
+    const block = pickerFor
+    const add = [...picked]
+    setPickerFor(null)
+    const res = await fetch('/api/game-plan/session-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockId: block.id, add }),
+    })
+    if (!res.ok) {
+      setError('Couldn’t add those to the session.')
+      return
+    }
+    setSessionItems((prev) => ({
+      ...prev,
+      [block.id]: [...(prev[block.id] ?? []), ...pickerTasks.filter((t) => picked.has(t.id))],
+    }))
+  }, [pickerFor, picked, pickerTasks])
+
+  const removeFromSession = useCallback(async (blockId: string, taskId: string) => {
+    setSessionItems((prev) => ({
+      ...prev,
+      [blockId]: (prev[blockId] ?? []).filter((t) => t.id !== taskId),
+    }))
+    await fetch('/api/game-plan/session-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockId, remove: [taskId] }),
+    })
+  }, [])
 
   const toggleBlockDone = useCallback(
     async (block: PlanBlock) => {
@@ -623,6 +751,7 @@ export default function GamePlanClient() {
           work_end: next.work_end,
           timezone: next.timezone,
           auto_plan: next.auto_plan,
+          deep_work_count: next.deep_work_count ?? 2,
           updated_at: next.updated_at,
         },
         { onConflict: 'user_id' }
@@ -729,7 +858,10 @@ export default function GamePlanClient() {
             )}
             <Timeline
               blocks={blocks}
+              sessionItems={sessionItems}
               onToggleDone={toggleBlockDone}
+              onToggleSessionTask={toggleSessionTask}
+              onOpenSession={setSessionSheet}
               onReorder={reorderBlocks}
               onLongPress={onBlockLongPress}
             />
@@ -744,6 +876,171 @@ export default function GamePlanClient() {
           </>
         )}
       </div>
+
+      {/* Manage a Deep Work session */}
+      {sessionSheet && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end justify-center z-50"
+          onClick={() => setSessionSheet(null)}
+        >
+          <div
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4"
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 px-1 mb-1">
+              <IconBolt size={18} className="text-gold" stroke={2} />
+              <p className="flex-1 text-gold text-lg font-semibold">Deep Work</p>
+              <span className="text-[11px] font-semibold text-gold bg-gold/15 px-2 py-0.5 rounded-full tabular-nums">
+                {(sessionItems[sessionSheet.id] ?? []).filter((t) => t.is_completed).length}/
+                {(sessionItems[sessionSheet.id] ?? []).length} done
+              </span>
+            </div>
+            <p className="text-text-low text-xs mb-3 px-1 tabular-nums">
+              {sessionSheet.start_local}–{sessionSheet.end_local}
+            </p>
+
+            <div className="max-h-[45dvh] overflow-y-auto -mx-1 px-1">
+              {(sessionItems[sessionSheet.id] ?? []).length === 0 && (
+                <p className="text-text-low text-sm py-6 text-center">
+                  Nothing in this session yet.
+                </p>
+              )}
+              {(sessionItems[sessionSheet.id] ?? []).map((t) => {
+                const cat = t.category ? TASK_CATEGORIES.find((c) => c.value === t.category) : null
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-2.5 p-2.5 mb-1.5 rounded-xl bg-surface border border-border"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleSessionTask(sessionSheet.id, t)}
+                      aria-label={t.is_completed ? 'Mark not done' : 'Mark done'}
+                      className={`shrink-0 h-5 w-5 rounded-[5px] border-2 flex items-center justify-center transition-colors ${
+                        t.is_completed
+                          ? 'bg-gold/10 border-gold text-gold'
+                          : 'border-border-focus text-transparent active:border-gold'
+                      }`}
+                    >
+                      <IconCheck size={12} stroke={3} />
+                    </button>
+                    <span
+                      className={`flex-1 min-w-0 text-sm leading-snug break-words ${
+                        t.is_completed ? 'line-through text-text-low' : 'text-text'
+                      }`}
+                    >
+                      {t.title}
+                    </span>
+                    {cat && (
+                      <span
+                        className="text-[10px] leading-none px-1.5 py-0.5 rounded-md font-medium shrink-0"
+                        style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
+                      >
+                        {cat.label}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFromSession(sessionSheet.id, t.id)}
+                      aria-label="Remove from session"
+                      className="shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-text-low active:text-text transition-colors"
+                    >
+                      <IconX size={16} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const b = sessionSheet
+                setSessionSheet(null)
+                openPicker(b)
+              }}
+              className="lock-in-gold-button mt-3 w-full min-h-11 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform"
+            >
+              ＋ Add tasks to this session
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pick tasks to drop into a session */}
+      {pickerFor && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end justify-center z-50"
+          onClick={() => setPickerFor(null)}
+        >
+          <div
+            className="w-full max-w-[420px] bg-surface-elevated rounded-t-3xl border-t border-border p-4"
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-text text-lg font-semibold px-1">Add to Deep Work</p>
+            <p className="text-text-low text-xs mb-3 px-1">
+              Pick from your open tasks — no times needed
+            </p>
+            <div className="max-h-[45dvh] overflow-y-auto -mx-1 px-1">
+              {pickerTasks.length === 0 && (
+                <p className="text-text-low text-sm py-6 text-center">
+                  Nothing unassigned right now.
+                </p>
+              )}
+              {pickerTasks.map((t) => {
+                const on = picked.has(t.id)
+                const cat = t.category ? TASK_CATEGORIES.find((c) => c.value === t.category) : null
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() =>
+                      setPicked((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(t.id)) next.delete(t.id)
+                        else next.add(t.id)
+                        return next
+                      })
+                    }
+                    className={`w-full flex items-center gap-2.5 p-2.5 mb-1.5 rounded-xl border text-left transition-colors ${
+                      on ? 'bg-gold/10 border-gold/50' : 'bg-surface border-border'
+                    }`}
+                  >
+                    <span
+                      className={`shrink-0 h-5 w-5 rounded-[5px] border-2 flex items-center justify-center ${
+                        on ? 'bg-gold/15 border-gold text-gold' : 'border-border-focus text-transparent'
+                      }`}
+                    >
+                      <IconCheck size={12} stroke={3} />
+                    </span>
+                    <span className="flex-1 min-w-0 text-sm text-text leading-snug break-words">
+                      {t.title}
+                    </span>
+                    {cat && (
+                      <span
+                        className="text-[10px] leading-none px-1.5 py-0.5 rounded-md font-medium shrink-0"
+                        style={{ color: cat.color, backgroundColor: `${cat.color}1f` }}
+                      >
+                        {cat.label}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={commitPicked}
+              disabled={picked.size === 0}
+              className="lock-in-gold-button mt-3 w-full min-h-11 rounded-xl text-black font-semibold active:scale-[0.99] transition-transform disabled:opacity-50"
+            >
+              {picked.size ? `Add ${picked.size} task${picked.size > 1 ? 's' : ''}` : 'Select tasks'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {sheetBlock && (
         <div
@@ -945,6 +1242,29 @@ function SettingsPanel({
           />
         </div>
       </div>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <span className="text-text-muted text-sm">Deep Work sessions</span>
+          <p className="text-text-low text-[11px] mt-0.5">2–4h focus blocks a day</p>
+        </div>
+        <div className="flex items-center rounded-lg bg-surface-elevated border border-border p-0.5">
+          {[0, 1, 2, 3].map((n) => {
+            const active = (settings.deep_work_count ?? 2) === n
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => onChange({ deep_work_count: n })}
+                className={`min-w-9 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  active ? 'bg-gold/15 text-gold' : 'text-text-muted'
+                }`}
+              >
+                {n === 0 ? 'Off' : n}
+              </button>
+            )
+          })}
+        </div>
+      </div>
       <label className="flex items-center justify-between gap-3">
         <span className="text-text-muted text-sm">Auto-plan each morning</span>
         <input
@@ -992,14 +1312,106 @@ function swap<T>(arr: T[], i: number, j: number): T[] {
 const LONG_PRESS_MS = 300
 const SCROLL_CANCEL = 10
 
+/**
+ * A reserved focus session. Shows the first few assigned tasks inline so the day
+ * stays readable at a glance, and hands the rest to a sheet so a full session
+ * can't push the whole timeline off screen.
+ */
+const SESSION_PREVIEW = 3
+
+function DeepWorkCard({
+  block,
+  tasks,
+  onToggleTask,
+  onOpen,
+}: {
+  block: PlanBlock
+  tasks: Task[]
+  onToggleTask: (blockId: string, t: Task) => void
+  onOpen: (b: PlanBlock) => void
+}) {
+  const doneCount = tasks.filter((t) => t.is_completed).length
+  const preview = tasks.slice(0, SESSION_PREVIEW)
+  const rest = tasks.length - preview.length
+  const mins = block.estimated_minutes ?? 0
+  const hours = mins >= 60 ? `${Math.round((mins / 60) * 10) / 10}h` : `${mins} min`
+
+  return (
+    <div className="flex-1 min-w-0 relative rounded-xl border border-gold/40 bg-gradient-to-b from-gold/10 to-gold/[0.03] overflow-hidden">
+      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1.5 bg-gold" />
+      <button
+        type="button"
+        data-no-drag
+        onClick={() => onOpen(block)}
+        className="w-full text-left pl-5 pr-3 pt-2.5 pb-2"
+      >
+        <div className="flex items-center gap-2">
+          <IconBolt size={16} className="text-gold shrink-0" stroke={2} />
+          <span className="flex-1 text-base font-semibold text-gold">Deep Work</span>
+          <span className="text-[11px] font-semibold text-gold bg-gold/15 px-2 py-0.5 rounded-full tabular-nums">
+            {tasks.length ? `${doneCount}/${tasks.length}` : hours}
+          </span>
+        </div>
+        <p className="text-text-low text-xs mt-0.5">
+          {tasks.length ? `${hours} focus block` : `${hours} · empty — tap to fill`}
+        </p>
+      </button>
+
+      {preview.length > 0 && (
+        <div className="border-t border-gold/20">
+          {preview.map((t) => (
+            <div key={t.id} className="flex items-center gap-2.5 pl-5 pr-3 py-2">
+              <button
+                type="button"
+                data-no-drag
+                onClick={() => onToggleTask(block.id, t)}
+                aria-label={t.is_completed ? 'Mark not done' : 'Mark done'}
+                className={`shrink-0 h-5 w-5 rounded-[5px] border-2 flex items-center justify-center transition-colors ${
+                  t.is_completed
+                    ? 'bg-gold/10 border-gold text-gold'
+                    : 'border-border-focus text-transparent active:border-gold'
+                }`}
+              >
+                <IconCheck size={12} stroke={3} />
+              </button>
+              <span
+                className={`flex-1 min-w-0 text-sm leading-snug break-words ${
+                  t.is_completed ? 'line-through text-text-low' : 'text-text'
+                }`}
+              >
+                {t.title}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        data-no-drag
+        onClick={() => onOpen(block)}
+        className="w-full text-left pl-5 pr-3 pb-2.5 pt-1.5 text-gold text-[13px] font-semibold active:opacity-70 transition-opacity"
+      >
+        {rest > 0 ? `+${rest} more · tap to manage` : '+ Add task to this session'}
+      </button>
+    </div>
+  )
+}
+
 function Timeline({
   blocks,
+  sessionItems,
   onToggleDone,
+  onToggleSessionTask,
+  onOpenSession,
   onReorder,
   onLongPress,
 }: {
   blocks: PlanBlock[]
+  sessionItems: Record<string, Task[]>
   onToggleDone: (b: PlanBlock) => void
+  onToggleSessionTask: (blockId: string, t: Task) => void
+  onOpenSession: (b: PlanBlock) => void
   onReorder: (orderedMovableIds: string[]) => void
   onLongPress: (b: PlanBlock) => void
 }) {
@@ -1186,6 +1598,15 @@ function Timeline({
                 <span className="text-text-muted text-xs leading-none">{b.start_local}</span>
                 <span className="text-text-muted text-xs leading-none">{b.end_local}</span>
               </div>
+
+              {b.kind === 'deep_work' ? (
+                <DeepWorkCard
+                  block={b}
+                  tasks={sessionItems[b.id] ?? []}
+                  onToggleTask={onToggleSessionTask}
+                  onOpen={onOpenSession}
+                />
+              ) : (
               <div
                 onPointerDown={b.locked ? undefined : (e) => onDown(e, b)}
                 onPointerMove={b.locked ? undefined : onMove}
@@ -1263,6 +1684,7 @@ function Timeline({
                   </button>
                 )}
               </div>
+              )}
             </div>
           </div>
         )
