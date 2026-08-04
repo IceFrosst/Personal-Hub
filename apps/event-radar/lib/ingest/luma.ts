@@ -28,7 +28,33 @@ const QUERIES = [
   ...LUMA_EU_WEST_SOUTH_QUERIES,
 ] as const
 
+/**
+ * Page budget for a *rotation* query. Measured 2026-08-04: every city/region
+ * query in the list exhausts on page 1 (`has_more=false`) — Berlin 10 entries,
+ * London 20, Vilnius 1, Paris 2 — so this ceiling never actually binds for them
+ * and raising it would buy nothing while costing request budget.
+ */
 const PAGES_PER_QUERY = 2
+
+/**
+ * Page budget for the always-run primary `hackathon` query, which is a
+ * different animal: the same probe walked it to **7 pages / 290 entries**, and
+ * `has_more` was still true at page 2. So the old shared cap of 2 was reading
+ * roughly a quarter of the single most productive query in the sweep, on every
+ * single run — the Devpost bug again, in the one place it costs most.
+ *
+ * Set above the measured depth so the feed's own `has_more` ends the walk, not
+ * this number. The extra requests are only ever spent when there is genuinely
+ * more to read, and they are the best-value requests in the sweep: the primary
+ * returns hundreds of events where a city query returns one or two.
+ *
+ * Budget note: this adds ~5 requests to a sweep that starts hitting Luma's
+ * limiter around 40. If that pushes the tail of the rotation window into a 403,
+ * the rotation is precisely what absorbs it — those queries run on the next
+ * sweep instead. Watch `luma_queries.blocked` in the cron report; if it climbs,
+ * lower LUMA_WINDOW rather than this.
+ */
+const PRIMARY_PAGES = 10
 
 type LumaGeo = {
   city?: string | null
@@ -120,12 +146,13 @@ export type LumaSweepStats = { ok: number; blocked: number; failed: number }
 async function fetchLumaQuery(
   query: string,
   seen: Set<string>,
-  stats: LumaSweepStats
+  stats: LumaSweepStats,
+  maxPages: number = PAGES_PER_QUERY
 ): Promise<IngestRow[]> {
   const rows: IngestRow[] = []
   let cursor: string | null = null
 
-  for (let i = 0; i < PAGES_PER_QUERY; i++) {
+  for (let i = 0; i < maxPages; i++) {
     const params = new URLSearchParams({ query })
     if (cursor) params.set('pagination_cursor', cursor)
     let res: Response
@@ -174,7 +201,7 @@ export async function fetchLuma(): Promise<IngestRow[]> {
   const rows: IngestRow[] = []
   const stats: LumaSweepStats = { ok: 0, blocked: 0, failed: 0 }
 
-  const primary = await fetchLumaQuery('hackathon', seen, stats)
+  const primary = await fetchLumaQuery('hackathon', seen, stats, PRIMARY_PAGES)
   rows.push(...primary)
 
   // Rotate through the list instead of firing all 108 at once — see

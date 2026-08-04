@@ -27,7 +27,8 @@ const CONFIGURED = {
   hackquest: 'limit 200, single call',
   devfolio: 'size 100 per type, single call',
   taikai: 'perPage 100, single call',
-  luma: 'PAGES_PER_QUERY 2 per query, by design',
+  unstop: 'MAX_PAGES 3 × PER_PAGE 100 (last_page stop in front)',
+  luma: 'PAGES_PER_QUERY 2 rotation / PRIMARY_PAGES 10 primary',
 }
 
 async function getJson(url, opts = {}) {
@@ -170,6 +171,64 @@ for (const [id, url, pick] of [
   } catch (e) {
     note(id, 'single request, no pagination', [`unreachable: ${e.message}`], 'UNKNOWN')
   }
+}
+
+// ── Luma: the cap is per-query, so ask it per query ────────────────────────
+// The primary `hackathon` query runs on every sweep and is the broadest one;
+// the city queries are the long tail. They behave completely differently, which
+// is exactly why a single shared PAGES_PER_QUERY was wrong.
+try {
+  const findings = []
+  let primaryDepth = 0
+  for (const q of ['hackathon', 'hackathon Berlin', 'hackathon Paris']) {
+    let cursor = null
+    let depth = 0
+    let entries = 0
+    let exhausted = false
+    for (let i = 0; i < 15; i++) {
+      const p = new URLSearchParams({ query: q })
+      if (cursor) p.set('pagination_cursor', cursor)
+      const page = await getJson(`https://api.lu.ma/discover/get-paginated-events?${p}`)
+      if (!Array.isArray(page.entries)) break
+      depth++
+      entries += page.entries.length
+      cursor = page.next_cursor ?? null
+      if (!page.has_more || !cursor) {
+        exhausted = true
+        break
+      }
+      await new Promise((r) => setTimeout(r, 300))
+    }
+    if (q === 'hackathon') primaryDepth = depth
+    findings.push(`"${q}": ${depth} pages, ${entries} entries${exhausted ? ' (exhausted)' : ' (still more)'}`)
+  }
+  note(
+    'luma',
+    CONFIGURED.luma,
+    findings,
+    primaryDepth > 10
+      ? `TRUNCATED — primary needs ${primaryDepth}, PRIMARY_PAGES is 10`
+      : `OK — PRIMARY_PAGES 10 clears the primary (${primaryDepth})`
+  )
+} catch (e) {
+  note('luma', CONFIGURED.luma, [`unreachable: ${e.message}`], 'UNKNOWN')
+}
+
+// ── Unstop: MAX_PAGES 3 × 100; does last_page exceed 3? ────────────────────
+try {
+  const d = await getJson(
+    'https://unstop.com/api/public/opportunity/search-result?opportunity=hackathons&oppstatus=open&per_page=100&page=1'
+  )
+  const lastPage = d.data?.last_page ?? null
+  const n = (d.data?.data ?? []).length
+  note(
+    'unstop',
+    CONFIGURED.unstop,
+    [`page 1: ${n} items, last_page=${lastPage}`],
+    lastPage && lastPage > 3 ? `TRUNCATED — last_page ${lastPage} > MAX_PAGES 3` : 'OK — cap 3 clears the end'
+  )
+} catch (e) {
+  note('unstop', CONFIGURED.unstop, [`unreachable: ${e.message}`], 'UNKNOWN')
 }
 
 const { writeFileSync } = await import('node:fs')

@@ -107,7 +107,15 @@
   250ms apart, abandoning the run after `BLOCKED_STREAK_LIMIT` consecutive
   rate-limited queries. ~5 ingest runs/day cycles the list about twice daily.
   **Adding a query is therefore cheap** — it joins the rotation instead of
-  pushing another one off the end. `summary.luma_queries`
+  pushing another one off the end.
+  **The page cap is per-query-kind, not global** (measured 2026-08-04). Every
+  city/region query exhausts on page 1 (Berlin 10 entries, London 20, Vilnius 1,
+  Paris 2), so `PAGES_PER_QUERY = 2` never binds for them. The always-run primary
+  `hackathon` query runs **7 pages / 290 entries** and had `has_more` still true
+  at page 2 — so the shared cap was reading ~a quarter of the sweep's single
+  most productive query, every run. It now gets `PRIMARY_PAGES = 10`. Do not
+  raise the rotation cap to match: that spends request budget fetching pages
+  that do not exist. `summary.luma_queries`
   (`ok`/`blocked`/`failed`) makes the limiter visible in the cron report; a
   persistently high `blocked` means lower the window, not add retries.
 - Feed (`components/Feed.tsx`) fetches the newest **1000** catalog rows then filters with
@@ -392,8 +400,10 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - **allhackathons.com live as an ingest source** — server-rendered international
   listing, the one aggregator that survived the open-egress probe.
 - **Every source's pagination cap audited** (2026-08-04, table in `SOURCES.md`).
-  Two were binding: Devpost (fixed earlier) and **allhackathons** (5 → 30, ≥70
-  events recovered). Nine sources measured clear from open egress; devfolio,
+  Three were binding: Devpost (fixed earlier), **allhackathons** (5 → 30, ≥70
+  events recovered) and **Luma's primary query** (2 → 10 pages; it runs 7 pages /
+  290 entries and we were reading two of them on every sweep). Nine sources
+  measured clear from open egress; devfolio,
   taikai, ethglobal, mlh, hacktrack and hackclub are single-request or
   short-listed and have no cap to bind. **Two remain unmeasured** — DoraHacks
   (WAF 405 even from a runner) and HackerEarth (403 even from a runner); both

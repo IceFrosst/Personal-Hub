@@ -162,8 +162,12 @@ The question asked is deliberately not "does this source return rows" but
 | mlh | n/a | 61, single unpaginated payload | ✅ n/a |
 | startuplithuania | MAX_PAGES 3 × 100 | breaks early when a page is short | ✅ clears |
 | hacktrack | single request | one call, whole archive | ✅ n/a |
+| **luma (primary query)** | **PAGES_PER_QUERY 2** | **7 pages / 290 entries** | **❌ TRUNCATED → primary raised to 10** |
+| luma (rotation queries) | PAGES_PER_QUERY 2 | all exhaust on page 1 | ✅ never binds |
+| unstop | MAX_PAGES 3 × 100 | `last_page` stop sits in front | ✅ clears |
 | dorahacks | MAX_PAGES 4 × 50 | **unmeasurable** — WAF 405 even from a runner | ⚠️ raised to 40 on structure |
 | hackerearth | single request | unmeasurable — 403 even from a runner | ⚠️ no cap to bind |
+| known / watches / africa-au / tier-a-extra | n/a | static hand-maintained arrays | ✅ no pagination |
 
 **allhackathons was the second real instance.** It was still serving 10 cards a
 page at page 12 while we stopped at 5 — so **at least** 70 of its listed events
@@ -174,6 +178,18 @@ the data. The script now walks past each configured cap and reports
 `INCONCLUSIVE` instead of a fake end.) Same shape as Devpost otherwise: nothing
 failed, nothing logged, the events simply did not exist as far as the radar was
 concerned.
+
+**Luma was the third instance, and the most expensive one.** `PAGES_PER_QUERY`
+was 2 for every query — but the queries are not alike. The ~150 city/region
+queries genuinely exhaust on page 1 (Berlin 10 entries, London 20, Vilnius 1,
+Paris 2), so the cap never binds for them. The always-run primary `hackathon`
+query runs to **7 pages / 290 entries**, with `has_more` still true exactly where
+we stopped. So every sweep, on the single broadest and most productive query in
+the system, we were reading about a quarter of it. The primary now gets its own
+budget of 10 (above the measured depth, so Luma's `has_more` ends the walk);
+rotation queries stay at 2 because raising them would spend request budget to
+fetch pages that do not exist. This one is a genuine trade rather than a free
+win — see the budget note in `luma.ts`.
 
 **On the two unmeasurable rows.** DoraHacks' 405 is not a probe bug — it is the
 documented AWS WAF challenge that `dorahacks.ts` already handles by keeping the
