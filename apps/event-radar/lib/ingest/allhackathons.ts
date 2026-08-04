@@ -26,7 +26,13 @@ import type { IngestRow } from './devpost'
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
 const LIST_URL = 'https://allhackathons.com/hackathons/'
-const MAX_PAGES = 5
+/**
+ * Ceiling only — the crawl stops when a page no longer advertises the next one,
+ * so this never forces extra requests. It was 5; raised for the same reason
+ * DoraHacks' was, so the site's own pager decides where the list ends rather
+ * than a number we picked before knowing how long the list is.
+ */
+const MAX_PAGES = 30
 
 /**
  * Django's `N` date filter — AP style, so the long months are spelled out and

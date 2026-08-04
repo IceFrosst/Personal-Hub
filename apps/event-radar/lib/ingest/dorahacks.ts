@@ -17,7 +17,17 @@ const API = 'https://dorahacks.io/api/hackathon/'
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'
 const PAGE_SIZE = 50
-const MAX_PAGES = 4
+/**
+ * Ceiling only — the loop's real stop is the API's own `next` cursor, so a
+ * short list still exits after one page. It was 4, which with PAGE_SIZE 50
+ * capped us at 200 events whether or not DoraHacks had more.
+ *
+ * That is the same shape as the Devpost bug: a cap low enough to bind is a
+ * silent coverage decision, because nothing errors when you stop early. Set it
+ * high enough that `next` is always what ends the walk, and keep it finite only
+ * so a pagination bug upstream cannot loop forever.
+ */
+const MAX_PAGES = 40
 
 type DoraOrg = { name?: string | null } | null
 

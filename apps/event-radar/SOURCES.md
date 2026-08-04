@@ -142,10 +142,65 @@ actually read* before concluding the source does not carry it. A page cap is a
 coverage decision in disguise, and every paginated source should be audited the
 same way.
 
+### The audit (2026-08-04) — every source checked individually
+
+Devpost was not alone. `scripts/probe-source-caps.mjs` walks *past* each
+configured cap and reports where the data actually ends; it runs as a step in
+`event-radar-turkey-probe.yml` because several of these 403 from a sandbox.
+The question asked is deliberately not "does this source return rows" but
+"does it still have more to give at the point we stop reading".
+
+| Source | Configured cap | Measured end | Verdict |
+|---|---|---|---|
+| devpost | 30 × 9 | page 19, 170 events | ✅ clears |
+| **allhackathons** | **MAX_PAGES 5** | **≥ page 12** | **❌ TRUNCATED → raised to 30** |
+| hackclub | single request | 13 items, unpaginated | ✅ n/a |
+| hackquest | limit 200 | 112 of 112 reported | ✅ clears |
+| devfolio | size 100 | `application_open` total 24 | ✅ clears |
+| taikai | perPage 100 | 2 | ✅ clears |
+| ethglobal | n/a | 3 (its real hackathons; the other 553 page slugs are meetups it filters) | ✅ n/a |
+| mlh | n/a | 61, single unpaginated payload | ✅ n/a |
+| startuplithuania | MAX_PAGES 3 × 100 | breaks early when a page is short | ✅ clears |
+| hacktrack | single request | one call, whole archive | ✅ n/a |
+| dorahacks | MAX_PAGES 4 × 50 | **unmeasurable** — WAF 405 even from a runner | ⚠️ raised to 40 on structure |
+| hackerearth | single request | unmeasurable — 403 even from a runner | ⚠️ no cap to bind |
+
+**allhackathons was the second real instance.** It was still serving 10 cards a
+page at page 12 while we stopped at 5 — so **at least** 70 of its listed events
+never reached the catalog, and the true list length is still unknown because the
+probe hit its own walk ceiling at 12 rather than the site's end. (That is itself
+worth remembering: a walk that stops at its own limit measures the limit, not
+the data. The script now walks past each configured cap and reports
+`INCONCLUSIVE` instead of a fake end.) Same shape as Devpost otherwise: nothing
+failed, nothing logged, the events simply did not exist as far as the radar was
+concerned.
+
+**On the two unmeasurable rows.** DoraHacks' 405 is not a probe bug — it is the
+documented AWS WAF challenge that `dorahacks.ts` already handles by keeping the
+pages it got. Since it can't be measured from open egress, its cap was raised on
+a structural argument instead: the loop's real stop is the API's own `next`
+cursor (`if (!body.next …) break`), so `MAX_PAGES` only ever binds when the list
+is longer than we guessed. The same holds for allhackathons, whose crawl stops
+when a page no longer advertises the next one. Raising a ceiling that sits
+*behind* a natural stop condition costs zero extra requests and removes the
+class of bug by construction — which is the right move when measurement is
+unavailable, but it is reasoning, not evidence, and is labelled as such here.
+HackerEarth has no pagination at all, so it has no cap to bind.
+
 ## Next candidates (in rough effort order)
 
-1. **Codemotion** — probe `events.codemotion.com` markup, then parse. It is the
-   only untapped listing that claims pan-EU coverage at scale.
+1. ~~**Codemotion**~~ — **probed 2026-08-04; not a hackathon source.** Markup is
+   fine (Nuxt, but the `__NUXT__` state is server-embedded and parseable, and
+   the rendered text carries event titles/dates/cities), so this was never a
+   scraping problem. The problem is the content: `/hackathons/` says outright
+   *"Sorry, there are no Events that match these filters"* for upcoming and then
+   lists only past editions — The Big Hack 2025 (Sep 2025), Big Hack ottava
+   edizione (Jun 2025), then 2024 and older. Its ~500 upcoming "events across
+   Europe" are all `meetup`/conference type (Cissone Summer Camp, ESPC26, Tech
+   Lead Summit Milano). So the pan-EU scale is real but it is not hackathon
+   scale — Codemotion's own hackathon programme has been dormant since Sept
+   2025. `/api/events` 404s and `sitemap.xml` 500s, for the record. **Do not
+   build the parser**; re-probe only if The Big Hack returns.
 2. **Devpost in-person filter** — pass `challenge_type[]=in-person` in
    `devpost.ts` to bias the sweep toward travel-relevant events.
 3. **Junction** — `hackjunction.app/hackathons` is a 28-word SPA shell, so the

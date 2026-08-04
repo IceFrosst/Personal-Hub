@@ -21,8 +21,8 @@ const UA = 'Mozilla/5.0 (compatible; EventRadar-CapAudit/1.0)'
 /** Cap values mirrored from lib/ingest/*.ts — keep in sync. */
 const CONFIGURED = {
   devpost: '30 pages × 9 (was 3 — the bug)',
-  dorahacks: 'MAX_PAGES 4 × PAGE_SIZE 50',
-  allhackathons: 'MAX_PAGES 5',
+  dorahacks: 'MAX_PAGES 40 × PAGE_SIZE 50 (was 4)',
+  allhackathons: 'MAX_PAGES 30 (was 5 — measured TRUNCATED 2026-08-04)',
   startuplithuania: 'MAX_PAGES 3 × PER_PAGE 100 (breaks early when short)',
   hackquest: 'limit 200, single call',
   devfolio: 'size 100 per type, single call',
@@ -85,7 +85,10 @@ try {
   const findings = []
   let lastNonEmpty = 0
   let total = 0
-  for (let p = 1; p <= 10; p++) {
+  // Walk past the cap (40), not up to it — a walk that stops at its own ceiling
+  // measures the ceiling, not the data.
+  const DORA_WALK = 45
+  for (let p = 1; p <= DORA_WALK; p++) {
     const d = await getJson(`https://dorahacks.io/api/hackathon/?page=${p}&page_size=50`, {
       headers: { Referer: 'https://dorahacks.io/hackathon' },
     })
@@ -95,12 +98,21 @@ try {
     lastNonEmpty = p
     if (p <= 6) findings.push(`page ${p}: ${n} items`)
   }
-  findings.push(`data ends at page ${lastNonEmpty} (${total} total)`)
+  const doraHitCeiling = lastNonEmpty === DORA_WALK
+  findings.push(
+    doraHitCeiling
+      ? `still returning data at page ${lastNonEmpty} — walk ceiling reached, real end unknown`
+      : `data ends at page ${lastNonEmpty} (${total} total)`
+  )
   note(
     'dorahacks',
     CONFIGURED.dorahacks,
     findings,
-    lastNonEmpty > 4 ? `TRUNCATED — real end is page ${lastNonEmpty}, we stop at 4` : 'OK — cap 4 clears the end'
+    doraHitCeiling
+      ? `INCONCLUSIVE — raise DORA_WALK above ${DORA_WALK}`
+      : lastNonEmpty > 40
+        ? `TRUNCATED — real end is page ${lastNonEmpty}, we stop at 40`
+        : `OK — cap 40 clears the end (${lastNonEmpty})`
   )
 } catch (e) {
   note('dorahacks', CONFIGURED.dorahacks, [`unreachable: ${e.message}`], 'UNKNOWN')
@@ -110,7 +122,11 @@ try {
 try {
   const findings = []
   let lastNonEmpty = 0
-  for (let p = 1; p <= 12; p++) {
+  // The 2026-08-04 run walked only to 12 and reported "ends at page 12" — but
+  // page 12 still had cards, so it had measured its own ceiling. Walk past the
+  // configured cap (30) instead, and say so when the ceiling is what stopped us.
+  const AH_WALK = 35
+  for (let p = 1; p <= AH_WALK; p++) {
     const url = p === 1 ? 'https://allhackathons.com/hackathons/' : `https://allhackathons.com/hackathons/?page=${p}`
     const { ok, status, text } = await getText(url)
     if (!ok) {
@@ -122,12 +138,21 @@ try {
     lastNonEmpty = p
     if (p <= 8) findings.push(`page ${p}: ${cards} cards`)
   }
-  findings.push(`cards end at page ${lastNonEmpty}`)
+  const ahHitCeiling = lastNonEmpty === AH_WALK
+  findings.push(
+    ahHitCeiling
+      ? `still returning cards at page ${lastNonEmpty} — walk ceiling reached, real end unknown`
+      : `cards end at page ${lastNonEmpty}`
+  )
   note(
     'allhackathons',
     CONFIGURED.allhackathons,
     findings,
-    lastNonEmpty > 5 ? `TRUNCATED — real end is page ${lastNonEmpty}, we stop at 5` : 'OK — cap 5 clears the end'
+    ahHitCeiling
+      ? `INCONCLUSIVE — raise AH_WALK above ${AH_WALK}`
+      : lastNonEmpty > 30
+        ? `TRUNCATED — real end is page ${lastNonEmpty}, we stop at 30`
+        : `OK — cap 30 clears the end (${lastNonEmpty})`
   )
 } catch (e) {
   note('allhackathons', CONFIGURED.allhackathons, [`unreachable: ${e.message}`], 'UNKNOWN')

@@ -245,6 +245,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   is dropped by the fail-closed feed rather than guessed. Supplies no
   registration deadline. Adds a second row for events already ingested
   elsewhere (dedupe is by URL alone) — the known aggregator trade-off.
+  **Its page cap was the second Devpost-class bug** — `MAX_PAGES` was 5 while
+  the site was still serving 10 cards a page at page 12, so ≥70 events were
+  silently invisible. Now 30. The crawl's real stop is the pager (it only walks
+  on while the page just read advertises the next), so the ceiling is a
+  runaway guard, not a coverage decision — same for DoraHacks' `next` cursor.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
   HTML. Don't add a headless browser for any source.
   **Read the whole list.** It paginates 9 per page and `upcoming+open` runs ~170
@@ -386,6 +391,15 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - **New tab** in the feed — see Feed UI filters.
 - **allhackathons.com live as an ingest source** — server-rendered international
   listing, the one aggregator that survived the open-egress probe.
+- **Every source's pagination cap audited** (2026-08-04, table in `SOURCES.md`).
+  Two were binding: Devpost (fixed earlier) and **allhackathons** (5 → 30, ≥70
+  events recovered). Nine sources measured clear from open egress; devfolio,
+  taikai, ethglobal, mlh, hacktrack and hackclub are single-request or
+  short-listed and have no cap to bind. **Two remain unmeasured** — DoraHacks
+  (WAF 405 even from a runner) and HackerEarth (403 even from a runner); both
+  had their ceilings raised on the structural argument that a natural stop
+  condition sits in front of them, which is reasoning rather than evidence.
+  `scripts/probe-source-caps.mjs` re-runs the whole audit from the probe workflow.
 - **Turkey groundwork** (`lib/region-turkey.ts`): Türkiye/İstanbul spellings recognised,
   Turkey → europe travel region, `priority_countries: ['turkey']` now matches a
   "Türkiye"-labelled event (it never did — `matchesCountry` is a plain substring test),
@@ -405,10 +419,13 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - **Watch `luma_queries` in the next few cron reports.** `blocked` should be 0
   or low. If it stays high, drop `LUMA_WINDOW` below 35 — do not add retries,
   the limiter is per-window not per-request.
-- **Best untapped EU hub is Codemotion** (`events.codemotion.com`) — claims 500+
-  European tech events and server-renders some of them. Probe its markup, then
-  parse. Second cheapest win: pass `challenge_type[]=in-person` to the Devpost
-  API, which it supports and `devpost.ts` does not use.
+- **Codemotion is closed — do not build the parser.** Probed 2026-08-04: the
+  markup is parseable (Nuxt, state server-embedded), but `/hackathons/` returns
+  *"no Events that match these filters"* for upcoming and lists only past
+  editions (The Big Hack, last run Sept 2025). Its 500+ upcoming European events
+  are meetups and conferences, not hackathons. Re-probe only if The Big Hack
+  returns. **Cheapest remaining win** is now the Devpost in-person filter: pass
+  `challenge_type[]=in-person`, which the API supports and `devpost.ts` doesn't use.
 - **Two events share the name UNIHACK** — `unihack.eu` (Timișoara, Romania) and
   `unihack.net` (Australia). Only the Romanian one has a verified policy
   ("No, we cannot cover your travel costs"); the registry entry is host-anchored
