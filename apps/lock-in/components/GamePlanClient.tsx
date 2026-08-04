@@ -309,6 +309,7 @@ export default function GamePlanClient() {
           time_mode: draft.timeMode,
           fixed_time: draft.fixedTime,
           duration_minutes: draft.durationMinutes,
+          is_mandatory: draft.mandatory,
         })
       if (insertError) {
         setError(insertError.message)

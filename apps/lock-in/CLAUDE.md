@@ -28,7 +28,7 @@ button lands here. Pure-black theme with a gold accent.
   - `plan_settings (user_id pk, work_start, work_end, timezone, auto_plan, deep_work_count, deep_work_min_minutes, deep_work_max_minutes, updated_at)` — planning prefs; created lazily. (`0011` added the three `deep_work_*` columns: how many focus sessions to reserve and their length range.)
   - `plan_blocks (id, user_id, task_id, title, plan_date, start_local, end_local, timezone, estimated_minutes, gcal_event_id, status)` — the scheduled day. Times are **local wall-clock strings + timezone** (no offset math; Google gets `dateTime`+`timeZone` directly). `title` denormalised so the timeline renders without joining tasks.
 - **Recurring tasks** — `supabase/migrations/0004_recurring_tasks.sql`, `lock_in` schema, RLS by `user_id`:
-  - `recurring_tasks (id, user_id, title, weekdays smallint[] /* ISO 1=Mon…7=Sun */, time_mode 'fixed'|'flexible', fixed_time, duration_minutes, is_active, created_at)` — a **template**, not a per-day row. No priority (routines aren't triaged).
+  - `recurring_tasks (id, user_id, title, weekdays smallint[] /* ISO 1=Mon…7=Sun */, time_mode 'fixed'|'flexible', fixed_time, duration_minutes, is_active, is_mandatory, created_at)` — a **template**, not a per-day row. No priority (routines aren't triaged). `is_mandatory` (`0012`) marks a routine that **must appear on every day it's due** — lunch and dinner are set this way.
   - `recurring_completions (id, recurring_id, user_id, completed_date, completed_at)`, unique `(recurring_id, completed_date)` — one row per day a routine is checked off. Streaks derive from these; the template is never deleted by a check-off.
 - **Deep Work** — `supabase/migrations/0011_deep_work.sql`: `plan_blocks.kind text` (`'deep_work'` = a reserved focus session; **null on every pre-existing row**, which keeps behaving as a task / routine / locked block), plus `deep_work_items (id, user_id, block_id → plan_blocks on delete cascade, task_id, position)` unique `(block_id, task_id)`, RLS by `user_id` — which tasks the user put in a session. No times: a session is a container.
 - Additive-only (`SCHEMA_RULES.md`); RLS by `user_id`. (`0004` also drops the temporary `oauth_debug` diagnostic table.)
@@ -76,6 +76,10 @@ the whole day; **Fit it in** is the keep-everything alternative.)
 blocks** instead of time-boxing every task. `planDay` (`lib/game-plan/planner.ts`) runs four
 deterministic phases against one running `occupied` list, so the output **cannot** double-book:
 1. **Fixed-time routines** pinned to their clock time (nearest free slot if busy).
+   **Mandatory routines are never dropped.** Normal routines are skipped when nothing fits
+   (`slotFor` returns null); a mandatory one widens its search past the working window instead —
+   **forward first**, so a squeezed lunch runs late rather than landing at 08:15 before the day
+   starts. Lunch/dinner have to exist every day, so they're flagged `is_mandatory`.
 2. **Flexible routines**, in this order: **meals** near their natural hour (`naturalMinutes`:
    breakfast 08:30, lunch 13:00, dinner/supper 19:00) → **workouts** (`isWorkout`) placed to *end
    exactly when a meal starts*, so the day always reads **exercise → lunch** or **exercise →

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { IconPinFilled } from '@tabler/icons-react'
 import { IconClock } from '@tabler/icons-react'
 import TimeWheel from '@/components/TimeWheel'
 import {
@@ -16,6 +17,7 @@ export type RecurringUpdate = {
   time_mode: TimeMode
   fixed_time: string | null
   duration_minutes: number
+  is_mandatory: boolean
 }
 
 type Props = {
@@ -36,6 +38,7 @@ export default function EditRecurringSheet({ task, onSave, onClose }: Props) {
   const [fixedTime, setFixedTime] = useState(task.fixed_time ?? '09:00')
   const [durHours, setDurHours] = useState(String(Math.floor(task.duration_minutes / 60)))
   const [durMins, setDurMins] = useState(String(task.duration_minutes % 60))
+  const [mandatory, setMandatory] = useState(!!task.is_mandatory)
   const [saving, setSaving] = useState(false)
 
   const totalDuration = (parseInt(durHours, 10) || 0) * 60 + (parseInt(durMins, 10) || 0)
@@ -58,6 +61,7 @@ export default function EditRecurringSheet({ task, onSave, onClose }: Props) {
         time_mode: timeMode,
         fixed_time: timeMode === 'fixed' ? fixedTime : null,
         duration_minutes: totalDuration,
+        is_mandatory: mandatory,
       })
     } finally {
       setSaving(false)
@@ -187,6 +191,21 @@ export default function EditRecurringSheet({ task, onSave, onClose }: Props) {
             </div>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setMandatory((m) => !m)}
+          aria-pressed={mandatory}
+          className={`flex items-center gap-2 w-full min-h-11 px-3 rounded-xl border text-sm transition-colors ${
+            mandatory
+              ? 'bg-gold/10 border-gold/50 text-gold'
+              : 'bg-surface border-border text-text-muted active:bg-surface-elevated'
+          }`}
+        >
+          <IconPinFilled size={15} />
+          <span className="flex-1 text-left">Must happen every day</span>
+          <span className="text-xs opacity-80">{mandatory ? 'On' : 'Off'}</span>
+        </button>
 
         <button
           type="button"

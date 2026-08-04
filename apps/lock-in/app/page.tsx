@@ -165,6 +165,7 @@ export default function HomePage() {
           time_mode: draft.timeMode,
           fixed_time: draft.fixedTime,
           duration_minutes: draft.durationMinutes,
+          is_mandatory: draft.mandatory,
         })
         .select()
         .single()

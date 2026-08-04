@@ -6,6 +6,7 @@ import {
   IconClock,
   IconMicrophone,
   IconMicrophoneFilled,
+  IconPinFilled,
   IconPlus,
   IconRepeat,
   IconTag,
@@ -26,6 +27,8 @@ export type RecurringDraft = {
   timeMode: TimeMode
   fixedTime: string | null
   durationMinutes: number
+  /** Must-do: the planner never drops it, even on a packed day. */
+  mandatory: boolean
 }
 
 type Props = {
@@ -94,6 +97,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
   const [timeMode, setTimeMode] = useState<TimeMode>('flexible')
   const [fixedTime, setFixedTime] = useState('09:00')
   const [showTimeModal, setShowTimeModal] = useState(false)
+  const [mandatory, setMandatory] = useState(false)
   const [durHours, setDurHours] = useState('0')
   const [durMins, setDurMins] = useState('30')
 
@@ -185,6 +189,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
           timeMode,
           fixedTime: timeMode === 'fixed' ? fixedTime : null,
           durationMinutes: totalDuration,
+          mandatory,
         })
       } else {
         await onAdd(text, priority, dueDate, category)
@@ -387,6 +392,21 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
               />
               <span>m</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setMandatory((m) => !m)}
+              aria-pressed={mandatory}
+              title="Must happen every day — never dropped when the day is full"
+              className={`flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border text-xs font-medium transition-colors ${
+                mandatory
+                  ? 'bg-gold/15 border-gold/50 text-gold'
+                  : 'bg-surface border-border text-text-muted active:bg-surface-elevated'
+              }`}
+            >
+              <IconPinFilled size={13} />
+              Must-do
+            </button>
           </>
         )}
       </div>

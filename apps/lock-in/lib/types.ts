@@ -59,6 +59,8 @@ export interface RecurringTask {
   fixed_time: string | null // 'HH:MM' when time_mode === 'fixed'
   duration_minutes: number
   is_active: boolean
+  /** Non-negotiable: must appear on every day it's due, never dropped for room. */
+  is_mandatory: boolean
   created_at: string
 }
 

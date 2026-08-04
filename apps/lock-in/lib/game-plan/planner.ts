@@ -132,7 +132,14 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     (a, b) => hmToMinutes(a.fixedTime) - hmToMinutes(b.fixedTime)
   )) {
     const dur = Math.max(5, r.durationMinutes)
-    const start = findNearestSlot(hmToMinutes(r.fixedTime), dur, occupied, winStart, winEnd)
+    const start = slotFor(
+      hmToMinutes(r.fixedTime),
+      dur,
+      occupied,
+      winStart,
+      winEnd,
+      !!r.mandatory
+    )
     if (start == null) continue
     occupied.push([start, start + dur])
     const natural = naturalMinutes(r.title)
@@ -205,12 +212,13 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
 
   for (const r of meals) {
     const dur = Math.max(5, r.durationMinutes)
-    const start = findNearestSlot(
+    const start = slotFor(
       naturalMinutes(r.title) as number,
       dur,
       occupied,
       winStart,
-      winEnd
+      winEnd,
+      !!r.mandatory
     )
     if (start == null) continue
     occupied.push([start, start + dur])
@@ -259,8 +267,10 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const roomy = freeGaps(occupied, winStart, winEnd)
       .filter(([s, e]) => e - s >= dur)
       .sort((a, b) => b[1] - b[0] - (a[1] - a[0]))
-    if (roomy.length === 0) continue
-    const start = roomy[0][0]
+    const start = roomy.length
+      ? roomy[0][0]
+      : slotFor(winStart, dur, occupied, winStart, winEnd, !!r.mandatory)
+    if (start == null) continue
     occupied.push([start, start + dur])
     out.push(routineBlock(r.id, r.title, start, dur))
   }
@@ -379,6 +389,30 @@ export function hasOverlap(
     if (spans[i][0] < spans[i - 1][1]) return true
   }
   return spans.some(([s, e]) => busy.some(([bs, be]) => s < be && e > bs))
+}
+
+/**
+ * Nearest free start for a routine. A **mandatory** routine (lunch, dinner —
+ * things that have to happen every single day) widens its search past the
+ * working window rather than be dropped, so a packed day can push dinner late
+ * but can never delete it.
+ */
+function slotFor(
+  desired: number,
+  dur: number,
+  occupied: Array<[number, number]>,
+  winStart: number,
+  winEnd: number,
+  mandatory: boolean
+): number | null {
+  const inside = findNearestSlot(desired, dur, occupied, winStart, winEnd)
+  if (inside != null || !mandatory) return inside
+  // Nothing free inside the working day. Look past it — but *forward* first: a
+  // displaced lunch should run late, not land at 08:15 before the day starts.
+  return (
+    findNearestSlot(desired, dur, occupied, desired, 24 * 60) ??
+    findNearestSlot(desired, dur, occupied, 0, 24 * 60)
+  )
 }
 
 /** Nearest free start to `desired` that fits `dur` inside the window, or null. */

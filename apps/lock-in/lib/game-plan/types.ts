@@ -81,12 +81,15 @@ export interface FixedRecurringInput {
   title: string
   durationMinutes: number
   fixedTime: string // 'HH:MM'
+  /** Must land every day — the planner widens its search rather than skip it. */
+  mandatory?: boolean
 }
 
 export interface FlexRecurringInput {
   id: string
   title: string
   durationMinutes: number
+  mandatory?: boolean
 }
 
 // A block as returned by the planner, before it becomes a PlanBlock row.

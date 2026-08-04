@@ -125,7 +125,7 @@ export async function runPlanForUser(args: {
     db
       .schema('lock_in')
       .from('recurring_tasks')
-      .select('id, title, weekdays, time_mode, fixed_time, duration_minutes')
+      .select('id, title, weekdays, time_mode, fixed_time, duration_minutes, is_mandatory')
       .eq('user_id', userId)
       .eq('is_active', true),
     db
@@ -146,6 +146,7 @@ export async function runPlanForUser(args: {
       time_mode: string
       fixed_time: string | null
       duration_minutes: number
+      is_mandatory: boolean | null
     }[]
   ).filter(
     (r) =>
@@ -162,10 +163,16 @@ export async function runPlanForUser(args: {
       title: r.title,
       durationMinutes: r.duration_minutes,
       fixedTime: r.fixed_time as string,
+      mandatory: !!r.is_mandatory,
     }))
   const recurringFlex: FlexRecurringInput[] = dueRecurring
     .filter((r) => !(r.time_mode === 'fixed' && r.fixed_time))
-    .map((r) => ({ id: r.id, title: r.title, durationMinutes: r.duration_minutes }))
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      durationMinutes: r.duration_minutes,
+      mandatory: !!r.is_mandatory,
+    }))
 
   const { timeMin, timeMax } = dayBoundsIso(today, tz)
 
