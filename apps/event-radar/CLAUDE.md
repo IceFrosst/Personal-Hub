@@ -188,6 +188,12 @@
     cards you get on tap — which means it moves as you toggle chips. That is
     intended: it answers "how many new ones match what I'm looking at", not "how
     many rows landed in the database".
+    Because that count is filtered, the tab also prints **"Showing X of Y new —
+    IRL + Multi-day is hiding the rest"** whenever the chips narrow it, naming
+    the chips actually in force (and a plain "Y new in the last 72h" when they
+    do not). This exists because of a real misread: a short event sitting under
+    New looks like a broken Multi-day filter, when in fact Multi-day was simply
+    off. Filter state has to be legible on screen, not inferred from the results.
   - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
     (Applied only in Applied tab; hidden nowhere)
 
