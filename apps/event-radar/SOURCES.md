@@ -121,27 +121,26 @@ shell that plain fetch cannot read.
 | `mita.gov.mt/events/` | 404. |
 
 
-## Known blind spot: organiser-owned announcements
+## Pagination is a coverage decision, not a detail
 
-Every one of the 14 sources is an aggregator or an API. **Nothing crawls an
-organiser's own site.** When an event announces only on its own domain, the
-whole pipeline is blind to it, and no amount of new aggregators fixes that.
+**Devpost was returning 16% of its list.** `fetchDevpost` defaulted to 3 pages ×
+9 events = 27, while `upcoming+open` runs to ~170 events across ~19 pages. The
+remaining 143 were dropped silently, ordered by whatever Devpost ranks first —
+which is dominated by US and online hackathons.
 
-Worked example — **Since AI Hackathon** (Turku, FI; 72h, €50k, free, worldwide):
+Found via **Since AI 2026** (Turku, €50k, MLH partner, 72h): it sits on **page
+11**. Both of Devpost's European events were past the cut — the other,
+MunichTech EXPO, on page 9. So the source was not "missing Europe" for any
+interesting reason; Europe simply ranks low and we stopped reading early.
 
-* its **2025** edition was indexed fine, because the organisers used Luma
-  (`lu.ma/2vs4wsjr`; HackTrack EU still carries it);
-* for **2026** they moved registration onto their own platform
-  (`sinceai.app`) and posted it to no aggregator, so it appeared in zero sources;
-* the "official MLH Member Event" badge did **not** help — `fetchMlh()` returns
-  61 rows across the 2026 and 2027 season pages and **none** are European. The
-  badge is a partnership, not a listing.
+Fixed to 30 pages with a stop-on-empty loop; the full sweep costs ~4s. Page 1
+returning zero now throws, because Devpost always has upcoming hackathons and a
+silent empty is drift.
 
-The `watch` list (`lib/ingest/watches.ts`) exists precisely for this shape:
-hand-entered events with approximate dates, emitted only inside their
-registration window. When an event you know about is missing, check whether it
-announces anywhere machine-readable before hunting for a new source — often the
-answer is a watch entry, not a scraper.
+**The general lesson:** when an event is missing, check *how much of a source we
+actually read* before concluding the source does not carry it. A page cap is a
+coverage decision in disguise, and every paginated source should be audited the
+same way.
 
 ## Next candidates (in rough effort order)
 

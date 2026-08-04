@@ -66,7 +66,22 @@ type DevpostApiHackathon = {
   open_state: string | null
 }
 
-export async function fetchDevpost(pages = 3): Promise<IngestRow[]> {
+/**
+ * Devpost paginates 9 events per page and the upcoming+open list runs to ~170
+ * events across ~19 pages. The old default of 3 pages therefore covered 27 of
+ * them — about 16% — and silently dropped everything after, ordered by whatever
+ * Devpost's default ranking happens to be.
+ *
+ * That is how "Since AI 2026" (Turku, €50k, MLH partner event) went missing: it
+ * sits on page 11. Both of Devpost's European events were past the cut — the
+ * other, MunichTech EXPO, on page 9 — because Europe ranks low in a list
+ * dominated by US and online hackathons.
+ *
+ * The whole list costs ~8s, which is affordable given sources run in parallel.
+ * The cap is a runaway guard, not a budget: the loop stops at the first empty
+ * page, so a shorter list simply exits early.
+ */
+export async function fetchDevpost(pages = 30): Promise<IngestRow[]> {
   const rows: IngestRow[] = []
 
   for (let page = 1; page <= pages; page++) {
@@ -78,7 +93,12 @@ export async function fetchDevpost(pages = 3): Promise<IngestRow[]> {
     if (!res.ok) throw new Error(`devpost page ${page} -> ${res.status}`)
     const body = (await res.json()) as { hackathons?: DevpostApiHackathon[] }
     const items = body.hackathons ?? []
-    if (items.length === 0) break
+    if (items.length === 0) {
+      // An empty FIRST page is drift, not an empty site — Devpost always has
+      // upcoming hackathons. Say so rather than contributing zero rows quietly.
+      if (page === 1) throw new Error('devpost: page 1 returned 0 hackathons — API shape drifted?')
+      break
+    }
 
     for (const h of items) {
       if (!h.url || !h.title) continue

@@ -31,16 +31,16 @@ test('January does not emit mid-year-only watches', () => {
   assert.equal(ids.has('adventurex-china'), false)
 })
 
-// Since AI Hackathon (Turku) is the case that proved the aggregators have a
-// blind spot: its 2025 edition was indexed via Luma, but for 2026 the
-// organisers moved registration to their own platform and posted it nowhere
-// an ingest source can see. A watch entry is the only thing that surfaces it.
+// Since AI Hackathon (Turku) exposed a Devpost pagination gap — it sits on page
+// 11 and we were reading 3. Devpost now finds it, so this watch exists only to
+// supply the registration deadline Devpost never provides. Its url matches
+// Devpost's on purpose so seed-upgrade merges them into one row.
 test('Since AI Turku is emitted during its registration window and passes eligibility', () => {
   const rows = watchesToRows(new Date('2026-08-04T12:00:00Z'))
   const h = rows.find((r) => r.source_id === 'since-ai-turku')
   assert.ok(h, 'should be emitted in August, inside regMonths')
   assert.equal(h.format, 'in_person')
-  assert.equal(h.location_raw, 'Turku, Finland')
+  assert.equal(h.url, 'https://sinceai2026.devpost.com/', 'must match the Devpost url so seed-upgrade merges, not duplicates')
   // A deadline is what makes it visible at all — the feed is fail-closed.
   assert.ok(h.registration_deadline)
   assert.ok(Date.parse(h.registration_deadline) > Date.parse('2026-08-04'))

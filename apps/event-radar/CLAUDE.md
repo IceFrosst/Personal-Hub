@@ -247,6 +247,10 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   elsewhere (dedupe is by URL alone) — the known aggregator trade-off.
 - Devpost's JSON API is unofficial: tolerate missing fields; `prize_amount` arrives as
   HTML. Don't add a headless browser for any source.
+  **Read the whole list.** It paginates 9 per page and `upcoming+open` runs ~170
+  events over ~19 pages; the old 3-page default returned 27 (16%) and hid both of
+  Devpost's European events — Since AI 2026 (Turku) on page 11, MunichTech EXPO
+  on page 9. Now 30 pages with stop-on-empty (~4s). An empty page 1 throws.
 - **MLH moved to www.mlh.com (2026-07):** the Inertia page object now lives as the BODY
   of a `<script data-page="app" type="application/json">` tag — the `data-page`
   attribute itself is a 3-byte decoy. `parseMlhInertia` scans attribute AND script-body
