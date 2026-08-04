@@ -120,6 +120,29 @@ shell that plain fetch cannot read.
 | `hackeps.com`, `europeandefensetech.com`, `hackathon.gr` | Do not resolve. |
 | `mita.gov.mt/events/` | 404. |
 
+
+## Known blind spot: organiser-owned announcements
+
+Every one of the 14 sources is an aggregator or an API. **Nothing crawls an
+organiser's own site.** When an event announces only on its own domain, the
+whole pipeline is blind to it, and no amount of new aggregators fixes that.
+
+Worked example — **Since AI Hackathon** (Turku, FI; 72h, €50k, free, worldwide):
+
+* its **2025** edition was indexed fine, because the organisers used Luma
+  (`lu.ma/2vs4wsjr`; HackTrack EU still carries it);
+* for **2026** they moved registration onto their own platform
+  (`sinceai.app`) and posted it to no aggregator, so it appeared in zero sources;
+* the "official MLH Member Event" badge did **not** help — `fetchMlh()` returns
+  61 rows across the 2026 and 2027 season pages and **none** are European. The
+  badge is a partnership, not a listing.
+
+The `watch` list (`lib/ingest/watches.ts`) exists precisely for this shape:
+hand-entered events with approximate dates, emitted only inside their
+registration window. When an event you know about is missing, check whether it
+announces anywhere machine-readable before hunting for a new source — often the
+answer is a watch entry, not a scraper.
+
 ## Next candidates (in rough effort order)
 
 1. **Codemotion** — probe `events.codemotion.com` markup, then parse. It is the

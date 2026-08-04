@@ -162,6 +162,32 @@ export const WATCHES: Watch[] = [
     notes: 'City hackathon · VILNIUS TECH LinkMenų fabrikas · reg opens ~2026-08-24',
   },
   {
+    // Why this is a hand-written watch rather than something a source found:
+    // the 2025 edition WAS indexed, via Luma (lu.ma/2vs4wsjr — HackTrack EU
+    // still has it). For 2026 the organisers moved registration onto their own
+    // platform (sinceai.app) and have not posted it to any aggregator, so every
+    // one of the 14 sources is blind to it. Being an "MLH Member Event" does not
+    // help either: fetchMlh() returns 61 rows for the 2026+2027 seasons and not
+    // one of them is European — the badge is a partnership, not a listing.
+    id: 'since-ai-turku',
+    title: 'Since AI Hackathon',
+    url: 'https://www.sinceai.fi/hackathon',
+    location_raw: 'Turku, Finland',
+    format: 'in_person',
+    themes: ['finland', 'europe', 'ai', 'nordic'],
+    regMonths: [8, 9, 10, 11],
+    eventMonths: [11],
+    approxStartsAt: '2026-11-06T08:00:00.000Z',
+    approxEndsAt: '2026-11-08T18:00:00.000Z',
+    // "Apply by 1 November" per the Business Turku listing. The organiser's own
+    // pages 403 automated requests, so this deadline is second-hand — confirm it
+    // before relying on it, and note a 1000-seat cap may close it sooner.
+    approxRegDeadline: '2026-11-01T21:59:59.000Z',
+    prize_pool: '50000 EUR',
+    notes:
+      '72h, EduCity Turku, free, open worldwide, €50k pool. Travel/accommodation policy UNVERIFIED — organiser site blocks automated reads, so no travel prior is claimed.',
+  },
+  {
     id: 'garage48',
     title: 'Garage48',
     url: 'https://garage48.org/',
