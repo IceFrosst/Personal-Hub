@@ -40,6 +40,8 @@ type Props = {
   ) => Promise<void> | void
   onAddRecurring: (title: string, draft: RecurringDraft) => Promise<void> | void
   disabled?: boolean
+  /** Game Plan hides the tag picker — tags there only drive errand scheduling. */
+  showTag?: boolean
 }
 
 // `null` = "no priority": a plain to-do the Game Plan never schedules on its own.
@@ -80,7 +82,7 @@ type SpeechRecognitionInstance = {
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
 
-export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
+export default function AddTaskBar({ onAdd, onAddRecurring, disabled, showTag = true }: Props) {
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueDate, setDueDate] = useState<string | null>(null)
@@ -325,6 +327,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
               </button>
             )}
 
+            {showTag && (
             <button
               type="button"
               onClick={() => setShowTagModal(true)}
@@ -340,6 +343,7 @@ export default function AddTaskBar({ onAdd, onAddRecurring, disabled }: Props) {
               <IconTag size={14} />
               {cat ? cat.label : 'Tag'}
             </button>
+            )}
           </>
         ) : (
           <>

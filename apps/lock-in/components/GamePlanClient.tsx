@@ -322,26 +322,20 @@ export default function GamePlanClient() {
   // Press and hold a row in the manage sheet to pick it up, then drag: the list
   // reshuffles live and the new order is written to `position` on release.
   const [dragItemId, setDragItemId] = useState<string | null>(null)
-  const itemHold = useRef<ReturnType<typeof setTimeout> | null>(null)
   const itemDrag = useRef<{ blockId: string; taskId: string } | null>(null)
   const itemRefs = useRef(new Map<string, HTMLElement>())
 
+  // The drag lives on the grip handle, not the whole row: the row must stay
+  // scrollable (a long session list is taller than the sheet), and only the
+  // handle sets `touch-none` so the browser hands us the gesture there.
   function onItemDown(e: React.PointerEvent, blockId: string, taskId: string) {
-    // The checkbox and the remove button own their taps.
-    if ((e.target as HTMLElement).closest('[data-no-drag]')) return
     e.currentTarget.setPointerCapture?.(e.pointerId)
-    itemHold.current = setTimeout(() => {
-      itemDrag.current = { blockId, taskId }
-      setDragItemId(taskId)
-    }, 200)
+    itemDrag.current = { blockId, taskId }
+    setDragItemId(taskId)
   }
 
   function onItemMove(e: React.PointerEvent) {
-    if (!itemDrag.current) {
-      if (itemHold.current) clearTimeout(itemHold.current)
-      itemHold.current = null
-      return
-    }
+    if (!itemDrag.current) return
     const { blockId, taskId } = itemDrag.current
     const list = sessionItems[blockId] ?? []
     const from = list.findIndex((t) => t.id === taskId)
@@ -363,8 +357,6 @@ export default function GamePlanClient() {
   }
 
   const onItemUp = useCallback(() => {
-    if (itemHold.current) clearTimeout(itemHold.current)
-    itemHold.current = null
     const d = itemDrag.current
     itemDrag.current = null
     setDragItemId(null)
@@ -391,7 +383,6 @@ export default function GamePlanClient() {
   // Work session to put it inside, or anywhere else on the day to give it its
   // own slot. Hit-testing is done with elementFromPoint against `data-drop`
   // markers so the drop zones stay declarative.
-  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dragRef = useRef<Task | null>(null)
 
   const hitTest = useCallback((x: number, y: number) => {
@@ -407,24 +398,20 @@ export default function GamePlanClient() {
     return () => document.removeEventListener('touchmove', stop)
   }, [dragTask])
 
+  // Arm on touch-down rather than after a hold: the chip has no other gesture,
+  // and a hold timer was fragile — the slightest finger jitter cancelled it
+  // before it ever fired. The chips carry `touch-none` so the browser doesn't
+  // claim the gesture for scrolling and pointercancel the drag out from under us.
   function onChipDown(e: React.PointerEvent, task: Task) {
-    const { clientX: x, clientY: y } = e
     e.currentTarget.setPointerCapture?.(e.pointerId)
-    holdRef.current = setTimeout(() => {
-      dragRef.current = task
-      setDragTask(task)
-      setDragPos({ x, y })
-      hitTest(x, y)
-    }, 220)
+    dragRef.current = task
+    setDragTask(task)
+    setDragPos({ x: e.clientX, y: e.clientY })
+    hitTest(e.clientX, e.clientY)
   }
 
   function onChipMove(e: React.PointerEvent) {
-    if (!dragRef.current) {
-      // Moved before the hold armed — treat it as a scroll, not a drag.
-      if (holdRef.current) clearTimeout(holdRef.current)
-      holdRef.current = null
-      return
-    }
+    if (!dragRef.current) return
     setDragPos({ x: e.clientX, y: e.clientY })
     hitTest(e.clientX, e.clientY)
   }
@@ -479,8 +466,6 @@ export default function GamePlanClient() {
   )
 
   const endDrag = useCallback(() => {
-    if (holdRef.current) clearTimeout(holdRef.current)
-    holdRef.current = null
     const task = dragRef.current
     const target = dropTarget
     dragRef.current = null
@@ -1081,7 +1066,7 @@ export default function GamePlanClient() {
                     Just added
                   </p>
                   <span className="text-text-low text-[11px]">
-                    {dragTask ? 'drop on the day or a session' : 'hold to drag onto your day'}
+                    {dragTask ? 'drop on the day or a session' : 'drag onto your day'}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1094,7 +1079,7 @@ export default function GamePlanClient() {
                       onPointerUp={endDrag}
                       onPointerCancel={endDrag}
                       onContextMenu={(e) => e.preventDefault()}
-                      className={`relative max-w-full flex items-center gap-2 pl-3.5 pr-3 py-2 rounded-xl border overflow-hidden text-left select-none transition-opacity ${
+                      className={`relative max-w-full flex items-center gap-2 pl-3.5 pr-3 py-2 rounded-xl border overflow-hidden text-left select-none touch-none transition-opacity ${
                         dragTask?.id === t.id
                           ? 'opacity-30 border-border bg-surface'
                           : 'bg-surface border-border active:bg-surface-elevated'
@@ -1118,7 +1103,12 @@ export default function GamePlanClient() {
                 Lives at the bottom, below the planned day. */}
             {day !== 'yesterday' && (
               <div className="mt-2 pt-4 border-t border-border">
-                <AddTaskBar onAdd={addTask} onAddRecurring={addRecurring} disabled={!userId} />
+                <AddTaskBar
+                  onAdd={addTask}
+                  onAddRecurring={addRecurring}
+                  disabled={!userId}
+                  showTag={false}
+                />
               </div>
             )}
           </>
@@ -1752,8 +1742,16 @@ function SessionTaskLine({
       </div>
 
       {onPointerDown && (
-        <span aria-hidden className="mt-2 shrink-0 text-text-low">
-          <IconGripVertical size={15} />
+        <span
+          data-no-drag
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          aria-label="Drag to reorder"
+          className="mt-0.5 shrink-0 h-8 w-8 -mr-1 flex items-center justify-center rounded-md text-text-low active:text-text active:bg-border/40 touch-none cursor-grab transition-colors"
+        >
+          <IconGripVertical size={16} />
         </span>
       )}
 
@@ -1784,15 +1782,7 @@ function SessionTaskLine({
       {body}
     </button>
   ) : (
-    <div
-      ref={innerRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onContextMenu={(e) => e.preventDefault()}
-      className={shell}
-    >
+    <div ref={innerRef} className={shell}>
       {body}
     </div>
   )

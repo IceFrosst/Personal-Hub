@@ -62,13 +62,17 @@ Creating a task or routine here writes to the same tables as the main list (`foc
 **Adding a task drops it in the "Not scheduled" tray, not into the plan.** A task created on the
 Game Plan tab is deliberately *not* placed (this replaced the old auto-fit-on-add — the two can't
 coexist, an auto-placed task never reaches a tray). It appears as a chip under the day, and you
-**press-and-hold (~220 ms) to lift it and drag**: drop on a **Deep Work session** to put it inside
+**drag it** (arms on touch-down): drop on a **Deep Work session** to put it inside
 (`session-tasks`), or anywhere else on the **day** to give it a slot of its own (`insert-task`).
 The tray holds **only tasks created right here that haven't been placed yet** — it is deliberately
 *not* backfilled from the database. It's the tail end of "I just added this", not a second copy of
 the task list, so it's empty on load and empties itself as you place things. Drop zones are declarative `data-drop` markers (`day`, `session:<id>`)
-hit-tested with `elementFromPoint`; a non-passive `touchmove` listener stops the page scrolling
-while a chip is held, and a `pointer-events:none` ghost follows the finger.
+hit-tested with `elementFromPoint`; a `pointer-events:none` ghost follows the finger.
+**Touch gotcha (this broke it once):** a drag source must set `touch-action: none` (`touch-none`) or
+the browser claims the gesture for scrolling and fires `pointercancel`, killing the drag — and don't
+gate arming behind a hold timer that any finger jitter can cancel. The tray chips are `touch-none`
+and arm on pointer-down; inside a session the drag lives on the **grip handle** (only the handle is
+`touch-none`) so a long list still scrolls.
 
 **`insert-task`** (the drag-onto-the-day path) — a *non-destructive* insert that places just that
 task **without moving anything already there** (no full replan). `POST /api/game-plan/insert-task` →
@@ -133,10 +137,9 @@ vanish on every replan. In the timeline a session renders as `DeepWorkCard`: gol
 **Both session sheets reuse the main list's visual language** via `SessionTaskLine` — the same
 priority rail, square gold checkbox and tag/due chips as `TaskRow`, sharing `PRIO_ACCENT` /
 `formatDueChip` with the Replace picker. The manage sheet lists the session's tasks (check off in
-place, ✕ to remove, **press-and-hold a row to drag it up or down** — the list reshuffles live and
+place, ✕ to remove, **drag a row by its grip handle** — the list reshuffles live and
 `POST session-tasks {order}` renumbers `position` on release; the checkbox and ✕ carry `data-no-drag`
-so they keep their taps, and rows deliberately don't set `touch-action:none` or the list would stop
-scrolling before a drag arms); the picker turns each row into one tap target with a gold tint + ring when
+so they keep their taps); the picker turns each row into one tap target with a gold tint + ring when
 selected. Both have grab handles, illustrated empty states and a full-width gold action button. Adding a one-off task from the Game Plan bar auto-assigns it to the current/next session
 (`insert.ts`); an errand still gets its own slot.
 
