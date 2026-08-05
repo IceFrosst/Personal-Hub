@@ -68,6 +68,8 @@ export default function GamePlanClient() {
   const [dragTask, setDragTask] = useState<Task | null>(null)
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  // Which block the drop lands after (null = first thing in the day).
+  const [dropAfter, setDropAfter] = useState<string | null>(null)
   const [placing, setPlacing] = useState(false)
   // Long-press on a block opens an action sheet; Edit opens the shared editor.
   const [sheetBlock, setSheetBlock] = useState<PlanBlock | null>(null)
@@ -385,10 +387,35 @@ export default function GamePlanClient() {
   // markers so the drop zones stay declarative.
   const dragRef = useRef<Task | null>(null)
 
-  const hitTest = useCallback((x: number, y: number) => {
-    const el = document.elementFromPoint(x, y) as HTMLElement | null
-    setDropTarget(el?.closest('[data-drop]')?.getAttribute('data-drop') ?? null)
-  }, [])
+  const hitTest = useCallback(
+    (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null
+      const target = el?.closest('[data-drop]')?.getAttribute('data-drop') ?? null
+      setDropTarget(target)
+      if (target !== 'day') {
+        setDropAfter(null)
+        return
+      }
+      // Which side of which row is the finger on? Top half → before that block,
+      // bottom half → after it. That's the slot the task gets squeezed into.
+      const row = el?.closest('[data-block]') as HTMLElement | null
+      const movable = blocks.filter((b) => !b.locked)
+      if (!row) {
+        setDropAfter(movable.length ? movable[movable.length - 1].id : null)
+        return
+      }
+      const id = row.getAttribute('data-block') as string
+      const r = row.getBoundingClientRect()
+      const idx = movable.findIndex((b) => b.id === id)
+      if (idx < 0) {
+        setDropAfter(null)
+        return
+      }
+      const after = y > r.top + r.height / 2
+      setDropAfter(after ? movable[idx].id : idx > 0 ? movable[idx - 1].id : null)
+    },
+    [blocks]
+  )
 
   // While a chip is held, swallow touchmove so the page doesn't scroll under it.
   useEffect(() => {
@@ -435,24 +462,26 @@ export default function GamePlanClient() {
   )
 
   /** Drop a tray task onto the day itself — it gets a time block of its own. */
+  /** Drop onto the day at the exact spot released; the day reflows around it. */
   const placeInDay = useCallback(
-    async (task: Task) => {
+    async (task: Task, afterBlockId: string | null) => {
       setPlacing(true)
       setJustAdded((prev) => prev.filter((t) => t.id !== task.id))
       try {
-        const res = await fetch('/api/game-plan/insert-task', {
+        const res = await fetch('/api/game-plan/insert-at', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: task.id, day, providerToken }),
+          body: JSON.stringify({ taskId: task.id, afterBlockId, day, providerToken }),
         })
         const data = await res.json()
         if (!res.ok) {
           setError('Couldn’t fit that into the day.')
         } else if (data.inserted) {
           setMessage(
-            `“${data.inserted.title}” at ${data.inserted.start}–${data.inserted.end}${
-              data.pastHours ? ' (past your work hours)' : ''
-            }.`
+            `“${data.inserted.title}” · ${data.inserted.minutes} min at ${data.inserted.start}` +
+              (data.droppedCount
+                ? ` — ${data.droppedCount} block${data.droppedCount > 1 ? 's' : ''} no longer fit.`
+                : '.')
           )
         }
       } catch {
@@ -472,10 +501,11 @@ export default function GamePlanClient() {
     setDragTask(null)
     setDragPos(null)
     setDropTarget(null)
+    setDropAfter(null)
     if (!task || !target) return
     if (target.startsWith('session:')) placeInSession(task, target.slice('session:'.length))
-    else if (target === 'day') placeInDay(task)
-  }, [dropTarget, placeInSession, placeInDay])
+    else if (target === 'day') placeInDay(task, dropAfter)
+  }, [dropTarget, dropAfter, placeInSession, placeInDay])
 
 
   // Create a routine from Game Plan → same table as the main list.
@@ -1051,6 +1081,7 @@ export default function GamePlanClient() {
               sessionItems={sessionItems}
               dragging={!!dragTask}
               dropTarget={dropTarget}
+              dropAfter={dropAfter}
               onToggleDone={toggleBlockDone}
               onToggleSessionTask={toggleSessionTask}
               onOpenSession={setSessionSheet}
@@ -1788,11 +1819,22 @@ function SessionTaskLine({
   )
 }
 
+/** Where the dragged task will be squeezed in. */
+function DropLine() {
+  return (
+    <div className="flex items-center gap-2 pl-11 pr-1 py-0.5" aria-hidden>
+      <span className="h-2 w-2 rounded-full bg-gold shrink-0" />
+      <span className="flex-1 h-0.5 rounded-full bg-gold" />
+    </div>
+  )
+}
+
 function Timeline({
   blocks,
   sessionItems,
   dragging,
   dropTarget,
+  dropAfter,
   onToggleDone,
   onToggleSessionTask,
   onOpenSession,
@@ -1803,6 +1845,7 @@ function Timeline({
   sessionItems: Record<string, Task[]>
   dragging: boolean
   dropTarget: string | null
+  dropAfter: string | null
   onToggleDone: (b: PlanBlock) => void
   onToggleSessionTask: (blockId: string, t: Task) => void
   onOpenSession: (b: PlanBlock) => void
@@ -1959,6 +2002,7 @@ function Timeline({
           : ''
       }`}
     >
+      {dragging && dropTarget === 'day' && dropAfter === null && <DropLine />}
       {order.map((id) => {
         const b = byId.get(id)
         if (!b) return null
@@ -1985,6 +2029,7 @@ function Timeline({
         return (
           <div
             key={b.id}
+            data-block={b.locked ? undefined : b.id}
             ref={(el) => {
               if (el) rowRefs.current.set(b.id, el)
               else rowRefs.current.delete(b.id)
@@ -1996,6 +2041,7 @@ function Timeline({
             }
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
+            {dragging && dropTarget === 'day' && dropAfter === b.id && <DropLine />}
             <div className={`flex gap-2 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
               <div className="shrink-0 w-11 self-stretch flex flex-col justify-between items-end py-2.5 tabular-nums">
                 <span className="text-text-muted text-xs leading-none">{b.start_local}</span>

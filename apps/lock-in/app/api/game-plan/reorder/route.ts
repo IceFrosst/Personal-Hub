@@ -1,30 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateSettings } from '@/lib/game-plan/settings'
-import {
-  deleteEvent,
-  hasOfflineCredentials,
-  patchEvent,
-  refreshAccessToken,
-} from '@/lib/google/calendar'
-import { hmToMinutes, nowLocalHM, todayInTz } from '@/lib/game-plan/time'
-import type { PlanBlock } from '@/lib/game-plan/types'
+import { hasOfflineCredentials, refreshAccessToken } from '@/lib/google/calendar'
+import { reflowDay } from '@/lib/game-plan/reflow'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const GAP = 5
-
-function toHM(mins: number): string {
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
 /**
- * Reflow the movable (task/routine) blocks of a day into a new order, packing
- * them around the locked calendar-event blocks, then update both the plan rows
- * and their Google Calendar events. Locked blocks never move.
+ * Reflow the movable blocks of a day into a new order (drag-to-reorder on the
+ * timeline). The layout rules live in `reflowDay`, shared with insert-at.
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -52,7 +37,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }
 
-  // Access token: stored offline refresh (durable) or the live session token.
   const { data: connection } = await supabase
     .schema('lock_in')
     .from('calendar_connections')
@@ -74,104 +58,13 @@ export async function POST(request: Request) {
   }
 
   const settings = await getOrCreateSettings(supabase, user.id)
-  const tz = settings.timezone
-
-  const { data: blockRows } = await supabase
-    .schema('lock_in')
-    .from('plan_blocks')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('plan_date', date)
-
-  const blocks = (blockRows ?? []) as PlanBlock[]
-  const locked = blocks.filter((b) => b.locked)
-  const movable = blocks.filter((b) => !b.locked)
-
-  // Order movable blocks by the requested id order; append any strays.
-  const byId = new Map(movable.map((b) => [b.id, b]))
-  const ordered = orderedIds.map((id) => byId.get(id)).filter((b): b is PlanBlock => Boolean(b))
-  for (const b of movable) if (!orderedIds.includes(b.id)) ordered.push(b)
-
-  const lockedIntervals = locked
-    .map((b) => [hmToMinutes(b.start_local), hmToMinutes(b.end_local)] as [number, number])
-    .sort((a, b) => a[0] - b[0])
-
-  const isToday = date === todayInTz(tz)
-  const workStart = hmToMinutes(settings.work_start)
-  const workEnd = hmToMinutes(settings.work_end)
-  const nowMin = Math.ceil(hmToMinutes(nowLocalHM(tz)) / 5) * 5
-  let cursor = isToday && nowMin > workStart ? nowMin : workStart
-
-  const changed: { block: PlanBlock; start: string; end: string }[] = []
-  const dropped: PlanBlock[] = []
-  for (const b of ordered) {
-    const dur = b.estimated_minutes ?? hmToMinutes(b.end_local) - hmToMinutes(b.start_local)
-    let start = cursor
-    // Slide past any locked block this would overlap.
-    for (let guard = 0; guard < 50; guard++) {
-      const conflict = lockedIntervals.find(([ls, le]) => start < le && start + dur > ls)
-      if (!conflict) break
-      start = conflict[1] + GAP
-    }
-    // Past the end of the working day → the day is overbooked; this block falls
-    // off (never schedule past work_end / midnight). Don't advance the cursor, so
-    // a shorter later block can still slot into the remaining time.
-    if (start + dur > workEnd) {
-      dropped.push(b)
-      continue
-    }
-    const startHM = toHM(start)
-    const endHM = toHM(start + dur)
-    if (startHM !== b.start_local || endHM !== b.end_local) {
-      changed.push({ block: b, start: startHM, end: endHM })
-    }
-    cursor = start + dur + GAP
-  }
-
-  // Apply: update rows + patch calendar events, and delete any dropped blocks
-  // (row + calendar event) — all in parallel.
-  await Promise.all([
-    ...changed.flatMap(({ block, start, end }) => {
-      const ops: PromiseLike<unknown>[] = [
-        supabase
-          .schema('lock_in')
-          .from('plan_blocks')
-          .update({ start_local: start, end_local: end })
-          .eq('id', block.id),
-      ]
-      if (block.gcal_event_id) {
-        ops.push(
-          patchEvent(accessToken as string, block.gcal_event_id, {
-            date,
-            startLocal: start,
-            endLocal: end,
-            timeZone: tz,
-          }).catch(() => {})
-        )
-      }
-      return ops
-    }),
-    ...dropped.flatMap((block) => {
-      const ops: PromiseLike<unknown>[] = [
-        supabase.schema('lock_in').from('plan_blocks').delete().eq('id', block.id),
-      ]
-      if (block.gcal_event_id) {
-        ops.push(deleteEvent(accessToken as string, block.gcal_event_id).catch(() => {}))
-      }
-      return ops
-    }),
-  ])
-
-  const { data: refreshed } = await supabase
-    .schema('lock_in')
-    .from('plan_blocks')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('plan_date', date)
-    .order('start_local', { ascending: true })
-
-  return NextResponse.json({
-    blocks: (refreshed ?? []) as PlanBlock[],
-    droppedCount: dropped.length,
+  const result = await reflowDay({
+    db: supabase,
+    userId: user.id,
+    accessToken,
+    settings,
+    date,
+    orderedIds,
   })
+  return NextResponse.json(result)
 }

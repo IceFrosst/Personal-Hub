@@ -63,7 +63,12 @@ Creating a task or routine here writes to the same tables as the main list (`foc
 Game Plan tab is deliberately *not* placed (this replaced the old auto-fit-on-add — the two can't
 coexist, an auto-placed task never reaches a tray). It appears as a chip under the day, and you
 **drag it** (arms on touch-down): drop on a **Deep Work session** to put it inside
-(`session-tasks`), or anywhere else on the **day** to give it a slot of its own (`insert-task`).
+(`session-tasks`), or on the **day at the exact spot you release it** (`insert-at`): a gold
+`DropLine` shows the slot (top/bottom half of a row decides before/after), the length is Gemini's
+estimate from the title (`estimateTaskMinutes`), and the day is then **reflowed around it** so later
+blocks slide to make room. Layout rules live in `lib/game-plan/reflow.ts` (`reflowDay`), shared with
+drag-to-reorder so both behave identically: locked calendar events never move, and anything pushed
+past `work_end` comes off the day (reported as `droppedCount`).
 The tray holds **only tasks created right here that haven't been placed yet** — it is deliberately
 *not* backfilled from the database. It's the tail end of "I just added this", not a second copy of
 the task list, so it's empty on load and empties itself as you place things. Drop zones are declarative `data-drop` markers (`day`, `session:<id>`)
