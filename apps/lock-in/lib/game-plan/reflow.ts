@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PlanBlock, PlanSettings } from './types'
 import { hmToMinutes, nowLocalHM, todayInTz } from './time'
-import { deleteEvent, patchEvent } from '@/lib/google/calendar'
+import { patchEvent } from '@/lib/google/calendar'
 
 const GAP = 5
 
@@ -16,9 +16,11 @@ function toHM(mins: number): string {
  * locked calendar-event blocks (which never move), then write the new times to
  * both the plan rows and their Google Calendar events.
  *
- * A block that would run past `work_end` falls off the day — row and event
- * deleted — rather than cascading into invalid after-midnight times. The cursor
- * doesn't advance for a dropped block, so a shorter later one can still fit.
+ * **Nothing is ever removed.** Blocks are allowed to run past `work_end` — a day
+ * that overruns is the user's problem to look at, not ours to silently delete
+ * work from. Packing is bounded only by the end of the day itself (23:59); in
+ * the impossible case that a block still doesn't fit, it keeps the time it
+ * already had rather than being dropped.
  *
  * Shared by drag-to-reorder and drop-a-task-into-the-day, so both produce
  * exactly the same layout rules.
@@ -30,7 +32,7 @@ export async function reflowDay(args: {
   settings: PlanSettings
   date: string
   orderedIds: string[]
-}): Promise<{ blocks: PlanBlock[]; droppedCount: number }> {
+}): Promise<{ blocks: PlanBlock[]; overflowCount: number }> {
   const { db, userId, accessToken, settings, date, orderedIds } = args
   const tz = settings.timezone
 
@@ -56,12 +58,12 @@ export async function reflowDay(args: {
 
   const isToday = date === todayInTz(tz)
   const workStart = hmToMinutes(settings.work_start)
-  const workEnd = hmToMinutes(settings.work_end)
+  const dayEnd = 23 * 60 + 59
   const nowMin = Math.ceil(hmToMinutes(nowLocalHM(tz)) / 5) * 5
   let cursor = isToday && nowMin > workStart ? nowMin : workStart
 
   const changed: { block: PlanBlock; start: string; end: string }[] = []
-  const dropped: PlanBlock[] = []
+  let overflow = 0
   for (const b of ordered) {
     const dur = b.estimated_minutes ?? hmToMinutes(b.end_local) - hmToMinutes(b.start_local)
     let start = cursor
@@ -70,8 +72,21 @@ export async function reflowDay(args: {
       if (!conflict) break
       start = conflict[1] + GAP
     }
-    if (start + dur > workEnd) {
-      dropped.push(b)
+    if (start + dur > dayEnd) {
+      // Runs past midnight, which the schema can't express (times are HH:MM
+      // within one plan_date). Squeeze it into whatever is left of the day
+      // instead of deleting it — a shortened block you can see and fix beats
+      // work silently disappearing. Only if there isn't even five minutes left
+      // does it keep the time it already had.
+      overflow += 1
+      const room = dayEnd - start
+      if (room < 5) continue
+      const startHM = toHM(start)
+      const endHM = toHM(dayEnd)
+      if (startHM !== b.start_local || endHM !== b.end_local) {
+        changed.push({ block: b, start: startHM, end: endHM })
+      }
+      cursor = dayEnd
       continue
     }
     const startHM = toHM(start)
@@ -103,15 +118,6 @@ export async function reflowDay(args: {
       }
       return ops
     }),
-    ...dropped.flatMap((block) => {
-      const ops: PromiseLike<unknown>[] = [
-        db.schema('lock_in').from('plan_blocks').delete().eq('id', block.id),
-      ]
-      if (block.gcal_event_id) {
-        ops.push(deleteEvent(accessToken, block.gcal_event_id).catch(() => {}))
-      }
-      return ops
-    }),
   ])
 
   const { data: refreshed } = await db
@@ -122,5 +128,5 @@ export async function reflowDay(args: {
     .eq('plan_date', date)
     .order('start_local', { ascending: true })
 
-  return { blocks: (refreshed ?? []) as PlanBlock[], droppedCount: dropped.length }
+  return { blocks: (refreshed ?? []) as PlanBlock[], overflowCount: overflow }
 }

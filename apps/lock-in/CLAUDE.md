@@ -67,8 +67,12 @@ coexist, an auto-placed task never reaches a tray). It appears as a chip under t
 `DropLine` shows the slot (top/bottom half of a row decides before/after), the length is Gemini's
 estimate from the title (`estimateTaskMinutes`), and the day is then **reflowed around it** so later
 blocks slide to make room. Layout rules live in `lib/game-plan/reflow.ts` (`reflowDay`), shared with
-drag-to-reorder so both behave identically: locked calendar events never move, and anything pushed
-past `work_end` comes off the day (reported as `droppedCount`).
+drag-to-reorder so both behave identically. **Nothing is ever deleted to make room** — locked
+calendar events never move, and everything else is allowed to run past `work_end` (the user's
+explicit call: an overrunning day is theirs to look at, not ours to silently delete work from).
+Packing is bounded only by 23:59, because times are `HH:MM` within one `plan_date` and can't express
+past-midnight; a block that would cross it is *shortened* to end at 23:59 rather than dropped.
+`overflowCount` reports how many ran over.
 The tray holds **only tasks created right here that haven't been placed yet** — it is deliberately
 *not* backfilled from the database. It's the tail end of "I just added this", not a second copy of
 the task list, so it's empty on load and empties itself as you place things. Drop zones are declarative `data-drop` markers (`day`, `session:<id>`)
@@ -142,7 +146,7 @@ vanish on every replan. In the timeline a session renders as `DeepWorkCard`: gol
 **Both session sheets reuse the main list's visual language** via `SessionTaskLine` — the same
 priority rail, square gold checkbox and tag/due chips as `TaskRow`, sharing `PRIO_ACCENT` /
 `formatDueChip` with the Replace picker. The manage sheet lists the session's tasks (check off in
-place, ✕ to remove, **drag a row by its grip handle** — the list reshuffles live and
+place, ✎ to edit the task, ✕ to remove, **press-and-hold a row to drag it** — the list reshuffles live and
 `POST session-tasks {order}` renumbers `position` on release; the checkbox and ✕ carry `data-no-drag`
 so they keep their taps); the picker turns each row into one tap target with a gold tint + ring when
 selected. Both have grab handles, illustrated empty states and a full-width gold action button. Adding a one-off task from the Game Plan bar auto-assigns it to the current/next session

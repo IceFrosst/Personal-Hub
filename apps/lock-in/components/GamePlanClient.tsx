@@ -327,17 +327,33 @@ export default function GamePlanClient() {
   const itemDrag = useRef<{ blockId: string; taskId: string } | null>(null)
   const itemRefs = useRef(new Map<string, HTMLElement>())
 
-  // The drag lives on the grip handle, not the whole row: the row must stay
-  // scrollable (a long session list is taller than the sheet), and only the
-  // handle sets `touch-none` so the browser hands us the gesture there.
+  // No handle any more, so the row itself is the drag surface — which means a
+  // long-press, exactly like the timeline blocks: the list has to stay
+  // scrollable, and holding still keeps the browser from claiming the gesture
+  // before we arm. A pre-arm move of >10px is a scroll, not a drag (a couple of
+  // pixels of finger jitter is not).
+  const itemHold = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const itemStart = useRef<{ x: number; y: number } | null>(null)
+
   function onItemDown(e: React.PointerEvent, blockId: string, taskId: string) {
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return
     e.currentTarget.setPointerCapture?.(e.pointerId)
-    itemDrag.current = { blockId, taskId }
-    setDragItemId(taskId)
+    itemStart.current = { x: e.clientX, y: e.clientY }
+    itemHold.current = setTimeout(() => {
+      itemDrag.current = { blockId, taskId }
+      setDragItemId(taskId)
+    }, 300)
   }
 
   function onItemMove(e: React.PointerEvent) {
-    if (!itemDrag.current) return
+    if (!itemDrag.current) {
+      const st = itemStart.current
+      if (st && Math.hypot(e.clientX - st.x, e.clientY - st.y) > 10 && itemHold.current) {
+        clearTimeout(itemHold.current)
+        itemHold.current = null
+      }
+      return
+    }
     const { blockId, taskId } = itemDrag.current
     const list = sessionItems[blockId] ?? []
     const from = list.findIndex((t) => t.id === taskId)
@@ -359,6 +375,9 @@ export default function GamePlanClient() {
   }
 
   const onItemUp = useCallback(() => {
+    if (itemHold.current) clearTimeout(itemHold.current)
+    itemHold.current = null
+    itemStart.current = null
     const d = itemDrag.current
     itemDrag.current = null
     setDragItemId(null)
@@ -475,10 +494,7 @@ export default function GamePlanClient() {
           setError('Couldn’t fit that into the day.')
         } else if (data.inserted) {
           setMessage(
-            `“${data.inserted.title}” · ${data.inserted.minutes} min at ${data.inserted.start}` +
-              (data.droppedCount
-                ? ` — ${data.droppedCount} block${data.droppedCount > 1 ? 's' : ''} no longer fit.`
-                : '.')
+            `“${data.inserted.title}” · ${data.inserted.minutes} min at ${data.inserted.start}.`
           )
         }
       } catch {
@@ -600,12 +616,8 @@ export default function GamePlanClient() {
         const data = await res.json()
         if (res.ok && data.blocks) {
           setBlocks(data.blocks as PlanBlock[])
-          if (data.droppedCount > 0) {
-            setMessage(
-              `Day's overbooked — ${data.droppedCount} block${
-                data.droppedCount === 1 ? '' : 's'
-              } past your work hours dropped off. Replan or extend your hours in settings.`
-            )
+          if (data.overflowCount > 0) {
+            setMessage("Day's overbooked — some blocks now run past your work hours.")
           }
         } else {
           setError('Could not save the new order — try again.')
@@ -830,6 +842,15 @@ export default function GamePlanClient() {
           .eq('task_id', task.id)
           .gte('plan_date', todayStr)
       }
+      // A task can also live inside a Deep Work session, which has no block —
+      // keep those lists in step or the sheet shows the old title.
+      setSessionItems((prev) => {
+        const next: Record<string, Task[]> = {}
+        for (const [blockId, list] of Object.entries(prev)) {
+          next[blockId] = list.map((t) => (t.id === task.id ? { ...t, ...updates } : t))
+        }
+        return next
+      })
     },
     [supabase, userId, todayStr]
   )
@@ -1212,6 +1233,10 @@ export default function GamePlanClient() {
                     onPointerUp={onItemUp}
                     onToggleDone={() => toggleSessionTask(sessionSheet.id, t)}
                     onRemove={() => removeFromSession(sessionSheet.id, t.id)}
+                    onEdit={() => {
+                      setSessionSheet(null)
+                      setEditTask(t)
+                    }}
                   />
                 ))
               )}
@@ -1692,6 +1717,7 @@ function SessionTaskLine({
   onPointerUp,
   onToggleDone,
   onRemove,
+  onEdit,
   onSelect,
 }: {
   task: Task
@@ -1703,6 +1729,7 @@ function SessionTaskLine({
   onPointerUp?: () => void
   onToggleDone?: () => void
   onRemove?: () => void
+  onEdit?: () => void
   onSelect?: () => void
 }) {
   const cat = task.category ? TASK_CATEGORIES.find((c) => c.value === task.category) : null
@@ -1769,18 +1796,16 @@ function SessionTaskLine({
         )}
       </div>
 
-      {onPointerDown && (
-        <span
+      {onEdit && (
+        <button
+          type="button"
           data-no-drag
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          aria-label="Drag to reorder"
-          className="mt-0.5 shrink-0 h-8 w-8 -mr-1 flex items-center justify-center rounded-md text-text-low active:text-text active:bg-border/40 touch-none cursor-grab transition-colors"
+          onClick={onEdit}
+          aria-label="Edit task"
+          className="mt-0.5 shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-text-low active:text-text active:bg-border/40 transition-colors"
         >
-          <IconGripVertical size={16} />
-        </span>
+          <IconPencil size={17} />
+        </button>
       )}
 
       {onRemove && (
@@ -1810,7 +1835,15 @@ function SessionTaskLine({
       {body}
     </button>
   ) : (
-    <div ref={innerRef} className={shell}>
+    <div
+      ref={innerRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onContextMenu={(e) => e.preventDefault()}
+      className={shell}
+    >
       {body}
     </div>
   )

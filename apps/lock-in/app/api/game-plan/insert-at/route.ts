@@ -109,7 +109,7 @@ export async function POST(request: Request) {
 
   // Already on the day? Nothing to insert.
   if (existing.some((b) => b.task_id === taskId)) {
-    return NextResponse.json({ blocks: existing, droppedCount: 0, already: true })
+    return NextResponse.json({ blocks: existing, overflowCount: 0, already: true })
   }
 
   // Provisional times — the reflow assigns the real ones a moment later. Start
