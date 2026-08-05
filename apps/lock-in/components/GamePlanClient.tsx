@@ -396,23 +396,20 @@ export default function GamePlanClient() {
         setDropAfter(null)
         return
       }
-      // Which side of which row is the finger on? Top half → before that block,
-      // bottom half → after it. That's the slot the task gets squeezed into.
-      const row = el?.closest('[data-block]') as HTMLElement | null
-      const movable = blocks.filter((b) => !b.locked)
-      if (!row) {
-        setDropAfter(movable.length ? movable[movable.length - 1].id : null)
-        return
+      // Insert after the LAST row whose midpoint is above the finger. Measuring
+      // every row instead of asking what's directly under the finger matters:
+      // elementFromPoint returns null over a locked block, a gap, or the drop
+      // indicator itself, and the old code read that as "append to the end" —
+      // which is how a task dropped mid-morning landed at 21:40.
+      let after: string | null = null
+      for (const b of blocks) {
+        if (b.locked) continue
+        const el2 = document.querySelector(`[data-block="${b.id}"]`) as HTMLElement | null
+        if (!el2) continue
+        const r = el2.getBoundingClientRect()
+        if (y > r.top + r.height / 2) after = b.id
       }
-      const id = row.getAttribute('data-block') as string
-      const r = row.getBoundingClientRect()
-      const idx = movable.findIndex((b) => b.id === id)
-      if (idx < 0) {
-        setDropAfter(null)
-        return
-      }
-      const after = y > r.top + r.height / 2
-      setDropAfter(after ? movable[idx].id : idx > 0 ? movable[idx - 1].id : null)
+      setDropAfter(after)
     },
     [blocks]
   )
@@ -1079,7 +1076,7 @@ export default function GamePlanClient() {
             <Timeline
               blocks={blocks}
               sessionItems={sessionItems}
-              dragging={!!dragTask}
+              trayDragging={!!dragTask}
               dropTarget={dropTarget}
               dropAfter={dropAfter}
               onToggleDone={toggleBlockDone}
@@ -1820,19 +1817,24 @@ function SessionTaskLine({
 }
 
 /** Where the dragged task will be squeezed in. */
-function DropLine() {
+function DropLine({ edge }: { edge: 'top' | 'bottom' }) {
   return (
-    <div className="flex items-center gap-2 pl-11 pr-1 py-0.5" aria-hidden>
-      <span className="h-2 w-2 rounded-full bg-gold shrink-0" />
+    <span
+      aria-hidden
+      className={`pointer-events-none absolute left-11 right-1 z-20 flex items-center ${
+        edge === 'bottom' ? 'bottom-0' : 'top-0'
+      }`}
+    >
+      <span className="h-2 w-2 rounded-full bg-gold shrink-0 -ml-1" />
       <span className="flex-1 h-0.5 rounded-full bg-gold" />
-    </div>
+    </span>
   )
 }
 
 function Timeline({
   blocks,
   sessionItems,
-  dragging,
+  trayDragging,
   dropTarget,
   dropAfter,
   onToggleDone,
@@ -1843,7 +1845,7 @@ function Timeline({
 }: {
   blocks: PlanBlock[]
   sessionItems: Record<string, Task[]>
-  dragging: boolean
+  trayDragging: boolean
   dropTarget: string | null
   dropAfter: string | null
   onToggleDone: (b: PlanBlock) => void
@@ -1991,18 +1993,19 @@ function Timeline({
     )
   }
 
+  const firstMovableId = blocks.find((b) => !b.locked)?.id ?? null
+
   return (
     <section
       data-drop="day"
       className={`flex flex-col mt-1 rounded-2xl transition-colors ${
-        dragging
+        trayDragging
           ? dropTarget === 'day'
             ? 'ring-2 ring-gold/60 bg-gold/[0.06]'
             : 'ring-1 ring-dashed ring-border-focus'
           : ''
       }`}
     >
-      {dragging && dropTarget === 'day' && dropAfter === null && <DropLine />}
       {order.map((id) => {
         const b = byId.get(id)
         if (!b) return null
@@ -2037,11 +2040,13 @@ function Timeline({
             className={
               dragging
                 ? 'relative z-10 transition-none'
-                : 'transition-transform duration-150 ease-out'
+                : 'relative transition-transform duration-150 ease-out'
             }
             style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
           >
-            {dragging && dropTarget === 'day' && dropAfter === b.id && <DropLine />}
+            {trayDragging && dropTarget === 'day' && (dropAfter === b.id || (dropAfter === null && b.id === firstMovableId)) && (
+              <DropLine edge={dropAfter === b.id ? 'bottom' : 'top'} />
+            )}
             <div className={`flex gap-2 py-1.5 ${done || continued ? 'opacity-60' : ''}`}>
               <div className="shrink-0 w-11 self-stretch flex flex-col justify-between items-end py-2.5 tabular-nums">
                 <span className="text-text-muted text-xs leading-none">{b.start_local}</span>
