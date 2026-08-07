@@ -80,6 +80,13 @@ const DEFAULT_MINUTES: Record<'low' | 'medium' | 'high', number> = {
 const GAP = 5
 /** Breathing room between two Deep Work sessions — never back-to-back. */
 const SESSION_BREAK = 30
+/**
+ * Absolute floor for a focus session. `deep_work_min_minutes` is the *preferred*
+ * length; when the day has no gap that big, a shorter session still beats
+ * leaving the time empty. Refusing a 105-minute hole and reporting "no room"
+ * while five hours sit idle is not efficient planning.
+ */
+const SESSION_FLOOR = 60
 
 /**
  * Tasks that want a slot on the clock rather than a seat in a focus session:
@@ -183,9 +190,10 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
         .filter((n): n is number => n != null && n >= 12 * 60)),
     ]
     const firstMeal = plannedMeals.length ? Math.min(...plannedMeals) : winEnd
-    const morning = freeGaps(occupied, winStart, winEnd)
-      .filter(([s, e]) => s < firstMeal && Math.min(e, firstMeal) - s >= input.deepWorkMinMinutes)
-      .sort((a, b) => a[0] - b[0])[0]
+    const beforeMeal = freeGaps(occupied, winStart, winEnd).filter(([s]) => s < firstMeal)
+    const fits = (need: number) =>
+      beforeMeal.filter(([s, e]) => Math.min(e, firstMeal) - s >= need).sort((a, b) => a[0] - b[0])[0]
+    const morning = fits(input.deepWorkMinMinutes) ?? fits(Math.min(SESSION_FLOOR, input.deepWorkMinMinutes))
     if (morning) {
       const until = Math.min(morning[1], firstMeal)
       const dur = Math.min(input.deepWorkMaxMinutes, until - morning[0])
@@ -296,12 +304,18 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
 
   // Phase 3 — top up to the requested number of sessions from the biggest
   // stretches that are left (the morning one is already reserved above).
+  const floor = Math.min(SESSION_FLOOR, input.deepWorkMinMinutes)
   while (sessions.length < Math.max(0, input.deepWorkCount)) {
-    const candidates = freeGaps(occupied, winStart, winEnd)
-      .filter(([s, e]) => e - s >= input.deepWorkMinMinutes)
-      .sort((a, b) => b[1] - b[0] - (a[1] - a[0]))
-    if (candidates.length === 0) break
-    const [gs, ge] = candidates[0]
+    const gaps = freeGaps(occupied, winStart, winEnd).sort(
+      (a, b) => b[1] - b[0] - (a[1] - a[0])
+    )
+    // Prefer a gap of the wanted size; otherwise take the roomiest one that
+    // still clears the floor, so free time actually gets used.
+    const pick =
+      gaps.find(([s, e]) => e - s >= input.deepWorkMinMinutes) ??
+      gaps.find(([s, e]) => e - s >= floor)
+    if (!pick) break
+    const [gs, ge] = pick
     addSession(gs, Math.min(input.deepWorkMaxMinutes, ge - gs))
   }
 

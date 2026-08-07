@@ -1550,9 +1550,9 @@ function SettingsPanel({
       </div>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <span className="text-text-muted text-sm">Shortest session</span>
+          <span className="text-text-muted text-sm">Ideal session</span>
           <p className="text-text-low text-[11px] mt-0.5">
-            No session is created unless a gap this big is free
+            Preferred length — a smaller gap still gets used
           </p>
         </div>
         <div className="flex items-center rounded-lg bg-surface-elevated border border-border p-0.5">

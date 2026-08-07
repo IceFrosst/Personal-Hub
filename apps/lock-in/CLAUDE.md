@@ -125,9 +125,10 @@ deterministic phases against one running `occupied` list, so the output **cannot
    fits: a guaranteed focus session is not worth silently costing the user their training.
    A session that ends at a meal skips its `SESSION_BREAK` (the meal is the break, and reserving one
    only shoves lunch later).
-   *Consequence worth knowing:* on a day chopped into sub-`deep_work_min_minutes` gaps you get
-   **zero** sessions, correctly. `deep_work_min_minutes` (1h / 1.5h / 2h) is exposed in settings
-   because that is the lever — not the planner.
+   `deep_work_min_minutes` (1h / 1.5h / 2h, in settings) is the **preferred** length, not a hard
+   gate: when no gap is that big the planner takes the roomiest gap that still clears
+   `SESSION_FLOOR` (60 min). Holding out for a perfect 2 h window while five hours of the day sit
+   in 105-minute holes is not efficient planning — it just reports "no room" over a usable day.
 3. **Deep Work sessions** — up to `plan_settings.deep_work_count` (default 2), carved from the
    biggest remaining stretches, clamped to `deep_work_min/max_minutes` (120/240), each reserving a
    30 min `SESSION_BREAK` after it so two sessions are never back-to-back. `kind = 'deep_work'`,
