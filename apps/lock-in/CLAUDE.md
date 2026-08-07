@@ -120,9 +120,12 @@ deterministic phases against one running `occupied` list, so the output **cannot
    It is carved **before** the workout is placed, because the workout would otherwise swallow the
    whole pre-lunch stretch and leave nothing big enough in front of it. Where a morning session and
    an exercise→lunch pairing can't both fit, **the morning session wins and the workout pairs with
-   dinner instead** — both orderings the user accepts. **But it yields entirely if taking that
-   stretch would starve the biggest routine still to place** and there's nowhere else that routine
-   fits: a guaranteed focus session is not worth silently costing the user their training.
+   dinner instead** — both orderings the user accepts. **If taking the whole stretch would starve
+   the biggest routine still to place, the session is capped rather than skipped** — it keeps the
+   front of the gap and hands back exactly the tail the routine needs, so you get e.g. Deep Work
+   10:20-11:30 → Exercise 11:30-13:30 → Lunch. A capped session takes **no** `SESSION_BREAK`: the
+   routine starts the moment it ends, and a reserved break would push the routine off the meal it's
+   meant to run into.
    A session that ends at a meal skips its `SESSION_BREAK` (the meal is the break, and reserving one
    only shoves lunch later).
    `deep_work_min_minutes` (1h / 1.5h / 2h, in settings) is the **preferred** length, not a hard

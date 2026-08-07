@@ -196,7 +196,6 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const morning = fits(input.deepWorkMinMinutes) ?? fits(Math.min(SESSION_FLOOR, input.deepWorkMinMinutes))
     if (morning) {
       const until = Math.min(morning[1], firstMeal)
-      const dur = Math.min(input.deepWorkMaxMinutes, until - morning[0])
       // Don't starve the routines. If this is the only stretch left that could
       // hold the biggest routine still to place (typically the workout), the
       // routine wins — a guaranteed morning session isn't worth silently
@@ -210,9 +209,22 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
       const elsewhere = freeGaps(occupied, winStart, winEnd).some(
         ([s, e]) => !(s === morning[0]) && e - s >= biggestPending
       )
-      const leftInGap = morning[1] - (morning[0] + dur)
-      const starves = biggestPending > 0 && !elsewhere && leftInGap < biggestPending
-      if (!starves) addSession(morning[0], dur, morning[0] + dur < firstMeal)
+      // Don't yield the whole stretch — just hand back the tail the routine
+      // needs and keep the front of it. A 70-minute session before training
+      // beats leaving that time empty because a full one wouldn't fit.
+      const room = until - morning[0]
+      let dur = Math.min(input.deepWorkMaxMinutes, room)
+      let cappedForRoutine = false
+      if (biggestPending > 0 && !elsewhere && room - dur < biggestPending) {
+        dur = room - biggestPending
+        cappedForRoutine = true
+      }
+      // No break when we've deliberately left the space for the routine — it
+      // starts the moment the session ends, and a reserved break would push it
+      // off the meal it's supposed to run into.
+      if (dur >= Math.min(SESSION_FLOOR, input.deepWorkMinMinutes)) {
+        addSession(morning[0], dur, !cappedForRoutine && morning[0] + dur < firstMeal)
+      }
     }
   }
 
