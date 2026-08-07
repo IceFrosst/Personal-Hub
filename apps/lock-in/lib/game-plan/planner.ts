@@ -189,7 +189,22 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     if (morning) {
       const until = Math.min(morning[1], firstMeal)
       const dur = Math.min(input.deepWorkMaxMinutes, until - morning[0])
-      addSession(morning[0], dur, morning[0] + dur < firstMeal)
+      // Don't starve the routines. If this is the only stretch left that could
+      // hold the biggest routine still to place (typically the workout), the
+      // routine wins — a guaranteed morning session isn't worth silently
+      // costing you your training.
+      const biggestPending = Math.max(
+        0,
+        ...input.recurringFlex
+          .filter((r) => naturalMinutes(r.title) == null)
+          .map((r) => r.durationMinutes)
+      )
+      const elsewhere = freeGaps(occupied, winStart, winEnd).some(
+        ([s, e]) => !(s === morning[0]) && e - s >= biggestPending
+      )
+      const leftInGap = morning[1] - (morning[0] + dur)
+      const starves = biggestPending > 0 && !elsewhere && leftInGap < biggestPending
+      if (!starves) addSession(morning[0], dur, morning[0] + dur < firstMeal)
     }
   }
 
@@ -252,11 +267,14 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
       const roomy = freeGaps(occupied, winStart, winEnd)
         .filter(([s, e]) => e - s >= dur)
         .sort((a, b) => b[1] - b[0] - (a[1] - a[0]))
-      if (roomy.length === 0) continue
       const lastMeal = mealStarts.length ? Math.max(...mealStarts) : null
       const beforeAMeal =
         lastMeal == null ? undefined : roomy.find(([s]) => s + dur <= lastMeal)
-      start = (beforeAMeal ?? roomy[0])[0]
+      // Still nowhere? Widen past the working day rather than drop it. A daily
+      // routine quietly vanishing because the day is busy is never the answer —
+      // that's how a 2 h workout disappeared without a word.
+      start = (beforeAMeal ?? roomy[0])?.[0] ?? slotFor(winStart, dur, occupied, winStart, winEnd, true)
+      if (start == null) continue
     }
     occupied.push([start, start + dur])
     out.push(routineBlock(r.id, r.title, start, dur))
@@ -267,9 +285,10 @@ export async function planDay(input: PlanInput): Promise<PlanResult> {
     const roomy = freeGaps(occupied, winStart, winEnd)
       .filter(([s, e]) => e - s >= dur)
       .sort((a, b) => b[1] - b[0] - (a[1] - a[0]))
+    // Same rule as workouts: widen rather than drop a routine.
     const start = roomy.length
       ? roomy[0][0]
-      : slotFor(winStart, dur, occupied, winStart, winEnd, !!r.mandatory)
+      : slotFor(winStart, dur, occupied, winStart, winEnd, true)
     if (start == null) continue
     occupied.push([start, start + dur])
     out.push(routineBlock(r.id, r.title, start, dur))

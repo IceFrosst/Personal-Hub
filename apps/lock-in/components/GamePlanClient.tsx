@@ -990,6 +990,7 @@ export default function GamePlanClient() {
           timezone: next.timezone,
           auto_plan: next.auto_plan,
           deep_work_count: next.deep_work_count ?? 2,
+          deep_work_min_minutes: next.deep_work_min_minutes ?? 120,
           updated_at: next.updated_at,
         },
         { onConflict: 'user_id' }
@@ -1542,6 +1543,31 @@ function SettingsPanel({
                 }`}
               >
                 {n === 0 ? 'Off' : n}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <span className="text-text-muted text-sm">Shortest session</span>
+          <p className="text-text-low text-[11px] mt-0.5">
+            No session is created unless a gap this big is free
+          </p>
+        </div>
+        <div className="flex items-center rounded-lg bg-surface-elevated border border-border p-0.5">
+          {[60, 90, 120].map((n) => {
+            const active = (settings.deep_work_min_minutes ?? 120) === n
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => onChange({ deep_work_min_minutes: n })}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  active ? 'bg-gold/15 text-gold' : 'text-text-muted'
+                }`}
+              >
+                {n === 60 ? '1h' : n === 90 ? '1.5h' : '2h'}
               </button>
             )
           })}

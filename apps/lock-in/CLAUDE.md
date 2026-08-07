@@ -113,13 +113,21 @@ deterministic phases against one running `occupied` list, so the output **cannot
    makes adjacency impossible, the workout still goes in the roomiest gap that finishes *before* a
    meal, so the ordering survives. (This rule used to live in the AI prompt and was lost when that
    pass was deleted — it is now deterministic. Don't drop it again.)
-2b. **A morning session is reserved first** — one Deep Work block before the first main meal
+2b. **Routines are never silently dropped.** If no gap fits, a routine widens past `work_end`
+   rather than vanish (this is how a daily 2 h workout disappeared from a busy day without a word).
+2c. **A morning session is reserved first** — one Deep Work block before the first main meal
    (lunch/dinner; breakfast doesn't count) and therefore before the workout that anchors to it.
    It is carved **before** the workout is placed, because the workout would otherwise swallow the
    whole pre-lunch stretch and leave nothing big enough in front of it. Where a morning session and
    an exercise→lunch pairing can't both fit, **the morning session wins and the workout pairs with
-   dinner instead** — both orderings the user accepts. A session that ends at a meal skips its
-   `SESSION_BREAK` (the meal is the break, and reserving one only shoves lunch later).
+   dinner instead** — both orderings the user accepts. **But it yields entirely if taking that
+   stretch would starve the biggest routine still to place** and there's nowhere else that routine
+   fits: a guaranteed focus session is not worth silently costing the user their training.
+   A session that ends at a meal skips its `SESSION_BREAK` (the meal is the break, and reserving one
+   only shoves lunch later).
+   *Consequence worth knowing:* on a day chopped into sub-`deep_work_min_minutes` gaps you get
+   **zero** sessions, correctly. `deep_work_min_minutes` (1h / 1.5h / 2h) is exposed in settings
+   because that is the lever — not the planner.
 3. **Deep Work sessions** — up to `plan_settings.deep_work_count` (default 2), carved from the
    biggest remaining stretches, clamped to `deep_work_min/max_minutes` (120/240), each reserving a
    30 min `SESSION_BREAK` after it so two sessions are never back-to-back. `kind = 'deep_work'`,
