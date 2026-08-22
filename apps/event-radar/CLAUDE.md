@@ -323,10 +323,20 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   `seed_patched` in the ingest summary.
   Two rows for one event can still happen when the sources use different URLs. Known
   trade-off; revisit if it gets noisy.
-- Enrichment throughput is capped by two ceilings: Vercel Hobby's 60s `maxDuration`, and
-  free LLM RPM limits. The runner self-budgets to 50s and enriches up to 30 rows per run
-  in concurrency 4. Newly inserted rows are prioritised; rows that still have critical
-  nulls are also retried.
+- **The project runs on Fluid Compute, so Hobby's `maxDuration` ceiling is 300s, not
+  60s.** Both ingest routes set `maxDuration = 300`. The runner self-budgets with *phase
+  deadlines* (`runIngest({budgetMs})`, default 240s for the cron; the manual refresh
+  passes 50s so a human isn't left waiting): every source fetch is raced against a 120s
+  timeout, enrichment stops at 75% of the budget, the policy backfill at 87.5%, the
+  digest loop at 100%, and the hard response ceiling is budget + one worst-case
+  enrichment batch (~58s: 8s page + 4×5s FAQ probes + 15s Groq + 15s Gemini). History:
+  the old 50s budget never counted the gather phase (Luma alone runs ~40s) and only
+  checked between enrichment batches, so runs measured 58.5s against a 60s kill —
+  intermittent `FUNCTION_INVOCATION_TIMEOUT` 504s in the Actions tab, and the digest
+  loop (which sat *behind* the budget check) was starved for days at a time. The GH
+  ingest workflow's curl `-m` is 330 to outlast the route. Enrichment is still capped at
+  30 rows per run in concurrency 4 (free LLM RPM); newly inserted rows are prioritised
+  and rows with critical nulls are retried.
 - Cadence: Vercel Hobby cron = once/day max. GitHub Actions add more runs (ingest ~4×/day,
   dormant weekly, priority-country probes). Needs repo secrets as documented in workflows.
 - **Vercel Hobby: 100 deployments/day account-wide.** Monorepo has 4 Vercel projects;
@@ -340,6 +350,21 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 ## Current state
 
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
+
+- **Ingest 504s fixed (deployment-audit branch).** The intermittent "Event Radar ingest"
+  Action failures were `FUNCTION_INVOCATION_TIMEOUT`: the route capped itself at 60s
+  while measured runs took 58.5s. Fix: `maxDuration = 300` (Fluid Compute is on),
+  240s cron budget with phase deadlines, 120s per-source race, 50s manual-refresh
+  budget, workflow curl `-m 330`. Side effect being watched: the **digest was starved**
+  by the old budget (none sent since 2026-08-18 despite 65 new rows in 72h) because its
+  loop sat behind the spent budget check — with the deadlines it now always gets its slot.
+- Audit snapshot (2026-08-22): catalog 1232 rows, all enriched, 484 upcoming, ~206
+  feed-eligible (53 hard deadlines + 153 Luma-exception); RLS quals verified
+  `user_id = auth.uid()` on all per-user tables; live endpoints 200 (cron 401 unauthed,
+  correct); Vercel deploys green — every recent "canceled" event-radar deployment is
+  turbo-ignore skipping lock-in commits, which is the system working; 131 tests, lint,
+  typecheck, build all clean. DoraHacks still 404s behind its WAF every run (tracked in
+  `SOURCES.md`, tolerated per-source error).
 
 - Feed filters: IRL ↔ Online switch, Multi-day on/off, Applied tab, Dormant tab.
 - Applied + Hidden excluded from main feed (Applied only under Applied).
@@ -417,6 +442,13 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 ## Next
 
+- **After the timeout fix deploys: watch the next 2–3 "Event Radar ingest" Action runs.**
+  Expect HTTP 200 with `elapsed_ms` up to ~240000 (bigger than before is *correct* — the
+  run now uses its Fluid window), a `digest` field present in the JSON again, and the
+  first digest since 2026-08-18 to fire once something scores ≥ the user's `min_score`
+  (currently 80 — remember it was raised from the default 60; a quiet digest may be the
+  threshold, not a bug). If any source reports `error: timed out after 120s`
+  persistently, that source is degraded — check `SOURCES.md`.
 - **Hit Refresh once after deploy.** Two repairs only land on a run: the seed upgrade
   (Hack the North / HackRice / BigRed//Hacks — already confirmed applied in production)
   and the new travel-policy backfill. Check `policy_backfilled` in the response.

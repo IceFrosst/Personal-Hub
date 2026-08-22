@@ -38,7 +38,21 @@ import {
 
 const ENRICH_BATCH = 30
 const ENRICH_CONCURRENCY = 4
-const TIME_BUDGET_MS = 50_000
+/**
+ * Default whole-run budget for the scheduled cron. The project runs on Fluid
+ * Compute, so the route's maxDuration is 300s — not the old 60s Hobby cap this
+ * budget was written against. 50s was a lie twice over: the gather phase was
+ * never counted against it (Luma alone runs ~40s), and an enrichment batch that
+ * started at 49s could legally run another ~58s (8s page fetch + 4×5s FAQ
+ * probes + 15s Groq + 15s Gemini fallback). Measured cron runs sat at
+ * elapsed_ms ≈ 58.5s against a 60s kill — every fifth-ish run 504'd.
+ *
+ * The budget must leave headroom under maxDuration for one worst-case
+ * enrichment batch (~58s) that straddles its deadline: 240s + 58s < 300s.
+ */
+const DEFAULT_BUDGET_MS = 240_000
+/** A single source may not stall the gather phase longer than this. */
+const SOURCE_TIMEOUT_MS = 120_000
 const URL_CHUNK = 80
 /** Newest un-announced rows considered for the daily digest. */
 const DIGEST_CANDIDATES = 60
@@ -82,6 +96,27 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
+/**
+ * Race a source fetch against a timeout. Every source bounds its individual
+ * requests with AbortSignal, but the multi-page loops stack (allhackathons is
+ * 30 pages × 10s worst case) — this is the backstop that keeps one degraded
+ * site from eating the whole run. The timer is cleared on settle so it never
+ * holds the function open.
+ */
+async function raceSource<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function fetchBestPageText(row: {
   url: string
   source: string
@@ -117,12 +152,22 @@ async function fetchBestPageText(row: {
   return [main, ...extras].filter(Boolean).join('\n\n')
 }
 
-export async function runIngest({ sendNotifications = true } = {}): Promise<IngestSummary> {
+export async function runIngest({
+  sendNotifications = true,
+  budgetMs = DEFAULT_BUDGET_MS,
+}: { sendNotifications?: boolean; budgetMs?: number } = {}): Promise<IngestSummary> {
   const admin = createAdminClient()
   if (!admin) throw new IngestNotConfiguredError()
 
   const startedAt = Date.now()
-  const outOfTime = () => Date.now() - startedAt > TIME_BUDGET_MS
+  const elapsed = () => Date.now() - startedAt
+  // Phase deadlines, so a long enrichment pass can never starve the phases
+  // behind it: enrichment stops at 75% of the budget, the (cheap, DB-only)
+  // policy backfill at 87.5%, and the digest loop at the full budget. The hard
+  // response-time ceiling is budget + one worst-case enrichment batch.
+  const enrichDeadline = budgetMs * 0.75
+  const backfillDeadline = budgetMs * 0.875
+  const outOfTime = () => elapsed() > budgetMs
   const db = admin.schema('hackathon')
   const summary: IngestSummary = {
     sources: {},
@@ -151,7 +196,10 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
     ['watch', async () => watchesToRows()],
   ]
 
-  const settled = await Promise.allSettled(sources.map(([, fetchSource]) => fetchSource()))
+  const sourceTimeoutMs = Math.min(SOURCE_TIMEOUT_MS, budgetMs)
+  const settled = await Promise.allSettled(
+    sources.map(([, fetchSource]) => raceSource(fetchSource(), sourceTimeoutMs))
+  )
   settled.forEach((result, index) => {
     const name = sources[index][0]
     if (result.status === 'fulfilled') {
@@ -390,7 +438,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   }
 
   for (let i = 0; i < toEnrich.length; i += ENRICH_CONCURRENCY) {
-    if (outOfTime()) break
+    if (elapsed() > enrichDeadline) break
     const results = await Promise.all(
       toEnrich.slice(i, i + ENRICH_CONCURRENCY).map((row) => enrichRow(row))
     )
@@ -405,7 +453,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
   // left the Travel filter matching 0 of 555 rows. No LLM, no fetch: registry
   // → row, so it is cheap enough to run every ingest and self-heals whenever
   // the registry gains evidence.
-  if (!outOfTime()) {
+  if (elapsed() < backfillDeadline) {
     const { data: upcoming } = await db
       .from('hackathons')
       .select('id, title, url, source, format, themes, travel_covered')
@@ -414,7 +462,7 @@ export async function runIngest({ sendNotifications = true } = {}): Promise<Inge
       .limit(POLICY_BACKFILL_SCAN)
 
     for (const raw of upcoming ?? []) {
-      if (outOfTime()) break
+      if (elapsed() > backfillDeadline) break
       const row = coerceHackathon(raw as Record<string, unknown>)
       const policy = circuitTravelPolicy({
         source: row.source,

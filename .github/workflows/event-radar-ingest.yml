@@ -36,7 +36,9 @@ jobs:
             echo "EVENT_RADAR_CRON_SECRET is not set — add it in repo Settings → Secrets → Actions."
             exit 1
           fi
-          code=$(curl -sS -m 120 -o /tmp/ingest.json -w '%{http_code}' \
+          # -m must exceed the route's maxDuration (300s on Fluid Compute) or
+          # curl aborts a legitimately long sweep and reports it as a failure.
+          code=$(curl -sS -m 330 -o /tmp/ingest.json -w '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
             https://icefrosst-event-radar.vercel.app/api/cron/ingest)
           echo "HTTP $code"
