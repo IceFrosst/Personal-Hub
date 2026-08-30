@@ -1,0 +1,33 @@
+import { notFound } from 'next/navigation'
+import { VISAS, type VisaType } from '@/lib/content'
+import { TouristStep } from '@/components/visa-steps/TouristStep'
+import { ConsultationStep } from '@/components/visa-steps/ConsultationStep'
+import { FianceStep } from '@/components/visa-steps/FianceStep'
+import { BusinessStep } from '@/components/visa-steps/BusinessStep'
+import { SpecialStep } from '@/components/visa-steps/SpecialStep'
+
+export function generateStaticParams() {
+  return VISAS.map((visa) => ({ type: visa.slug }))
+}
+
+const VALID_SLUGS = new Set(VISAS.map((v) => v.slug))
+
+export default async function VisaSubStepPage({ params }: { params: Promise<{ type: string }> }) {
+  const { type } = await params
+  if (!VALID_SLUGS.has(type as VisaType)) notFound()
+
+  switch (type as VisaType) {
+    case 'tourist':
+      return <TouristStep />
+    case 'consultation':
+      return <ConsultationStep />
+    case 'fiance':
+      return <FianceStep />
+    case 'business':
+      return <BusinessStep />
+    case 'special':
+      return <SpecialStep />
+    default:
+      notFound()
+  }
+}

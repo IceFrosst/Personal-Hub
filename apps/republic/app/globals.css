@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  -webkit-text-size-adjust: 100%;
+  background-color: #f4f0e8;
+  overflow-x: hidden;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #f4f0e8;
+  color: #1a2a4a;
+  font-family: var(--font-plex-mono), ui-monospace, 'SF Mono', monospace;
+  min-height: 100dvh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* paper grain — cheap, no image asset */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(rgba(26, 42, 74, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(26, 42, 74, 0.04) 1px, transparent 1px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1.5px 2.5px;
+  mix-blend-mode: multiply;
+}
+
+input,
+select,
+button,
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.font-stamp {
+  font-family: var(--font-special-elite), var(--font-plex-mono), monospace;
+}
+
+.ink-border {
+  border: 2px solid #1a2a4a;
+}
+
+.paper-card {
+  background: #f4f0e8;
+  border: 2px solid #1a2a4a;
+  box-shadow: 4px 4px 0 rgba(26, 42, 74, 0.15);
+}
+
+.barcode {
+  background: repeating-linear-gradient(
+    90deg,
+    #1a2a4a 0px,
+    #1a2a4a 2px,
+    transparent 2px,
+    transparent 4px,
+    #1a2a4a 4px,
+    #1a2a4a 5px,
+    transparent 5px,
+    transparent 9px
+  );
+  height: 28px;
+  width: 100%;
+  opacity: 0.85;
+}
+
+.fingerprint-smudge {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(192, 57, 43, 0.45) 0%,
+    rgba(192, 57, 43, 0.3) 35%,
+    rgba(192, 57, 43, 0.08) 60%,
+    transparent 75%
+  );
+  filter: blur(0.5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
