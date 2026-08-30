@@ -9,8 +9,9 @@ import { HiddenBribe } from '@/components/HiddenBribe'
 import { PageShell } from '@/components/PageShell'
 import { Typewriter } from '@/components/Typewriter'
 import { getPassport, registerVisit, addStamp } from '@/lib/passport'
+import { getApplicantNumber } from '@/lib/api'
 import { clearAnimatedFields } from '@/lib/formProgress'
-import { LANDING, RETURNING_VISITOR, LOYALTY_MESSAGE } from '@/lib/content'
+import { LANDING, RETURNING_VISITOR, LOYALTY_MESSAGE, formatApplicantNumber } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 import { useApplication } from '@/lib/applicationContext'
 
@@ -24,6 +25,7 @@ export default function EntryDeclarationPage() {
   const [visits, setVisits] = useState(0)
   const [stampCount, setStampCount] = useState(0)
   const [showQuestion, setShowQuestion] = useState(false)
+  const [applicantNumber, setApplicantNumber] = useState<number | null>(null)
 
   useEffect(() => {
     // Landing restarts the funnel on every visit, but identity is preserved
@@ -41,6 +43,7 @@ export default function EntryDeclarationPage() {
     setVisits(v)
     addStamp('ENTRY DECLARATION VIEWED')
     setStampCount(getPassport().stamps.length)
+    setApplicantNumber(getApplicantNumber())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -71,7 +74,10 @@ export default function EntryDeclarationPage() {
         <div className="my-2 h-px bg-navy/30" />
 
         <p className="text-center text-[10px] uppercase tracking-wide text-navy/70">{LANDING.formCode}</p>
-        <p className="mt-0.5 text-center text-[10px] text-navy/60">{LANDING.applicantNumberLine}</p>
+        <p className="mt-0.5 text-center text-[10px] text-navy/60">
+          {LANDING.applicantNumberPrefix}{' '}
+          {applicantNumber !== null ? formatApplicantNumber(applicantNumber) : LANDING.applicantNumberPlaceholder}
+        </p>
 
         <div className="barcode mt-2 !h-3" aria-hidden />
 
@@ -105,14 +111,14 @@ export default function EntryDeclarationPage() {
           <button
             type="button"
             onClick={() => handleAnswer('yes')}
-            className="min-h-11 border-2 border-approve bg-paper py-3 font-stamp text-lg uppercase tracking-widest text-approve transition-colors hover:bg-approve hover:text-paper"
+            className="min-h-11 border-2 border-approve bg-paper py-3 font-stamp text-lg uppercase tracking-widest text-approve transition-all hover:bg-approve hover:text-paper active:scale-[0.97]"
           >
             {LANDING.yes}
           </button>
           <button
             type="button"
             onClick={() => handleAnswer('no')}
-            className="min-h-11 border-2 border-stamp bg-paper py-3 font-stamp text-lg uppercase tracking-widest text-stamp transition-colors hover:bg-stamp hover:text-paper"
+            className="min-h-11 border-2 border-stamp bg-paper py-3 font-stamp text-lg uppercase tracking-widest text-stamp transition-all hover:bg-stamp hover:text-paper active:scale-[0.97]"
           >
             {LANDING.no}
           </button>

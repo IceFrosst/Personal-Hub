@@ -29,7 +29,6 @@ export default function VisaSelectionPage() {
       <PageShell showProgress>
         <div className="paper-card p-5">
           <h1 className="text-center font-stamp text-xl uppercase tracking-wide text-navy">{VISA_SELECTION.heading}</h1>
-          <p className="mt-1 text-center text-[11px] uppercase text-navy/60">{VISA_SELECTION.sub}</p>
 
           <div className="mt-5 flex flex-col gap-4">
             {VISAS.map((visa) => (
@@ -37,7 +36,7 @@ export default function VisaSelectionPage() {
                 key={visa.slug}
                 type="button"
                 onClick={() => select(visa.slug)}
-                className="relative min-h-11 border-2 border-navy bg-paper p-4 text-left shadow-[3px_3px_0_rgba(26,42,74,0.15)] transition-transform hover:-translate-y-0.5 hover:shadow-[5px_5px_0_rgba(26,42,74,0.2)]"
+                className="relative min-h-11 border-2 border-navy bg-paper p-4 text-left shadow-[3px_3px_0_rgba(26,42,74,0.15)] transition-transform hover:-translate-y-0.5 hover:shadow-[5px_5px_0_rgba(26,42,74,0.2)] active:scale-[0.97]"
               >
                 {visa.slug === 'fiance' && (
                   <span className="absolute -right-2 -top-2 rotate-[10deg] border-2 border-stamp bg-paper px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-stamp">
@@ -50,12 +49,16 @@ export default function VisaSelectionPage() {
                   </span>
                   <span className="font-stamp text-sm uppercase tracking-wide text-navy">{visa.name}</span>
                 </div>
-                <p className="mt-1 text-[11px] italic text-navy/70">&ldquo;{visa.tagline}&rdquo;</p>
-                <ul className="mt-2 space-y-0.5 text-[10px] uppercase text-navy/50">
-                  {visa.lines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
+                {visa.tagline && (
+                  <p className="mt-1 text-[11px] italic text-navy/70">&ldquo;{visa.tagline}&rdquo;</p>
+                )}
+                {visa.lines.length > 0 && (
+                  <ul className="mt-2 space-y-0.5 text-[10px] uppercase text-navy/50">
+                    {visa.lines.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                )}
                 <div className="barcode mt-2 h-3" aria-hidden />
               </button>
             ))}

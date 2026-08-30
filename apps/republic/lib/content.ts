@@ -1,4 +1,4 @@
-// All editable copy/config for the Republic of Ignas lives here.
+// All editable copy/config for the Dictatorship of Ignas lives here.
 // Deadpan is the law — do not punch up the jokes, just keep them straight-faced.
 
 export type VisaType = 'tourist' | 'consultation' | 'fiance' | 'business' | 'special'
@@ -11,41 +11,45 @@ export interface VisaDefinition {
   lines: string[]
 }
 
+// Trimmed per owner feedback: each card is now icon + name + at most one
+// flavor line (fiancé gets neither, just the HIGH RISK stamp rendered
+// separately in app/visa/page.tsx). Empty `tagline`/`lines` are hidden
+// entirely by that page, not rendered as empty quotes/an empty list.
 export const VISAS: VisaDefinition[] = [
   {
     slug: 'tourist',
     icon: '🗺',
-    name: 'TOURIST VISA',
-    tagline: 'Sidequest: spend time together.',
-    lines: ['Duration: one afternoon', 'Fee: waived', 'Processing: immediate'],
+    name: 'SIDEQUEST VISA',
+    tagline: '',
+    lines: ['Reward: infinite memories'],
   },
   {
     slug: 'consultation',
     icon: '📋',
-    name: 'CONSULTATION PERMIT',
-    tagline: 'Seek advice.',
-    lines: ['Processing: 1–3 business moods', 'Advice quality: not guaranteed'],
+    name: 'SEEK ADVICE PERMIT',
+    tagline: '',
+    lines: ['Advice quality: unknown'],
   },
   {
     slug: 'fiance',
     icon: '💍',
-    name: 'FIANCÉ VISA',
-    tagline: 'One (1) date with Ignas.',
-    lines: ['Requirements: vibe check', 'Fee: market price'],
+    name: 'DATE VISA',
+    tagline: '',
+    lines: [],
   },
   {
     slug: 'business',
     icon: '💼',
     name: 'BUSINESS VISA',
-    tagline: 'You have a proposal. The Ministry is listening.',
-    lines: ['Purpose: collabs, projects, money talk', 'Processing: expedited (money talks)', 'Dress code: implied'],
+    tagline: '',
+    lines: ['Purpose: money talk, projects'],
   },
   {
     slug: 'special',
     icon: '📎',
     name: 'SPECIAL PURPOSE VISA',
-    tagline: 'Purpose of visit: other. Elaborate. This is being recorded.',
-    lines: ['Statement: sworn', 'Review: by the Minister personally (allegedly)'],
+    tagline: '',
+    lines: ['Purpose of visit: other'],
   },
 ]
 
@@ -56,7 +60,6 @@ export const VISA_BY_SLUG: Record<VisaType, VisaDefinition> = VISAS.reduce(
 
 export const VISA_SELECTION = {
   heading: 'SELECT VISA TYPE',
-  sub: 'CHOOSE CAREFULLY. THE MINISTRY REMEMBERS.',
 }
 
 // ---------------------------------------------------------------------------
@@ -65,9 +68,9 @@ export const VISA_SELECTION = {
 // ---------------------------------------------------------------------------
 
 export const SITE_METADATA = {
-  title: 'Republic of Ignas — Border Control',
-  description: 'Do you have something to declare? Apply for a visa to enter the Republic of Ignas.',
-  appName: 'Republic of Ignas',
+  title: 'Dictatorship of Ignas — Border Control',
+  description: 'Do you have something to declare? Apply for a visa to enter the Dictatorship of Ignas.',
+  appName: 'Dictatorship of Ignas',
 }
 
 // ---------------------------------------------------------------------------
@@ -76,24 +79,30 @@ export const SITE_METADATA = {
 // ---------------------------------------------------------------------------
 
 export const CREST_ARIA_LABEL =
-  'Coat of arms of the Republic of Ignas: a shield bearing a phone, a fork, and a heart'
+  'Coat of arms of the Dictatorship of Ignas: a shield bearing a phone, a fork, and a heart'
 
 // ---------------------------------------------------------------------------
 // Entry declaration
 // ---------------------------------------------------------------------------
 
 export const LANDING = {
-  title: 'REPUBLIC OF IGNAS',
+  title: 'DICTATORSHIP OF IGNAS',
   subtitle: 'BORDER CONTROL',
   formCode: 'FORM 1G-NAS — ENTRY DECLARATION',
-  // Fixed, deliberately not a real counter (see lib/api.ts — the joke is that
-  // every visitor is applicant number one, the Republic's only citizen).
-  applicantNumberLine: 'APPLICANT № 001',
+  applicantNumberPrefix: 'APPLICANT №',
+  // Shown until lib/api.ts#getApplicantNumber resolves inside a client effect
+  // (never during render — see the hydration-safety Gotcha in CLAUDE.md).
+  applicantNumberPlaceholder: '————',
   question: 'DO YOU HAVE SOMETHING TO DECLARE?',
   yes: 'YES',
   no: 'NO',
   priorityStamp: 'PRIORITY',
   passportStampsLabel: 'PASSPORT STAMPS ON FILE:',
+}
+
+/** Zero-padded to 4 digits — matches the 47–4999 range in lib/api.ts#getApplicantNumber. */
+export function formatApplicantNumber(n: number): string {
+  return String(n).padStart(4, '0')
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +113,6 @@ export const LANDING = {
 
 export const IDENTITY = {
   heading: 'APPLICANT IDENTIFICATION',
-  sub: 'FORM 2ID-NAS — IDENTITY VERIFICATION',
   nameLabel: 'NAME OF APPLICANT:',
   namePlaceholder: '____________________',
   nameRequiredError: 'NAME REQUIRED. THE MINISTRY DOES NOT PROCESS ANONYMOUS APPLICANTS.',
@@ -140,10 +148,11 @@ export const DENIAL = {
 }
 
 // ---------------------------------------------------------------------------
-// Visa sub-step shared copy
+// Visa sub-step shared copy. Sub-steps now navigate straight to /appointment
+// on completion (see components/visa-steps/*.tsx) — there's no more
+// intermediate confirmation screen, so these gag lines/labels are currently
+// unused but kept as copy-bank content rather than deleted outright.
 // ---------------------------------------------------------------------------
-
-export const CONTINUE_TO_APPOINTMENT = 'CONTINUE TO APPOINTMENT'
 
 export const TOURIST_STEP = {
   notice: 'NO ADDITIONAL DOCUMENTS REQUIRED.',
@@ -334,7 +343,7 @@ export const APPROVED = {
   proceed: 'PROCEED TO CONSULATE',
   rendering: 'RENDERING VISA…',
   filePrefix: 'visa-',
-  fallbackFileSlug: 'republic-of-ignas',
+  fallbackFileSlug: 'dictatorship-of-ignas',
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +351,7 @@ export const APPROVED = {
 // ---------------------------------------------------------------------------
 
 export const STICKER_LABELS = {
-  republicTitle: 'REPUBLIC OF IGNAS',
+  republicTitle: 'DICTATORSHIP OF IGNAS',
   visaPrefix: 'VISA — ',
   name: 'NAME:',
   passport: 'PASSPORT №:',
@@ -366,7 +375,7 @@ export const STICKER_LABELS = {
 // ---------------------------------------------------------------------------
 
 export const DOCUMENT_PROGRESS = {
-  title: 'FORM 1G-NAS',
+  title: 'PASSPORT',
   declarationLabel: 'DECLARATION:',
   declarationValue: 'SOMETHING TO DECLARE',
   nameLabel: 'NAME:',
@@ -386,6 +395,11 @@ export const DOCUMENT_PROGRESS_SUBSTEP_LABELS: Partial<Record<VisaType, string>>
   special: 'STATEMENT:',
   fiance: 'INTERVIEW:',
 }
+
+// Purely decorative machine-readable-zone flavor line for the passport-styled
+// components/DocumentProgress.tsx — not functionally parsed, just dressing.
+// Padded to the real TD3 MRZ line length (44 chars) with `<` filler.
+export const PASSPORT_MRZ_LINE = 'P<IGNDICTATORSHIP<OF<IGNAS'.padEnd(44, '<')
 
 // ---------------------------------------------------------------------------
 // Officer mood — rotates by hour
@@ -447,7 +461,7 @@ export const IDLE_TIMEOUT_MS = 20_000
 // Footer / 404
 // ---------------------------------------------------------------------------
 
-export const FOOTER = '© Ministry of Interior, Republic of Ignas. Unauthorized fun prohibited.'
+export const FOOTER = '© Ministry of Interior, Dictatorship of Ignas. Unauthorized fun prohibited.'
 
 export const FOOTER_NAV = {
   statistics: 'Statistics',
@@ -486,7 +500,7 @@ export const STATISTICS_ROWS: { label: string; value: string }[] = [
 ]
 export const STATISTICS_NOTE =
   'NOTE: fiancé visa figures are withheld. The Ministry protects romantic privacy.'
-export const STATISTICS_FOOTNOTE = 'The Republic has one (1) citizen and he is doing his best.'
+export const STATISTICS_FOOTNOTE = 'The Dictatorship has one (1) citizen and he is doing his best.'
 export const STATISTICS_BRIBE_BASE = 214
 
 // ---------------------------------------------------------------------------
@@ -514,7 +528,7 @@ export const TERMS_HEADING = 'TERMS & CONDITIONS'
 export const TERMS_SUBHEADING = 'READ CAREFULLY. NO ONE ELSE DOES.'
 
 export const TERMS_PARAGRAPHS: string[] = [
-  '1. By using this site you acknowledge the Republic of Ignas as a sovereign, if entirely fictional, state.',
+  '1. By using this site you acknowledge the Dictatorship of Ignas as a sovereign, if entirely fictional, state.',
   '2. All visas are issued at the sole discretion of the Ministry, which is one (1) person.',
   '3. The Ministry reserves the right to deny entry for reasons including but not limited to vibes.',
   '4. Bribes are accepted but change nothing. See Bribe Policy, which does not exist.',
@@ -523,8 +537,8 @@ export const TERMS_PARAGRAPHS: string[] = [
   '7. If you actually read this far: screenshot this paragraph and DM it to the Ministry for its eternal respect. No prize. Just respect.',
   '8. This document is legally binding in no jurisdiction whatsoever.',
   '9. The Ministry may change these terms at any time, for any reason, or no reason.',
-  '10. The Republic of Ignas is a full democracy. Ignas has won every election since birth with 100% of the vote.',
-  '11. © Ministry of Interior, Republic of Ignas. Unauthorized fun prohibited.',
+  '10. The Dictatorship of Ignas is a full democracy. Ignas has won every election since birth with 100% of the vote.',
+  '11. © Ministry of Interior, Dictatorship of Ignas. Unauthorized fun prohibited.',
 ]
 
 // ---------------------------------------------------------------------------

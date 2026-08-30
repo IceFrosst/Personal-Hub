@@ -1,12 +1,16 @@
-# Republic of Ignas — app context (`apps/republic`)
+# Dictatorship of Ignas — app context (`apps/republic`)
 
 > Read the repo-root `CLAUDE.md` and `SCHEMA_RULES.md` first — they govern every app.
-> Read `../../SIDEQUEST_PLAN.md` for the full concept/copy bank this app implements.
+> Read `../../SIDEQUEST_PLAN.md` for the original concept/copy bank this app implements
+> (written before the "Dictatorship" rebrand — still uses the original working name).
 > **Keep `Current state` and `Next` (bottom) up to date — update them after every change to this app.**
 
 Gamified, deadpan-bureaucracy link-in-bio for Ignas's personal Instagram, themed as
-immigration/border control for the fictional "Republic of Ignas". Every visitor action
-(hang out / ask advice / pitch something / ask him out) is a visa application.
+immigration/border control for the fictional "Dictatorship of Ignas" (rebranded from
+"Republic of Ignas" — the folder/package name `apps/republic` stays as-is, it's just a
+slug). Every visitor action (hang out / ask advice / pitch something / ask him out) is a
+visa application. The site plays it completely straight, including `/terms`'s claim that
+the Dictatorship is also a full democracy.
 
 ## Stack
 
@@ -41,9 +45,18 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   storage light — a hard refresh mid-funnel loses the photo and any downstream page
   redirects back to `/visa`.
 - **All copy/config in `lib/content.ts`** — visa definitions, denial reasons, gag lines,
-  fiancé interview questions, identity/document-card labels, statistics placeholders,
+  fiancé interview questions, identity/passport-card labels, statistics placeholders,
   duty-free stock, terms paragraphs, officer moods, the DM handle + deep link, and the
-  reference-line format. Don't hardcode copy in components; add it here first.
+  reference-line format. Don't hardcode copy in components; add it here first. A handful
+  of sub-step gag lines (`PRELIMINARY_RULINGS`, `SPECIAL_REPLIES`, `BUSINESS.receivedNote`,
+  `FIANCE_RESULT`, `TOURIST_STEP`) are currently unused (they used to power an
+  intermediate confirmation screen removed in favor of navigating straight to
+  `/appointment` — see Current state) but kept as copy-bank content, not deleted.
+- **Visa cards are icon + name + at most one flavor line now** (`VisaDefinition.tagline`/
+  `.lines` can be empty — `app/visa/page.tsx` hides them entirely when empty, rather than
+  rendering empty quotes or an empty list). Fiancé (`DATE VISA`) has neither, just the
+  HIGH RISK stamp. Don't add the tagline/lines back without checking — this was a
+  deliberate trim.
 - **Appointment slots are seeded, not static** (`lib/slots.ts`): a fixed joke-label pool
   per visa type (base + fiancé-only + business-only slots), with 2–3 marked "available"
   by a deterministic PRNG seeded off the ISO week number (+ visa type), so scarcity is
@@ -57,17 +70,21 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   (line reveal, respects `prefers-reduced-motion` by rendering instantly), `ProgressBar`,
   `Checkbox` (fully custom, see Gotchas), `RequireIdentity` (route guard, see below).
   Per-visa sub-steps live in `components/visa-steps/*` and share `StepShell` (which
-  itself renders `<PageShell showProgress>`).
+  itself renders `<PageShell showProgress>`) — except `TouristStep`, which renders
+  nothing at all now (see Current state).
 - `lib/passport.ts` — visit count + a capped stamp log (both localStorage), driving the
   returning-visitor line, the 3rd-visit loyalty message, and the passport-stamps count
-  shown on the landing page.
+  shown on the landing page. (Unrelated to the passport-styled `DocumentProgress` card —
+  same real-world metaphor, two different features that happen to share the name.)
 - `lib/sound.ts` — WebAudio-generated blips (`playStampThunk`, `playTypewriterClick`,
-  `playBeep`), **on by default for everyone, no toggle** (removed — see Current state).
-- `lib/formProgress.ts` — sessionStorage-backed "which document-card fields have already
+  `playBeep`), **on by default for everyone, no toggle**.
+- `lib/formProgress.ts` — sessionStorage-backed "which passport-card fields have already
   played their reveal animation" set, consumed by `DocumentProgress`. Independent of the
   funnel's own `republic:application` sessionStorage key; cleared alongside it whenever
   landing restarts the funnel (`clearAnimatedFields()` in `app/page.tsx`'s mount effect).
 - `lib/referenceCode.ts` — `RIG-XXXX` codes (ambiguous chars like `0/O/1/I` excluded).
+  Left as-is through the rebrand (a code-format detail, not user-facing prose) — read
+  loosely as "Registry of Ignas Government" if you like, but nothing depends on that.
 
 ## Data model
 
@@ -79,9 +96,8 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   `response.ok` is checked explicitly (and `console.warn`'d in dev on failure) rather than
   treating a non-2xx response as a silent success. All of it is still wrapped in try/catch
   so a 404 (the schema doesn't exist yet, true today) never breaks the funnel. The
-  **actual source of truth today is localStorage**: bribe count, visit/stamp log, and a
-  rolling `republic:applications-log` array. There is **no applicant counter** — see
-  "Applicant № 001" below.
+  **actual source of truth today is localStorage**: applicant number, bribe count,
+  visit/stamp log, and a rolling `republic:applications-log` array.
 - **One application record per completed funnel.** `lib/api.ts#buildApplicationRecord(state, referenceCode)`
   assembles the single `ApplicationRecord` from context state — name, Instagram handle,
   visa type, whichever sub-step field applies (`matter`/`pitch`/`statement`/`interviewAnswers`),
@@ -101,25 +117,42 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
 
 ## Gotchas
 
-- **Applicant № 001, for everyone, always.** `LANDING.applicantNumberLine` is a fixed
-  string (`'APPLICANT № 001'`) — there is no `getApplicantNumber`, no `applicantSeq`
-  localStorage key, no per-visitor sequencing. The joke is that the Republic has exactly
-  one citizen (see `/statistics`'s footnote); don't reintroduce a real counter here
-  thinking it's an unfinished placeholder.
+- **Applicant numbers are per-device, not global.** `lib/api.ts#getApplicantNumber()`
+  generates a random number in **47–4999** once and caches it in
+  `localStorage['republic:applicant-number']` — stable across visits on the same
+  device/browser, different on every other device (no shared counter, no backend). The
+  landing renders `LANDING.applicantNumberPlaceholder` until a client effect resolves
+  the real value (`app/page.tsx`, same hydration-safe pattern as everything else here —
+  never call this during render). `formatApplicantNumber` (in `lib/content.ts`) zero-pads
+  to 4 digits. **This app has gone back and forth on this feature** (fixed "№ 001" for a
+  while, joke being "you're the only applicant" — now reverted to a per-device random
+  number per owner feedback) — don't re-simplify to a fixed value without checking; read
+  the most recent instruction, not an older comment you find elsewhere.
 - **Identity lives on its own page, not the landing.** `/identity` (government-form
   styled: "APPLICANT IDENTIFICATION", `IDENTITY.nameLabel` says "NAME OF APPLICANT:" —
-  **not** "full name" — plus the "PASSPORT №: @handle" field) is reached via YES on `/`
-  or the appeal link on `/denied`, and both fields are required before `CONTINUE` moves
-  on to `/visa`. The handle is normalized (leading `@` stripped) before being stored in
-  `state.instagramHandle` — don't re-add the `@` when storing, only when displaying.
-  `/identity` itself redirects straight to `/visa` if both fields are already non-empty
-  in context (back-navigation between `/identity` and `/visa`, or arriving via appeal
-  after already declaring once this session) — it never re-asks. `/visa` and every
-  `/visa/[type]` sub-step are wrapped in `<RequireIdentity>` (`components/RequireIdentity.tsx`),
-  which redirects to `/identity` if either field is empty; downstream pages
-  (`/appointment`, `/biometric`, `/processing`, `/visa-issued`) are **unchanged** — they
-  don't need their own identity check since `visaType` can only become non-null by
-  passing through the now-guarded `/visa`.
+  **not** "full name" — plus the "PASSPORT №: @handle" field, no subtitle line under the
+  heading) is reached via YES on `/` or the appeal link on `/denied`, and both fields are
+  required before `CONTINUE` moves on to `/visa`. The handle is normalized (leading `@`
+  stripped) before being stored in `state.instagramHandle` — don't re-add the `@` when
+  storing, only when displaying. `/identity` itself redirects straight to `/visa` if both
+  fields are already non-empty in context (back-navigation between `/identity` and
+  `/visa`, or arriving via appeal after already declaring once this session) — it never
+  re-asks. `/visa` and every `/visa/[type]` sub-step are wrapped in `<RequireIdentity>`
+  (`components/RequireIdentity.tsx`), which redirects to `/identity` if either field is
+  empty; downstream pages (`/appointment`, `/biometric`, `/processing`, `/visa-issued`)
+  are **unchanged** — they don't need their own identity check since `visaType` can only
+  become non-null by passing through the now-guarded `/visa`.
+- **No intermediate confirmation screen after a visa sub-step anymore.** Every sub-step
+  (`components/visa-steps/*.tsx`) now calls `router.push('/appointment')` directly the
+  moment it's done — `ConsultationStep`/`BusinessStep`/`SpecialStep` on form submit,
+  `FianceStep` on the 3rd answer, and `TouristStep` renders **nothing at all** and
+  `router.replace('/appointment')`s immediately in its mount effect (sidequest has no
+  form, so "on completion" means "on selection"). The old "PRELIMINARY RULING" / "vibe
+  check passed" / etc. reply screens and their "CONTINUE TO APPOINTMENT" buttons are
+  gone; the underlying gag-line content still exists in `lib/content.ts` (see
+  Conventions) in case it's wanted again, but nothing currently renders it. If you
+  reintroduce any kind of pause here, keep it non-blocking (auto-advance, not a button)
+  or confirm with the owner first — this was an explicit "remove the button" request.
 - **Landing preserves identity across its own reset.** `app/page.tsx`'s mount effect
   captures `applicantName`/`instagramHandle` *before* calling `reset()`, then re-applies
   them after — so returning to `/` mid-session doesn't force re-entering identity (you
@@ -134,9 +167,26 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   conditional returning/loyalty/stamp-count lines, the typewriter question, YES/NO,
   officer-mood badge, compact footer) is sized and spaced specifically to fit inside
   390×660 (the tightest realistic target — Instagram in-app webview chrome) with real
-  margin to spare; verified by height arithmetic (documented in the PR/session notes),
-  not just "looks fine on desktop". If you add anything to the landing, redo that math —
-  **zero vertical scroll on `/` is a hard requirement**, not a nice-to-have.
+  margin to spare. If you add anything to the landing (or lengthen `LANDING.title`,
+  which is now "DICTATORSHIP OF IGNAS" — longer than the old "REPUBLIC OF IGNAS"),
+  re-check the fit — **zero vertical scroll on `/` is a hard requirement**, not a
+  nice-to-have. (The longer title was checked against the available card width at build
+  time and still fits on one line with margin; redo that check if the title changes
+  again.)
+- **`DocumentProgress` is a small passport, not the old flat "FORM 1G-NAS" strip, and it
+  never renders on `/visa-issued`.** `PageShell`'s `showProgress` prop mounts it; every
+  funnel page from `/identity` through `/processing` passes it, but `/visa-issued`
+  deliberately doesn't (the canvas-composited visa sticker is the payoff and stands
+  alone). The card is a dark navy "cover" (`DOCUMENT_PROGRESS.title` = "PASSPORT") over a
+  lighter inner "page" holding a small photo box + the data rows, plus
+  `PASSPORT_MRZ_LINE` (a purely decorative, non-functional machine-readable-zone string,
+  padded to the real 44-char TD3 length with `<` filler) along the bottom of the cover.
+  The photo box is `bg-black` by default (a silhouette) and only shows an `<img>` when
+  `state.selfieThumbnailUrl` is set — never `selfieDataUrl` (DocumentProgress has no
+  business holding the full-res capture) — so it stays solid black if biometrics haven't
+  run yet **or** if thumbnail generation failed, which is the intended fallback, not a
+  bug. The photo reveal uses the same one-time `useRevealAnimation` hook as the text
+  rows (key `'photo'`).
 - **`Footer` takes a `compact` prop** (smaller margins/padding/text) used only by the
   landing, to fit the no-scroll budget; every other page still gets the normal footer.
 - **Instagram deep link cannot pre-fill DM text, and never blocks on the clipboard.**
@@ -164,11 +214,11 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   starts `false` and is only ever set from inside the effect, never computed inline in a
   className), `DocumentProgress` (returns `null` until `hydrated`, exactly like every
   route guard — never renders a field's filled/blank state from context before then),
-  and `app/page.tsx` (`getPassport()` is never called during render — its result is
-  copied into `stampCount` state inside the mount effect). If you add a new random/
-  time-based display value, follow the same pattern — don't call `Math.random()`,
-  `new Date()`, `matchMedia`, or a `localStorage`/`sessionStorage` read directly in a
-  component body or a lazy `useState` initializer.
+  and `app/page.tsx` (`getApplicantNumber()`/`getPassport()` are never called during
+  render — their results are copied into state inside the mount effect). If you add a
+  new random/time-based display value, follow the same pattern — don't call
+  `Math.random()`, `new Date()`, `matchMedia`, or a `localStorage`/`sessionStorage` read
+  directly in a component body or a lazy `useState` initializer.
 - **Route-guard redirects are gated on `ApplicationProvider`'s `hydrated` flag**
   (`/appointment`, `/biometric`, `/processing`, `/visa-issued`, `/identity`, and
   `RequireIdentity` all do `if (!hydrated) return` before checking any funnel state, and
@@ -186,32 +236,19 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   that short-circuits straight to `/visa-issued` on a genuine remount (e.g. browser back
   to `/processing` after already finishing) instead of regenerating a second code/record.
   `recordApplication` also de-dupes by `referenceCode` in the localStorage log as a third,
-  defense-in-depth layer. Known residual edge case: navigating back past `/visa-issued`
-  to `/appointment` and picking a *different* slot after finalization won't create a
-  second record (idempotency holds), but the sticker/reference line shown afterward would
-  reflect the new slot while the already-written record reflects the old one — this is an
-  inherent tradeoff of allowing free back-navigation in a client-only funnel, not a
-  regression; locking state post-finalization would need its own design decision.
+  defense-in-depth layer.
 - **Biometrics/approval survive a refresh without persisting the full-res selfie.**
   `ApplicationState.selfieCaptured` (boolean) and `selfieThumbnailUrl` (a canvas-
   downscaled ~200px JPEG, a few KB — `lib/photo.ts#createThumbnail`, best-effort, wrapped
   in try/catch, resolves `null` on any failure) both persist normally; only the
-  full-resolution `selfieDataUrl` is stripped before the sessionStorage write (see
-  above). `app/biometric/page.tsx` sets all three together on submit. Every downstream
-  read that used to check `selfieDataUrl` for "was a selfie captured" now checks
-  `selfieCaptured` instead — `/visa-issued`'s guard, its final render guard, and
-  `DocumentProgress`'s BIOMETRICS row. `/visa-issued`'s canvas draw picks
-  `state.selfieDataUrl ?? state.selfieThumbnailUrl` as the image source, and if **both**
-  are absent (thumbnail generation failed and the tab was refreshed) draws
-  `STICKER_LABELS.photoPlaceholder` ("PHOTO ON FILE") straight into the oval frame
-  instead of loading an image at all — the rest of the sticker (name, passport, visa
-  type, serial, reference code, APPROVED stamp), the reference line, download, and the
-  DM handoff are all unaffected by which of the three photo states applies.
-  `app/processing/page.tsx`'s existing `if (state.referenceCode) { replace to
-  /visa-issued }` check already runs *before* it ever looks at `selfieDataUrl`, so a
-  refresh on `/processing` after the application is already finalized was (and remains)
-  correctly forwarded without regenerating a code or duplicating a record — don't
-  reorder those two checks.
+  full-resolution `selfieDataUrl` is stripped before the sessionStorage write. Every
+  read that used to check `selfieDataUrl` for "was a selfie captured" checks
+  `selfieCaptured` instead — `/visa-issued`'s guard, its final render guard,
+  `app/processing/page.tsx`'s pre-finalization guard, and `DocumentProgress`'s
+  BIOMETRICS row (and its photo box, which uses `selfieThumbnailUrl` specifically).
+  `/visa-issued`'s canvas draw picks `state.selfieDataUrl ?? state.selfieThumbnailUrl` as
+  the image source, and if **both** are absent draws `STICKER_LABELS.photoPlaceholder`
+  ("PHOTO ON FILE") straight into the oval frame instead of loading an image at all.
 - **Never use a bare `<input type="checkbox">` (or `type="radio"`) in this app.** The
   global `input { appearance: none }` reset in `app/globals.css` strips native checkbox
   chrome with nothing to replace it, which is exactly what made the sworn-statement
@@ -220,19 +257,22 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
   defensive fix, but the real fix is `components/Checkbox.tsx`: the real input stays in
   the DOM (fully functional, focusable, screen-reader-announced) but `opacity-0`; a
   sibling `span`+`svg` draws the navy-bordered box and stamp-red check mark, so it never
-  depends on native rendering or `accent-color` support either way. Use it for any new
-  checkbox instead of a bare input.
+  depends on native rendering or `accent-color` support either way. The input and the box
+  are **siblings**, not parent/child, so `peer-focus-visible:` can put a visible ring on
+  the box from the invisible input's real focus state. Use it for any new checkbox.
 - **Canvas text uses `"Courier New", monospace`, not the loaded webfonts.** Getting
   `next/font`'s generated family name into a `<canvas>` `ctx.font` reliably needs
   `document.fonts.ready` + reading the actual generated family string; skipped as
   unnecessary complexity for a typewriter-styled composite — Courier New reads the same
   visually and is available everywhere.
-- `VisaDefinition` only carries `slug`/`icon`/`name`/`tagline`/`lines` — the `fee`,
-  `processing`, and `hasSubStep` fields were removed as dead config (nothing read them;
-  `lines` already carries the fee/processing copy shown on the selection cards, and each
-  visa's actual sub-step is a hardcoded switch in `app/visa/[type]/page.tsx`, not driven
-  by a flag). If a new visa needs conditional sub-step behavior beyond that switch, don't
-  resurrect `hasSubStep` — make the switch itself the source of truth.
+- `VisaDefinition` only carries `slug`/`icon`/`name`/`tagline`/`lines` — the internal
+  `slug` values (`'tourist'`, `'consultation'`, `'fiance'`, `'business'`, `'special'`)
+  and everything keyed by them (`VisaType`, route params, `state.visaType`,
+  `consultationMatter`/`businessPitch`/`specialStatement`/`fianceAnswers` field names,
+  component file names) were **deliberately left unchanged** during the visa rename pass
+  — only the user-facing `name`/`tagline`/`lines` changed (e.g. `tourist` → "SIDEQUEST
+  VISA"). Renaming the internal keys to match would ripple through ~10 files for zero
+  user-visible benefit; don't do it without a specific reason.
 - `ApplicationProvider` is mounted once in the root layout and stays mounted for the
   whole client session (Next soft navigation) — its `sessionStorage` hydration effect
   only runs once (see `hydrated`, above).
@@ -246,80 +286,83 @@ immigration/border control for the fictional "Republic of Ignas". Every visitor 
 
 ## Current state
 
-Full client-side funnel, zero backend required: entry declaration (**no-scroll landing**,
-just the declare-yes/no question + officer-mood badge + hidden bribe easter egg + compact
-footer — no identity fields, no visible sound toggle) → **YES → `/identity`**
-(name + Instagram handle, both required, skipped if already on file this session) →
-**NO → `/denied`** (stamp slam, rotating reason, appeal loops to `/identity`) → visa
-selection (5 visas, fiancé has a HIGH RISK tag; `/visa` and every `/visa/[type]` now
-require identity via `RequireIdentity`) → per-visa sub-step (tourist skips;
-consultation/business/special are 1-field forms with a random canned reply; fiancé is a
-3-question always-passes vibe check) → consulate appointment (seeded weekly-scarcity slot
-picker, visa-specific bonus slots for fiancé/business) → biometric selfie (`<input
-type=file accept=image/* capture=user>`, oval guide overlay) → processing (progress bar
-stutters at 99%, cycling Interpol-style gag lines, generates the reference code and
-writes the **one** finalized application record) → visa issued (canvas-composited
-sticker: selfie in an oval frame, name + handle, baked-in APPROVED stamp, serial +
-reference code; download button; reference line always visible on screen; "PROCEED TO
-CONSULATE" opens the `ig.me` DM thread immediately and best-effort copies the reference
-line with a truthful success/failure message, plus a manual copy button).
+Full client-side funnel, zero backend required: entry declaration (**no-scroll
+landing**, just the declare-yes/no question + officer-mood badge + hidden bribe easter
+egg + compact footer — no identity fields) → **YES → `/identity`** (name + Instagram
+handle, both required, skipped if already on file this session) → **NO → `/denied`**
+(stamp slam, rotating reason, appeal loops to `/identity`) → visa selection (5 visas,
+now trimmed to icon + name + at most one flavor line each; `/visa` and every
+`/visa/[type]` require identity via `RequireIdentity`) → per-visa sub-step (sidequest has
+none — selecting it goes straight through; the other four are 1-field forms or the
+fiancé 3-question interview, and **all of them now navigate straight to `/appointment`
+on completion, with no intermediate confirmation screen**) → consulate appointment
+(seeded weekly-scarcity slot picker, visa-specific bonus slots for fiancé/business) →
+biometric selfie (`<input type=file accept=image/* capture=user>`, oval guide overlay) →
+processing (progress bar stutters at 99%, cycling Interpol-style gag lines, generates
+the reference code and writes the **one** finalized application record — a refresh here
+before or after that point resumes correctly, never duplicating) → visa issued
+(canvas-composited sticker: selfie in an oval frame, name + handle, baked-in APPROVED
+stamp, serial + reference code; download button; reference line always visible on
+screen; "PROCEED TO CONSULATE" opens the `ig.me` DM thread immediately and best-effort
+copies the reference line with a truthful success/failure message, plus a manual copy
+button; **no passport progress card on this page** — the sticker stands alone).
 
-**New this pass:**
-- **No-scroll landing** (`<PageShell fullHeight>`): compact spacing throughout, fits
-  390×660 with margin to spare. Officer-mood badge is the only widget still in normal
-  flow; sound toggle and visible bribe button are both gone (see below).
-- **`/identity`** is a new route (government-form styled, "NAME OF APPLICANT:" —
-  explicitly not "full name" — + the passport/handle field), reached after YES or the
-  denied/appeal loop, skips itself if identity is already in context. `/visa` and
-  `/visa/[type]` are gated behind it via `RequireIdentity`.
-- **Hidden bribe easter egg** (`components/HiddenBribe.tsx`, shown on landing): a 💵 tab
-  pinned `fixed`, parked away from the YES/NO buttons, mostly off the right edge with a
-  slow bob + golden glow (`animate-bribe-peek`, two combined keyframes in
-  `tailwind.config.ts`) **plus a moving highlight sweep** (`.bribe-shimmer-sweep` in
-  `app/globals.css`, a diagonal gradient animated via `background-position` —
-  `animate-bribe-shimmer`, its own keyframe/animation pair — layered on an absolutely
-  positioned overlay `span` inside the button, which needs `relative overflow-hidden` so
-  the sweep clips to the circle). Tapping slides it fully on-screen and swaps in the
-  existing `BribeButton` (same component, same copy, same device counter — single
-  source of truth). Reduced motion is handled by the app's existing global rule (collapses
-  bob, glow, *and* the shimmer to one static frame), no special-casing needed.
-- **Democracy jokes**: `/terms` paragraph 10 ("full democracy... 100% of the vote"),
-  `/statistics` footnote ("one (1) citizen and he is doing his best") — both in
-  `lib/content.ts` (`TERMS_PARAGRAPHS`, `STATISTICS_FOOTNOTE`).
-- **Sound toggle removed.** `components/SoundToggle.tsx` deleted; `lib/sound.ts` no
-  longer gates `beep()` behind a persisted preference — sound is on by default for
-  everyone, and every call site is already inside a user-gesture handler (click/tap/
-  change), which is what actually satisfies autoplay policy. `getCtx()` best-effort
-  `resume()`s the shared `AudioContext` if it started suspended.
-- **Applicant № 001 for everyone.** `getApplicantNumber` and its localStorage sequence
-  key are gone from `lib/api.ts`; the landing renders the fixed `LANDING.applicantNumberLine`.
-- **Invisible-checkbox bug fixed.** `components/Checkbox.tsx` is a new fully custom
-  checkbox (real input kept functional but invisible; box + check mark drawn by sibling
-  elements) used by `SpecialStep`'s sworn-statement declaration — the only checkbox in
-  the app (audited; no radios exist anywhere). The global CSS `appearance: none` reset
-  now excludes checkboxes/radios defensively too. The real `<input>` and the decorative
-  box are **siblings**, not parent/child, specifically so `peer-focus-visible:` can put a
-  visible ring on the box from the invisible input's real focus state — keyboard focus
-  only, not mouse clicks (a parent/child structure can't use `peer-*` at all).
-- **Persistent document card** (`components/DocumentProgress.tsx`, `<PageShell
-  showProgress>`): a sticky-top "FORM 1G-NAS" strip on every funnel page from
-  `/identity` onward (never on the landing). Rows: DECLARATION (checked as soon as you
-  reach `/identity`) → NAME + PASSPORT № → VISA TYPE → the active visa's sub-step
-  answer, truncated (hidden for tourist, which has none) → APPOINTMENT slot →
-  BIOMETRICS → STATUS (only appears once actually approved). Blank fields render as a
-  ruled line; a field's value pops in once, the first time it's filled, via
-  `animate-field-fill` — gated by `lib/formProgress.ts`'s sessionStorage set so a
-  mid-funnel refresh never replays an animation for something already on the form.
-  Reduced motion collapses it to instant via the app's existing global rule.
+**Owner feedback round — this pass:**
+- **Rebranded "Republic of Ignas" → "Dictatorship of Ignas"** everywhere user-facing:
+  `lib/content.ts` (site metadata, landing title, sticker title, footer copyright, terms
+  paragraph 1, the visa-sticker download filename fallback), `public/manifest.json`
+  (PWA name), README, this file. The democracy joke in `/terms` got funnier: "The
+  Dictatorship of Ignas is a full democracy. Ignas has won every election since birth
+  with 100% of the vote." Reference code prefix (`RIG-`) and the `apps/republic` folder
+  name were deliberately left alone (code-format/slug details, not prose).
+- **`DocumentProgress` redesigned as a small passport** (see Gotchas) and no longer shown
+  on `/visa-issued`.
+- **Visa cards trimmed and renamed**: Tourist → SIDEQUEST VISA ("Reward: infinite
+  memories"), Consultation → SEEK ADVICE PERMIT ("Advice quality: unknown"), Fiancé →
+  DATE VISA (no descriptive text at all, just the HIGH RISK stamp), Business → BUSINESS
+  VISA ("Purpose: money talk, projects"), Special Purpose unchanged in name ("Purpose of
+  visit: other"). Internal slugs unchanged (see Gotchas).
+- **`/visa`'s subheading and `/identity`'s subtitle line are both gone** — just the
+  heading + content on each now.
+- **No more intermediate "CONTINUE TO APPOINTMENT" screen** after any visa sub-step —
+  see the dedicated Gotchas entry.
+- **Applicant number reverted from a fixed "№ 001" back to a real per-device random
+  number** (47–4999, `lib/api.ts#getApplicantNumber`) — see the dedicated Gotchas entry
+  for why this keeps changing and where to look for the current behavior.
 
-**Review fixes this pass:**
-- Biometrics/approval state (and the visa sticker's photo) now survive a refresh on
-  `/visa-issued` without persisting the full-resolution selfie — see the new
-  `selfieCaptured`/`selfieThumbnailUrl` Gotchas entry above.
-- The hidden bribe tab's collapsed state has a real moving shimmer sweep in addition to
-  the bob + glow.
-- `Checkbox.tsx` now shows a visible ring on keyboard (`focus-visible`) focus, since the
-  real input is invisible and previously gave no focus indicator at all.
+**Design-research polish pass (this pass):**
+- **Officer mood indicator redesigned** (`components/OfficerMoodBadge.tsx`): the old
+  plain "CURRENT OFFICER MOOD: <dots> <label>" text line is gone, replaced by a compact
+  split-flap desk placard — a small rubber-stamped circular "seal" (colored by mood
+  tier: `text-approve`/`text-navy`/`text-stamp`, derived by counting `●` in
+  `mood.dots`, no new content.ts fields needed), a split-flap text window that does a
+  quick 3D flip (`animate-officer-flap`, new keyframe in `tailwind.config.ts`;
+  `perspective`/`backface-visibility` live in `app/globals.css` as `.officer-flap-window`/
+  `.officer-flap-text` since Tailwind has no utilities for those) on first reveal and on
+  every actual mood change, and a small mirrored coffee-cup icon (fill level also driven
+  by the same tier) as a glanceable redundancy channel — you can read the mood without
+  reading the label. `OFFICER_MOOD_PREFIX` still comes from `lib/content.ts`, just as an
+  `sr-only` prefix now instead of always-visible text, to keep the widget compact.
+  Same hydration-safe pattern as before (`null` until a client effect resolves it).
+- **Four low-risk "stamp/paper detail" + "micro-animation juice" polish picks**, cherry-
+  picked from the design research as fast/safe (full list of what was picked vs.
+  skipped, and why, lives in the session's acceptance report — the short version):
+  (1) a faint, slightly-offset "ghost" second strike on every `StampSlam` (ink
+  misregistration, as if the stamp landed a hair off-true — rides along with the
+  existing slam animation for free, no separate animation needed);
+  (2) `active:scale-[0.97]` tactile press feedback on the highest-traffic buttons
+  (landing YES/NO, visa-selection cards, `/identity`'s CONTINUE, `/visa-issued`'s three
+  action buttons) — wherever a button previously used `transition-opacity`/
+  `transition-colors` it's now `transition-all` so the press scale actually animates
+  smoothly alongside the existing hover effect, not just snap;
+  (3) a soft inset vignette added to the shared `.paper-card` box-shadow (photocopy/scan
+  darkening toward the edges — one extra comma-separated shadow layer, applies
+  everywhere for free);
+  (4) the `paper-slide-in` entrance animation now rests at `-0.35deg` instead of exactly
+  `0deg` (imperceptible individually, subtly less "perfectly aligned" across every
+  screen transition). All four are pure CSS/SVG, additive only, and were checked against
+  the landing's no-scroll height budget (negligible impact — well within the documented
+  slack).
 
 Explicitly not built (per plan's "cut by decree" + owner override): rejection lottery,
 diplomatic passport easter egg, customs declaration checklist, deportation-on-idle,
@@ -333,7 +376,8 @@ this folder (and via `turbo run <task> --filter=./apps/republic` from the repo r
 
 - A Vercel project (`republic-of-ignas`) already exists (see Stack) but the app isn't
   registered in `apps/hub/config/apps.json` yet — confirm the production URL and add the
-  hub tile + icon mapping once a domain/slug is finalized.
+  hub tile + icon mapping once a domain/slug is finalized. Worth deciding then whether
+  the hub tile/description should say "Dictatorship" or keep a neutral description.
 - Provision the real `republic` Supabase schema (additive-only) matching
   `SIDEQUEST_PLAN.md`'s table list, then swap `lib/api.ts`'s try/catch stub bodies for
   real inserts — signatures should not need to change.
@@ -342,7 +386,9 @@ this folder (and via `turbo run <task> --filter=./apps/republic` from the repo r
 - If `getAvailableSlots` grows a real Google Calendar backend, keep the function
   signature (`visaType → Promise<Slot[]>`) and move the seeded-pool logic in
   `lib/slots.ts` behind a feature flag rather than deleting it (useful fallback/demo mode).
-- The document card currently truncates free-text sub-step answers at a fixed 26 chars
-  (`DocumentProgress.tsx`); revisit if a future visa's answer format needs different
-  handling (e.g. showing the fiancé interview's actual answers instead of just
-  "ANSWERED").
+- The passport card currently truncates free-text sub-step answers at a fixed 20 chars
+  (`DocumentProgress.tsx`, tightened from 26 when the card shrank); revisit if a future
+  visa's answer format needs different handling.
+- The unused sub-step gag-line copy in `lib/content.ts` (see Conventions) has no home
+  right now — if it's wanted back, the likely place is a brief, non-blocking auto-advance
+  toast rather than the old button-gated screen (which was explicitly removed).

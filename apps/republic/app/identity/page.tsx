@@ -57,7 +57,6 @@ export default function IdentityPage() {
     <PageShell showProgress>
       <div className="paper-card p-5">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{IDENTITY.heading}</h1>
-        <p className="mt-1 text-center text-[10px] uppercase text-navy/60">{IDENTITY.sub}</p>
         <div className="my-3 h-px bg-navy/20" />
 
         <div className="flex flex-col gap-4">
@@ -103,7 +102,7 @@ export default function IdentityPage() {
           <button
             type="button"
             onClick={handleContinue}
-            className="mt-2 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-opacity hover:opacity-90"
+            className="mt-2 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
           >
             {IDENTITY.continue}
           </button>

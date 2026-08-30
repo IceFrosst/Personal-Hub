@@ -1,11 +1,14 @@
-# Republic of Ignas — Border Control
+# Dictatorship of Ignas — Border Control
 
 A gamified, deadpan-bureaucracy link-in-bio site for Ignas's personal Instagram. The
-visitor is a traveler applying to enter the fictional "Republic of Ignas"; every social
-interaction (hang out, ask advice, pitch a business idea, ask him out) is reframed as a
-visa application. The joke only works if the site takes itself 100% seriously.
+visitor is a traveler applying to enter the fictional "Dictatorship of Ignas"; every
+social interaction (hang out, ask advice, pitch a business idea, ask him out) is
+reframed as a visa application. The joke only works if the site takes itself 100%
+seriously — including the terms page's straight-faced claim that the Dictatorship is
+also a full democracy.
 
-Full concept doc: `../../SIDEQUEST_PLAN.md` (root of the monorepo).
+Full concept doc: `../../SIDEQUEST_PLAN.md` (root of the monorepo — written before the
+rebrand, still uses the original working name).
 
 ## The funnel
 
@@ -14,8 +17,8 @@ ENTRY DECLARATION (no-scroll landing: "do you have something to declare?")
   NO  → ENTRY DENIED (stamp slam, rotating reason, "file an appeal" loops to /identity)
   YES → APPLICANT IDENTIFICATION (name + Instagram handle — skipped if already on file
         this session) → VISA SELECTION (5 visas)
-          → per-visa sub-step (consultation form / fiancé interview / business
-            pitch / sworn statement — tourist skips)
+          → per-visa sub-step (1-field form / fiancé interview — sidequest has none) →
+            straight to CONSULATE APPOINTMENT, no confirmation screen in between
           → CONSULATE APPOINTMENT (time-slot picker, real scarcity)
           → BIOMETRIC VERIFICATION (selfie via file input, final step)
           → PROCESSING (progress bar stutters at 99%)
@@ -30,9 +33,24 @@ context so it survives client-side navigation between them. Landing restarts the
 *application* on every visit but preserves identity already on file this session (real
 border control doesn't re-check your passport every time you walk up to the counter).
 
-A compact "FORM 1G-NAS" document card is pinned to the top of every page from
-`/identity` onward (not the landing, which never scrolls) and fills in live as you
-progress — see "The document card" below.
+A small passport-styled progress card is pinned to the top of every page from
+`/identity` onward (never the landing, which never scrolls, and never `/visa-issued`,
+where the big visa sticker is the payoff and stands alone) — see "The passport card"
+below.
+
+## Visas on offer
+
+Each card is now just an icon, a name, and at most one short flavor line (fiancé gets
+neither — only the HIGH RISK stamp):
+
+- 🗺 **SIDEQUEST VISA** — Reward: infinite memories
+- 📋 **SEEK ADVICE PERMIT** — Advice quality: unknown
+- 💍 **DATE VISA** — (HIGH RISK)
+- 💼 **BUSINESS VISA** — Purpose: money talk, projects
+- 📎 **SPECIAL PURPOSE VISA** — Purpose of visit: other
+
+Selecting one (and completing its sub-step form, if it has one) goes straight to the
+appointment picker — there's no "continue" confirmation screen in between anymore.
 
 ## Identity / "the DM is the passport"
 
@@ -45,26 +63,33 @@ pre-fill message text, so the flow is open thread → paste (the reference line 
 shown on-screen too, in case the copy silently fails). Ignas looks up the reference code
 to see what was submitted and confirms/declines by DM.
 
-## The document card
+## The passport card
 
-`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A sticky-top
-strip styled like a clerk's form-in-progress: DECLARATION (checked the moment you reach
-`/identity`) → NAME + PASSPORT № → VISA TYPE → the relevant sub-step's answer
-(truncated) → APPOINTMENT slot → BIOMETRICS → STATUS (only once actually approved).
-Unfilled fields render as a blank ruled line; a field animates once, the moment it's
-first filled, via a small "field-fill" pop — but only once ever per browser session
+`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A small sticky-
+top passport booklet: a dark navy "cover" with a "PASSPORT" heading and a purely
+decorative machine-readable-zone line along the bottom, and a lighter inner "page" with
+a small photo box (solid black/silhouette until biometrics are captured, then the
+persisted selfie thumbnail — falls back to black again if the thumbnail never made it)
+next to the data fields: DECLARATION (checked the moment you reach `/identity`) → NAME +
+PASSPORT № → VISA TYPE → the relevant sub-step's answer (truncated) → APPOINTMENT slot →
+BIOMETRICS → STATUS (only once actually approved, though `/visa-issued` — the only page
+where that would matter — doesn't show this card at all). Unfilled fields render as a
+blank ruled line; a field (including the photo) animates once, the moment it's first
+filled, via a small "field-fill" pop — but only once ever per browser session
 (`lib/formProgress.ts` tracks which field keys have already played the animation in
 `sessionStorage`, separate from the funnel's own state, so refreshing mid-funnel never
 replays it for something that was already on the form). `prefers-reduced-motion`
 collapses the animation to a single instant frame via the same global rule every other
 animation in this app uses — no special-casing needed.
 
-## Applicant № 001
+## Applicant number
 
-The landing page always shows "APPLICANT № 001" — a fixed string, not a counter.
-Everyone who visits is applicant number one; the Republic has exactly one citizen (see
-`/statistics`'s footnote). There is no `getApplicantNumber` anymore — don't reintroduce
-per-visitor sequencing here, it's the joke, not a placeholder waiting for a backend.
+The landing page shows a distinct applicant number per device — generated once
+(`lib/api.ts#getApplicantNumber`, random in 47–4999, cached in `localStorage`,
+zero-padded to 4 digits) and stable across visits on the same device/browser. It starts
+as a placeholder and is only ever filled in from a client effect (hydration-safe, since
+this page is statically prerendered). It's structured as its own function specifically
+so a real backend counter can replace the body later without touching call sites.
 
 ## Stack
 
@@ -74,7 +99,8 @@ per-visitor sequencing here, it's the joke, not a placeholder waiting for a back
   `app/globals.css`) — off-white paper, navy ink, stamp red, approval green
 - Fonts via `next/font/google`: IBM Plex Mono (body/forms) + Special Elite (stamps)
 - All CSS/SVG animation (stamp slam, screen shake, typewriter reveal, paper-slide,
-  document-card field-fill, the hidden-bribe bob/glow) — no WebGL, no animation library
+  passport-card field-fill, the hidden-bribe bob/glow/shimmer) — no WebGL, no animation
+  library
 - Tiny WebAudio-generated blips, on by default for everyone (no toggle) — every call
   site is already inside a click/tap/change handler, which is what a browser's autoplay
   policy actually needs (one prior user gesture on the page); `lib/sound.ts` also
@@ -88,8 +114,8 @@ per-visitor sequencing here, it's the joke, not a placeholder waiting for a back
   app's global `appearance: none` reset is exactly what made the sworn-statement
   checkbox on `/visa/special` invisible in production.
 - `lib/api.ts` — typed backend stubs (`recordApplication`, `recordAppointment`,
-  `recordBribe`, `getAvailableSlots`, `uploadPhoto`) that always work off localStorage
-  and best-effort (try/catch-swallowed) POST to Supabase only if
+  `recordBribe`, `getApplicantNumber`, `getAvailableSlots`, `uploadPhoto`) that always
+  work off localStorage and best-effort (try/catch-swallowed) POST to Supabase only if
   `NEXT_PUBLIC_SUPABASE_URL` is set — no schema/migrations exist yet, so this is
   forward-compatible scaffolding, not a live integration
 - No bot defenses (no Turnstile, no honeypot) and no server persistence beyond the
@@ -119,7 +145,11 @@ in-app browser. Check the landing specifically at 390×660 (Instagram webview ch
 ## All copy lives in one place
 
 `lib/content.ts` — visa definitions, denial reasons, gag lines, interview questions,
-identity/document-card labels, statistics placeholders (including the "one citizen"
+identity/passport-card labels, statistics placeholders (including the "one citizen"
 footnote), duty-free stock, terms paragraphs (including the paragraph 7 easter egg and
 the democracy clause), the DM handle/deep link, and the reference-line format. Edit copy
-there, not scattered across components.
+there, not scattered across components. A few sub-step gag lines (preliminary rulings,
+the sworn-statement replies, the fiancé "vibe check passed" message, the old tourist
+notice) are still defined there but currently unused — they used to power an
+intermediate confirmation screen after each sub-step that's since been removed in favor
+of navigating straight to `/appointment`; kept as copy-bank content rather than deleted.

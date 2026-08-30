@@ -14,6 +14,7 @@ const SUPABASE_SCHEMA = 'republic'
 const LS_KEYS = {
   bribeCount: 'republic:bribe-count',
   applications: 'republic:applications-log',
+  applicantNumber: 'republic:applicant-number',
 } as const
 
 function isBrowser() {
@@ -170,6 +171,29 @@ export async function recordBribe(): Promise<number> {
 
 export function getBribeCount(): number {
   return readLocal<number>(LS_KEYS.bribeCount, 0)
+}
+
+// Applicant number — generated once per device and cached in localStorage, a
+// believable but entirely fake per-visitor number until a real backend
+// counter exists. Structured as its own function (like the rest of this
+// file) specifically so a real Supabase-backed sequence can replace the body
+// later without touching call sites (currently just app/page.tsx).
+const APPLICANT_NUMBER_MIN = 47
+const APPLICANT_NUMBER_MAX = 4999
+
+export function getApplicantNumber(): number {
+  const cached = readLocal<number | null>(LS_KEYS.applicantNumber, null)
+  if (
+    cached !== null &&
+    Number.isInteger(cached) &&
+    cached >= APPLICANT_NUMBER_MIN &&
+    cached <= APPLICANT_NUMBER_MAX
+  ) {
+    return cached
+  }
+  const assigned = APPLICANT_NUMBER_MIN + Math.floor(Math.random() * (APPLICANT_NUMBER_MAX - APPLICANT_NUMBER_MIN + 1))
+  writeLocal(LS_KEYS.applicantNumber, assigned)
+  return assigned
 }
 
 // Appointment slots — hardcoded joke pool with deterministic weekly scarcity

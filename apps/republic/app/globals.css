@@ -47,6 +47,25 @@ textarea {
   font-family: inherit;
 }
 
+/* Split-flap reveal for the officer-mood label
+   (components/OfficerMoodBadge.tsx) — a quick 3D flip-down when the mood
+   label first appears or changes, evoking a split-flap desk placard.
+   `perspective`/`backface-visibility`/`transform-origin` aren't expressible
+   as default Tailwind utilities, hence the small custom rules; the actual
+   flip keyframe/animation (`animate-officer-flap`) lives in
+   tailwind.config.ts alongside every other animation in this app.
+   prefers-reduced-motion collapses it to a single static frame via the
+   existing global rule below, same as everything else here. */
+.officer-flap-window {
+  display: inline-block;
+  perspective: 220px;
+}
+
+.officer-flap-text {
+  transform-origin: 50% 0%;
+  backface-visibility: hidden;
+}
+
 /* Checkboxes/radios are excluded above: `appearance: none` strips their
    native box+checkmark with nothing to replace it, which is exactly what
    made the sworn-statement checkbox on /visa/special invisible. Any
@@ -72,7 +91,12 @@ button {
 .paper-card {
   background: #f4f0e8;
   border: 2px solid #1a2a4a;
-  box-shadow: 4px 4px 0 rgba(26, 42, 74, 0.15);
+  /* Hard offset shadow (the "stamped paper" look) plus a soft inset vignette
+     — a faint photocopy/scan darkening toward the edges. Purely additive to
+     the existing shadow, no layout impact. */
+  box-shadow:
+    4px 4px 0 rgba(26, 42, 74, 0.15),
+    inset 0 0 18px rgba(26, 42, 74, 0.05);
 }
 
 .barcode {

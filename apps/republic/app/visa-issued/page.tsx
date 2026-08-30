@@ -257,7 +257,9 @@ export default function VisaIssuedPage() {
   if (!hydrated || !visa || !state.slot || !state.referenceCode || !state.selfieCaptured) return null
 
   return (
-    <PageShell showProgress>
+    // Deliberately no `showProgress` here — the big visa sticker is the payoff
+    // and should stand alone, not share the screen with the passport card.
+    <PageShell>
       <div className="paper-card p-5 text-center">
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
@@ -290,21 +292,21 @@ export default function VisaIssuedPage() {
             type="button"
             onClick={handleDownload}
             disabled={!ready}
-            className="min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50"
           >
             {APPROVED.download}
           </button>
           <button
             type="button"
             onClick={handleProceed}
-            className="min-h-11 w-full border-2 border-stamp bg-paper py-3 font-stamp text-sm uppercase tracking-widest text-stamp transition-colors hover:bg-stamp hover:text-paper"
+            className="min-h-11 w-full border-2 border-stamp bg-paper py-3 font-stamp text-sm uppercase tracking-widest text-stamp transition-all hover:bg-stamp hover:text-paper active:scale-[0.97]"
           >
             {APPROVED.proceed}
           </button>
           <button
             type="button"
             onClick={() => void copyReferenceLine()}
-            className="min-h-11 w-full border-2 border-navy/40 bg-paper py-2 font-stamp text-[11px] uppercase tracking-widest text-navy/70 transition-colors hover:border-navy hover:text-navy"
+            className="min-h-11 w-full border-2 border-navy/40 bg-paper py-2 font-stamp text-[11px] uppercase tracking-widest text-navy/70 transition-all hover:border-navy hover:text-navy active:scale-[0.97]"
           >
             {COPY_BUTTON_LABEL}
           </button>

@@ -40,7 +40,10 @@ const config: Config = {
         },
         'paper-slide-in': {
           '0%': { opacity: '0', transform: 'translateY(18px) rotate(-0.6deg)' },
-          '100%': { opacity: '1', transform: 'translateY(0) rotate(0deg)' },
+          // Rests at a hair off-axis instead of exactly 0deg — real stacked
+          // paperwork is never perfectly aligned; imperceptible individually,
+          // adds up to a subtly less "digital" feel across every screen.
+          '100%': { opacity: '1', transform: 'translateY(0) rotate(-0.35deg)' },
         },
         blink: {
           '0%, 45%': { opacity: '1' },
@@ -63,6 +66,11 @@ const config: Config = {
           '0%': { backgroundPosition: '160% 50%' },
           '100%': { backgroundPosition: '-60% 50%' },
         },
+        'officer-flap': {
+          '0%': { transform: 'rotateX(90deg)', opacity: '0.2' },
+          '60%': { transform: 'rotateX(-10deg)', opacity: '1' },
+          '100%': { transform: 'rotateX(0deg)', opacity: '1' },
+        },
       },
       animation: {
         'stamp-slam': 'stamp-slam 0.5s cubic-bezier(.2,1.4,.4,1) forwards',
@@ -73,6 +81,7 @@ const config: Config = {
         'bribe-peek': 'bribe-bob 3.4s ease-in-out infinite, bribe-glow 2.1s ease-in-out infinite',
         'field-fill': 'field-fill 0.45s ease-out',
         'bribe-shimmer': 'bribe-shimmer 2.4s linear infinite',
+        'officer-flap': 'officer-flap 0.45s ease-out',
       },
     },
   },
