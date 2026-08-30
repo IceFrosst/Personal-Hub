@@ -43,7 +43,7 @@ export default function AppointmentPage() {
   const visa = VISA_BY_SLUG[state.visaType]
 
   return (
-    <PageShell>
+    <PageShell showProgress>
       <div className="paper-card p-5">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">
           {APPOINTMENT.heading}

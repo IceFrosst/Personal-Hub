@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StepShell } from './StepShell'
+import { Checkbox } from '@/components/Checkbox'
 import { useApplication } from '@/lib/applicationContext'
 import { SPECIAL, SPECIAL_REPLIES, VISA_BY_SLUG, CONTINUE_TO_APPOINTMENT } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
@@ -48,16 +49,7 @@ export function SpecialStep() {
             placeholder={SPECIAL.placeholder}
             className="ink-border bg-paper p-2 text-[13px] text-navy placeholder:text-navy/40 focus:outline-none"
           />
-          <label className="flex items-start gap-2 text-[11px] uppercase text-navy">
-            <input
-              type="checkbox"
-              checked={sworn}
-              onChange={(e) => setSworn(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-navy"
-              required
-            />
-            <span>{SPECIAL.declaration}</span>
-          </label>
+          <Checkbox id="sworn-declaration" checked={sworn} onChange={setSworn} label={SPECIAL.declaration} required />
           <button
             type="submit"
             disabled={!statement.trim() || !sworn}

@@ -46,6 +46,23 @@ const config: Config = {
           '0%, 45%': { opacity: '1' },
           '50%, 100%': { opacity: '0' },
         },
+        'bribe-bob': {
+          '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+          '50%': { transform: 'translateY(-6px) rotate(-4deg)' },
+        },
+        'bribe-glow': {
+          '0%, 100%': { boxShadow: '0 0 6px 1px rgba(255, 200, 0, 0.35)' },
+          '50%': { boxShadow: '0 0 14px 4px rgba(255, 200, 0, 0.7)' },
+        },
+        'field-fill': {
+          '0%': { opacity: '0', transform: 'scale(0.85)' },
+          '60%': { opacity: '1', transform: 'scale(1.08)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'bribe-shimmer': {
+          '0%': { backgroundPosition: '160% 50%' },
+          '100%': { backgroundPosition: '-60% 50%' },
+        },
       },
       animation: {
         'stamp-slam': 'stamp-slam 0.5s cubic-bezier(.2,1.4,.4,1) forwards',
@@ -53,6 +70,9 @@ const config: Config = {
         'fade-in': 'fade-in 0.4s ease-out forwards',
         'paper-slide-in': 'paper-slide-in 0.35s ease-out forwards',
         blink: 'blink 1s step-start infinite',
+        'bribe-peek': 'bribe-bob 3.4s ease-in-out infinite, bribe-glow 2.1s ease-in-out infinite',
+        'field-fill': 'field-fill 0.45s ease-out',
+        'bribe-shimmer': 'bribe-shimmer 2.4s linear infinite',
       },
     },
   },

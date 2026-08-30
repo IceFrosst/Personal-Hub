@@ -6,6 +6,7 @@ import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
 import { uploadPhoto } from '@/lib/api'
+import { createThumbnail } from '@/lib/photo'
 import { BIOMETRIC } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep } from '@/lib/sound'
@@ -50,7 +51,12 @@ export default function BiometricPage() {
     if (!preview) return
     setSubmitting(true)
     const uploaded = await uploadPhoto(preview)
-    update({ selfieDataUrl: uploaded ?? preview })
+    const finalDataUrl = uploaded ?? preview
+    // The thumbnail is what survives a refresh (see lib/applicationContext.tsx)
+    // — best-effort; a failure here just means /visa-issued falls back to its
+    // placeholder frame after a refresh instead of a restored photo.
+    const thumbnail = await createThumbnail(finalDataUrl)
+    update({ selfieDataUrl: finalDataUrl, selfieCaptured: true, selfieThumbnailUrl: thumbnail })
     addStamp('BIOMETRICS SUBMITTED')
     router.push('/processing')
   }
@@ -58,7 +64,7 @@ export default function BiometricPage() {
   if (!hydrated || !state.visaType || !state.slot) return null
 
   return (
-    <PageShell>
+    <PageShell showProgress>
       <div className="paper-card p-5">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">
           {BIOMETRIC.heading}

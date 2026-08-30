@@ -1,21 +1,12 @@
-// Tiny WebAudio-generated blips — no audio assets. Gated by the "I consent to
-// noise" toggle (localStorage). Everything is a short oscillator burst so the
-// bundle cost is ~zero.
-
-const SOUND_KEY = 'republic:sound-enabled'
+// Tiny WebAudio-generated blips — no audio assets, no on/off toggle. Sound is
+// on by default for everyone; every call site is already triggered from a
+// user gesture (click/tap/change handlers), which is what actually matters
+// for autoplay policies — browsers only need ONE prior gesture anywhere on
+// the page to let a *new* AudioContext produce sound, and every gesture here
+// re-attempts `resume()` as a best-effort nudge in case it started suspended.
 
 function isBrowser() {
   return typeof window !== 'undefined'
-}
-
-export function isSoundEnabled(): boolean {
-  if (!isBrowser()) return false
-  return window.localStorage.getItem(SOUND_KEY) === '1'
-}
-
-export function setSoundEnabled(enabled: boolean) {
-  if (!isBrowser()) return
-  window.localStorage.setItem(SOUND_KEY, enabled ? '1' : '0')
 }
 
 let sharedCtx: AudioContext | null = null
@@ -26,11 +17,15 @@ function getCtx(): AudioContext | null {
   const Ctor = window.AudioContext || w.webkitAudioContext
   if (!Ctor) return null
   if (!sharedCtx) sharedCtx = new Ctor()
+  if (sharedCtx.state === 'suspended') {
+    // Only succeeds inside a user-gesture call stack, which every call site
+    // below already is — best-effort, never blocks or throws either way.
+    void sharedCtx.resume().catch(() => {})
+  }
   return sharedCtx
 }
 
 function beep(freq: number, durationMs: number, type: OscillatorType = 'square', gain = 0.05) {
-  if (!isSoundEnabled()) return
   const ctx = getCtx()
   if (!ctx) return
   const osc = ctx.createOscillator()

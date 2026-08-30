@@ -86,19 +86,32 @@ export const LANDING = {
   title: 'REPUBLIC OF IGNAS',
   subtitle: 'BORDER CONTROL',
   formCode: 'FORM 1G-NAS — ENTRY DECLARATION',
-  applicantNumberPrefix: 'APPLICANT №',
+  // Fixed, deliberately not a real counter (see lib/api.ts — the joke is that
+  // every visitor is applicant number one, the Republic's only citizen).
+  applicantNumberLine: 'APPLICANT № 001',
   question: 'DO YOU HAVE SOMETHING TO DECLARE?',
   yes: 'YES',
   no: 'NO',
   priorityStamp: 'PRIORITY',
-  nameLabel: 'FULL NAME OF APPLICANT:',
+  passportStampsLabel: 'PASSPORT STAMPS ON FILE:',
+}
+
+// ---------------------------------------------------------------------------
+// Applicant identification — app/identity/page.tsx, shown after YES (or the
+// denied/appeal loop) and before visa selection. Landing itself no longer
+// collects any identity fields.
+// ---------------------------------------------------------------------------
+
+export const IDENTITY = {
+  heading: 'APPLICANT IDENTIFICATION',
+  sub: 'FORM 2ID-NAS — IDENTITY VERIFICATION',
+  nameLabel: 'NAME OF APPLICANT:',
   namePlaceholder: '____________________',
   nameRequiredError: 'NAME REQUIRED. THE MINISTRY DOES NOT PROCESS ANONYMOUS APPLICANTS.',
   handleLabel: 'PASSPORT №: @',
   handlePlaceholder: 'instagram_handle',
   handleRequiredError: 'INSTAGRAM HANDLE REQUIRED. NO HANDLE, NO PASSPORT, NO ENTRY.',
-  passportStampsLabel: 'PASSPORT STAMPS ON FILE:',
-  applicantNumberPlaceholder: '——',
+  continue: 'CONTINUE',
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +353,38 @@ export const STICKER_LABELS = {
   valid: 'VALID:',
   conditions: 'CONDITIONS:',
   unknownName: 'APPLICANT UNKNOWN',
+  // Shown in the oval photo frame when neither the full-resolution capture
+  // nor its persisted thumbnail survived a refresh (see
+  // lib/applicationContext.tsx and app/visa-issued/page.tsx).
+  photoPlaceholder: 'PHOTO ON FILE',
+}
+
+// ---------------------------------------------------------------------------
+// Persistent document progress card (components/DocumentProgress.tsx) — shown
+// on every funnel page from /identity onward. Labels only; which rows are
+// visible/filled and the free-text truncation logic live in the component.
+// ---------------------------------------------------------------------------
+
+export const DOCUMENT_PROGRESS = {
+  title: 'FORM 1G-NAS',
+  declarationLabel: 'DECLARATION:',
+  declarationValue: 'SOMETHING TO DECLARE',
+  nameLabel: 'NAME:',
+  passportLabel: 'PASSPORT №:',
+  visaTypeLabel: 'VISA TYPE:',
+  fianceAnsweredValue: 'ANSWERED',
+  appointmentLabel: 'APPOINTMENT:',
+  biometricsLabel: 'BIOMETRICS:',
+  biometricsValue: 'CAPTURED',
+  statusLabel: 'STATUS:',
+  statusValue: 'STAMPED: APPROVED',
+}
+
+export const DOCUMENT_PROGRESS_SUBSTEP_LABELS: Partial<Record<VisaType, string>> = {
+  consultation: 'MATTER:',
+  business: 'PITCH:',
+  special: 'STATEMENT:',
+  fiance: 'INTERVIEW:',
 }
 
 // ---------------------------------------------------------------------------
@@ -379,11 +424,9 @@ export function formatBribeStatus(count: number): string {
   return `${BRIBE.response} (${count} ${BRIBE.countSuffix})`
 }
 
-// ---------------------------------------------------------------------------
-// Sound toggle
-// ---------------------------------------------------------------------------
-
-export const SOUND_TOGGLE_LABEL = 'I consent to noise'
+// The peeking cash-emoji tab (components/HiddenBribe.tsx) — collapsed state
+// aria-label; the revealed state reuses BRIBE.button above.
+export const HIDDEN_BRIBE_ARIA_LABEL = 'Something is peeking out. Tap to investigate.'
 
 // ---------------------------------------------------------------------------
 // Passport / returning visitor
@@ -443,6 +486,7 @@ export const STATISTICS_ROWS: { label: string; value: string }[] = [
 ]
 export const STATISTICS_NOTE =
   'NOTE: fiancé visa figures are withheld. The Ministry protects romantic privacy.'
+export const STATISTICS_FOOTNOTE = 'The Republic has one (1) citizen and he is doing his best.'
 export const STATISTICS_BRIBE_BASE = 214
 
 // ---------------------------------------------------------------------------
@@ -479,7 +523,8 @@ export const TERMS_PARAGRAPHS: string[] = [
   '7. If you actually read this far: screenshot this paragraph and DM it to the Ministry for its eternal respect. No prize. Just respect.',
   '8. This document is legally binding in no jurisdiction whatsoever.',
   '9. The Ministry may change these terms at any time, for any reason, or no reason.',
-  '10. © Ministry of Interior, Republic of Ignas. Unauthorized fun prohibited.',
+  '10. The Republic of Ignas is a full democracy. Ignas has won every election since birth with 100% of the vote.',
+  '11. © Ministry of Interior, Republic of Ignas. Unauthorized fun prohibited.',
 ]
 
 // ---------------------------------------------------------------------------

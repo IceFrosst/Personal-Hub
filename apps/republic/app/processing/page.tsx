@@ -42,7 +42,12 @@ export default function ProcessingPage() {
       return
     }
 
-    if (!state.visaType || !state.slot || !state.selfieDataUrl) {
+    // Checks the persisted `selfieCaptured` flag, not the never-persisted
+    // `selfieDataUrl` — a refresh here before finalize() has run (selfieCaptured
+    // already true from biometric submission, referenceCode not yet generated)
+    // must resume finalization in place, not bounce back to /visa and lose the
+    // flow. `selfieDataUrl` is never required for flow control anywhere.
+    if (!state.visaType || !state.slot || !state.selfieCaptured) {
       router.replace('/visa')
       return
     }
@@ -95,12 +100,12 @@ export default function ProcessingPage() {
       clearInterval(raf)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.referenceCode, state.visaType, state.slot, state.selfieDataUrl])
+  }, [hydrated, state.referenceCode, state.visaType, state.slot, state.selfieCaptured])
 
   if (!hydrated || !state.visaType) return null
 
   return (
-    <PageShell>
+    <PageShell showProgress>
       <div className="paper-card p-6 text-center">
         <h1 className="font-stamp text-lg uppercase tracking-wide text-navy">{PROCESSING_HEADING}</h1>
         <p className="mt-3 min-h-[2.5rem] text-[11px] uppercase tracking-wide text-navy/70">

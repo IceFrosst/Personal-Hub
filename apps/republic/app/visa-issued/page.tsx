@@ -51,9 +51,13 @@ export default function VisaIssuedPage() {
 
   useEffect(() => {
     // Same hydration race as the rest of the funnel — wait for context load
-    // before deciding this is an invalid/incomplete session.
+    // before deciding this is an invalid/incomplete session. Deliberately
+    // checks `selfieCaptured` (persisted) rather than `selfieDataUrl` (never
+    // persisted) — a finalized application (referenceCode + selfieCaptured)
+    // must survive a refresh and stay on this page; only a genuinely
+    // incomplete/invalid session bounces back to /visa.
     if (!hydrated) return
-    if (!state.visaType || !state.slot || !state.selfieDataUrl || !state.referenceCode) {
+    if (!state.visaType || !state.slot || !state.referenceCode || !state.selfieCaptured) {
       router.replace('/visa')
       return
     }
@@ -63,11 +67,23 @@ export default function VisaIssuedPage() {
   }, [hydrated])
 
   useEffect(() => {
-    if (!visa || !state.selfieDataUrl || !state.referenceCode) return
+    if (!visa || !state.referenceCode) return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    // Prefer the full-resolution capture (only ever present within the same
+    // session, never persisted); fall back to the small persisted thumbnail
+    // after a refresh; if neither exists, skip the Image load entirely and
+    // draw the "PHOTO ON FILE" placeholder frame straight away.
+    const photoSrc = state.selfieDataUrl ?? state.selfieThumbnailUrl
+
+    if (!photoSrc) {
+      draw(ctx, null)
+      setReady(true)
+      return
+    }
 
     const img = new Image()
     img.onload = () => {
@@ -78,7 +94,7 @@ export default function VisaIssuedPage() {
       draw(ctx, null)
       setReady(true)
     }
-    img.src = state.selfieDataUrl
+    img.src = photoSrc
 
     function draw(context: CanvasRenderingContext2D, photo: HTMLImageElement | null) {
       const NAVY = '#1a2a4a'
@@ -136,6 +152,11 @@ export default function VisaIssuedPage() {
       } else {
         context.fillStyle = '#cfc8b8'
         context.fillRect(photoX, photoY, photoW, photoH)
+        context.fillStyle = NAVY
+        context.textAlign = 'center'
+        context.font = 'bold 15px "Courier New", monospace'
+        context.fillText(STICKER_LABELS.photoPlaceholder, photoX + photoW / 2, photoY + photoH / 2, photoW - 24)
+        context.textAlign = 'left'
       }
       context.restore()
       context.strokeStyle = NAVY
@@ -191,7 +212,16 @@ export default function VisaIssuedPage() {
       context.fillText(APPROVED.stamp, 0, 12)
       context.restore()
     }
-  }, [visa, state.selfieDataUrl, state.referenceCode, state.applicantName, state.instagramHandle, serial, issueDate])
+  }, [
+    visa,
+    state.selfieDataUrl,
+    state.selfieThumbnailUrl,
+    state.referenceCode,
+    state.applicantName,
+    state.instagramHandle,
+    serial,
+    issueDate,
+  ])
 
   function handleDownload() {
     const canvas = canvasRef.current
@@ -224,10 +254,10 @@ export default function VisaIssuedPage() {
     }
   }
 
-  if (!hydrated || !visa || !state.slot || !state.selfieDataUrl || !state.referenceCode) return null
+  if (!hydrated || !visa || !state.slot || !state.referenceCode || !state.selfieCaptured) return null
 
   return (
-    <PageShell>
+    <PageShell showProgress>
       <div className="paper-card p-5 text-center">
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>

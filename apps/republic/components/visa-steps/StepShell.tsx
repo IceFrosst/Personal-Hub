@@ -4,7 +4,7 @@ import type { VisaDefinition } from '@/lib/content'
 
 export function StepShell({ visa, children }: { visa: VisaDefinition; children: React.ReactNode }) {
   return (
-    <PageShell>
+    <PageShell showProgress>
       <div className="paper-card p-5">
         <div className="flex items-center justify-center gap-2 text-center">
           <span className="text-xl" aria-hidden>

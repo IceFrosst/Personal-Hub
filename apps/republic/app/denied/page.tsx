@@ -72,7 +72,7 @@ export default function DeniedPage() {
           <button
             type="button"
             disabled={!showAppeal}
-            onClick={() => router.push('/visa')}
+            onClick={() => router.push('/identity')}
             className="min-h-11 text-[12px] font-bold uppercase tracking-wide text-navy underline underline-offset-4 disabled:pointer-events-none"
           >
             {DENIAL.appeal}

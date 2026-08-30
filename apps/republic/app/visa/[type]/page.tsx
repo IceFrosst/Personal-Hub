@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { VISAS, type VisaType } from '@/lib/content'
+import { RequireIdentity } from '@/components/RequireIdentity'
 import { TouristStep } from '@/components/visa-steps/TouristStep'
 import { ConsultationStep } from '@/components/visa-steps/ConsultationStep'
 import { FianceStep } from '@/components/visa-steps/FianceStep'
@@ -18,15 +19,35 @@ export default async function VisaSubStepPage({ params }: { params: Promise<{ ty
 
   switch (type as VisaType) {
     case 'tourist':
-      return <TouristStep />
+      return (
+        <RequireIdentity>
+          <TouristStep />
+        </RequireIdentity>
+      )
     case 'consultation':
-      return <ConsultationStep />
+      return (
+        <RequireIdentity>
+          <ConsultationStep />
+        </RequireIdentity>
+      )
     case 'fiance':
-      return <FianceStep />
+      return (
+        <RequireIdentity>
+          <FianceStep />
+        </RequireIdentity>
+      )
     case 'business':
-      return <BusinessStep />
+      return (
+        <RequireIdentity>
+          <BusinessStep />
+        </RequireIdentity>
+      )
     case 'special':
-      return <SpecialStep />
+      return (
+        <RequireIdentity>
+          <SpecialStep />
+        </RequireIdentity>
+      )
     default:
       notFound()
   }

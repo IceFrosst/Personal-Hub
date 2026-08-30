@@ -10,6 +10,7 @@ import {
   STATISTICS_BRIBE_LABEL,
   STATISTICS_ROWS,
   STATISTICS_NOTE,
+  STATISTICS_FOOTNOTE,
   STATISTICS_BRIBE_BASE,
   RETURN_TO_BORDER_CONTROL,
 } from '@/lib/content'
@@ -42,6 +43,7 @@ export default function StatisticsPage() {
         </table>
 
         <p className="mt-3 text-[10px] uppercase leading-relaxed text-navy/50">{STATISTICS_NOTE}</p>
+        <p className="mt-1 text-[10px] uppercase leading-relaxed text-navy/50">{STATISTICS_FOOTNOTE}</p>
 
         <Link
           href="/"

@@ -38,12 +38,22 @@ body::before {
   mix-blend-mode: multiply;
 }
 
-input,
+input:not([type='checkbox']):not([type='radio']),
 select,
 button,
 textarea {
   -webkit-appearance: none;
   appearance: none;
+  font-family: inherit;
+}
+
+/* Checkboxes/radios are excluded above: `appearance: none` strips their
+   native box+checkmark with nothing to replace it, which is exactly what
+   made the sworn-statement checkbox on /visa/special invisible. Any
+   checkbox in this app should use components/Checkbox.tsx (a fully custom
+   visual, immune to this either way) rather than a bare <input>. */
+input[type='checkbox'],
+input[type='radio'] {
   font-family: inherit;
 }
 
@@ -80,6 +90,27 @@ button {
   height: 28px;
   width: 100%;
   opacity: 0.85;
+}
+
+/* Moving highlight sweep on the hidden-bribe tab (components/HiddenBribe.tsx)
+   — a diagonal gradient band animated via background-position (see
+   `bribe-shimmer` in tailwind.config.ts). Layered on top of the bob + glow;
+   prefers-reduced-motion collapses it to a single static frame via the
+   existing global rule below, same as every other animation in this app. */
+.bribe-shimmer-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 224, 130, 0.55) 47%,
+    rgba(255, 250, 220, 0.75) 50%,
+    rgba(255, 224, 130, 0.55) 53%,
+    transparent 65%
+  );
+  background-size: 220% 220%;
 }
 
 .fingerprint-smudge {

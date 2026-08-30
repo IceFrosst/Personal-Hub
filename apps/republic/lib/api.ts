@@ -12,7 +12,6 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const SUPABASE_SCHEMA = 'republic'
 
 const LS_KEYS = {
-  applicantSeq: 'republic:applicant-seq',
   bribeCount: 'republic:bribe-count',
   applications: 'republic:applications-log',
 } as const
@@ -113,7 +112,7 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
     visaType: state.visaType ?? 'tourist',
     slot: state.slot ?? '',
     referenceCode,
-    selfieCaptured: Boolean(state.selfieDataUrl),
+    selfieCaptured: state.selfieCaptured,
     selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : undefined,
   }
   if (state.visaType === 'consultation' && state.consultationMatter) record.matter = state.consultationMatter
@@ -171,19 +170,6 @@ export async function recordBribe(): Promise<number> {
 
 export function getBribeCount(): number {
   return readLocal<number>(LS_KEYS.bribeCount, 0)
-}
-
-// Applicant counter — starts at a lore-appropriate base and increments per
-// browser. A real Supabase counter (mentioned in the plan) would replace this
-// with a shared value; until then it's a believable placeholder.
-const APPLICANT_BASE = 1043
-
-export function getApplicantNumber(): number {
-  const seq = readLocal<number>(LS_KEYS.applicantSeq, 0)
-  if (seq > 0) return APPLICANT_BASE + seq
-  const assigned = Math.floor(Math.random() * 40) + 1
-  writeLocal(LS_KEYS.applicantSeq, assigned)
-  return APPLICANT_BASE + assigned
 }
 
 // Appointment slots — hardcoded joke pool with deterministic weekly scarcity
