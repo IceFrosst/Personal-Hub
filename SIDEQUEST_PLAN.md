@@ -32,14 +32,21 @@ ENTRY DENIED   VISA SELECTION
                 └── 📎  SPECIAL PURPOSE     — "other" / free-text sworn statement
                       │
                       ▼
-               PROCESSING… → APPROVED
-               (visa sticker + stamp slam)
+               (per-visa sub-step: advice form / fiancé interview /
+                sworn statement — tourist skips)
                       │
                       ▼
                CONSULATE APPOINTMENT (time slot picker)
                       │
                       ▼
-               APPOINTMENT TICKET → DM deep link with visa + slot
+               BIOMETRIC VERIFICATION — selfie, final step, ALL visas
+                      │
+                      ▼
+               PROCESSING… → VISA ISSUED (APPROVED stamp slams onto
+               visa sticker with their selfie + reference code + download)
+                      │
+                      ▼
+               "PROCEED TO CONSULATE" → DM deep link with code + visa + slot
 ```
 
 ## Screens
@@ -175,10 +182,10 @@ by forcing the final step through Instagram DMs from their real account:
    visa type, slot, checkboxes, and free text. Unverified troll submissions simply rot.
 3. **Passport photo (selfie)** — photo-booth step with oval face guide and copy:
    "LOOK DIRECTLY AT THE CAMERA. NO SMILING. THIS IS A GOVERNMENT DOCUMENT."
-   - **Tiered requirement:** optional for Tourist/Consultation ("expedited processing
-     with photo"; skip = "PHOTO: pending. Application proceeds at reduced dignity.");
-     **required for Fiancé visa** ("fiancé visas require in-person biometrics") — the
-     path that most needs troll filtering. Submitting a face is commitment; trolls bail.
+   - **Required for ALL visas, as the FINAL step** (decision locked). Applicants invest
+     step-by-step (choice → answers → time slot) before the selfie ask, so commitment
+     is high by then; payoff is immediate (face on visa, downloadable). Trolls bail at
+     the photo with nothing meaningful stored.
    - **Composited visa souvenir:** client-side canvas composites the selfie into the
      official visa sticker (photo frame, APPROVED stamp half over the face, serial
      number) — downloadable/shareable. The anti-troll step becomes the marketing asset.
