@@ -173,10 +173,27 @@ by forcing the final step through Instagram DMs from their real account:
    "PROCEED TO CONSULATE" opens `ig.me/m/<handle>` with the code pre-filled. A DM with
    the code binds the application to a real account; Ignas looks up the code to see
    visa type, slot, checkboxes, and free text. Unverified troll submissions simply rot.
-3. **Bot defenses** — Cloudflare Turnstile on submits (restyled as "BIOMETRIC SCAN IN
+3. **Passport photo (selfie)** — photo-booth step with oval face guide and copy:
+   "LOOK DIRECTLY AT THE CAMERA. NO SMILING. THIS IS A GOVERNMENT DOCUMENT."
+   - **Tiered requirement:** optional for Tourist/Consultation ("expedited processing
+     with photo"; skip = "PHOTO: pending. Application proceeds at reduced dignity.");
+     **required for Fiancé visa** ("fiancé visas require in-person biometrics") — the
+     path that most needs troll filtering. Submitting a face is commitment; trolls bail.
+   - **Composited visa souvenir:** client-side canvas composites the selfie into the
+     official visa sticker (photo frame, APPROVED stamp half over the face, serial
+     number) — downloadable/shareable. The anti-troll step becomes the marketing asset.
+   - **Tech:** `<input type="file" accept="image/*" capture="user">` (reliable in the
+     IG webview; avoid getUserMedia — in-app browsers block it). Composite client-side,
+     upload finished image.
+   - **Privacy:** private Supabase Storage bucket, never public; auto-purge photos of
+     unverified applications after 72h, stated in-theme: "UNCLAIMED BIOMETRIC DATA IS
+     INCINERATED AFTER 72 HOURS. THE MINISTRY DOES NOT KEEP SOUVENIRS."
+   - Selfie + reference code = airtight: face binds a human to the application, DM code
+     binds the application to an IG account.
+4. **Bot defenses** — Cloudflare Turnstile on submits (restyled as "BIOMETRIC SCAN IN
    PROGRESS"), per-IP rate limiting on the edge route, and a hidden honeypot field
    ("MIDDLE NAME (do not fill)") that bots fill and humans never see.
-4. **Trolls as content** — /statistics shows "applications pending identity
+5. **Trolls as content** — /statistics shows "applications pending identity
    verification: N"; handle mismatch on DM = "THE MINISTRY HAS DETECTED PASSPORT FRAUD."
 
 ## Design system
