@@ -160,6 +160,25 @@ ENTRY DENIED   VISA SELECTION
 8. **Seasonal decrees** — hardcoded banner rotation: "NOTICE: fiancé visa quota
    reached for February. Applications remain open (exceptions considered)."
 
+## Identity & anti-troll ("the DM is the passport")
+
+No pixel/OAuth needed. The site never identifies visitors — it identifies **applicants**
+by forcing the final step through Instagram DMs from their real account:
+
+1. **Passport number field** — applications include `PASSPORT №: @handle` (self-reported
+   IG handle, stored with answers as a first signal).
+2. **Application Reference Code** — approval generates a short code (`RIG-4F7K`).
+   Ticket copy: "IDENTITY VERIFICATION REQUIRED AT CONSULATE. Present reference
+   № RIG-4F7K via DM. Applications without in-person verification are void after 72h."
+   "PROCEED TO CONSULATE" opens `ig.me/m/<handle>` with the code pre-filled. A DM with
+   the code binds the application to a real account; Ignas looks up the code to see
+   visa type, slot, checkboxes, and free text. Unverified troll submissions simply rot.
+3. **Bot defenses** — Cloudflare Turnstile on submits (restyled as "BIOMETRIC SCAN IN
+   PROGRESS"), per-IP rate limiting on the edge route, and a hidden honeypot field
+   ("MIDDLE NAME (do not fill)") that bots fill and humans never see.
+4. **Trolls as content** — /statistics shows "applications pending identity
+   verification: N"; handle mismatch on DM = "THE MINISTRY HAS DETECTED PASSPORT FRAUD."
+
 ## Design system
 
 - **Look**: off-white paper (#f4f0e8) with subtle grain, navy ink (#1a2a4a), stamp red
@@ -193,7 +212,8 @@ ENTRY DENIED   VISA SELECTION
   `SCHEMA_RULES.md`) — tables: `applicants` (counter), `applications` (visa picks +
   denials + appeals + declaration checkboxes), `consultations` (advice form),
   `interviews` (fiancé Q&A), `statements` (special-purpose free text),
-  `appointments` (visa type + requested slot + status).
+  `appointments` (visa type + requested slot + status). Applications carry a
+  `reference_code` + `handle` + `verified_at` for the DM verification loop.
 - No auth. Anonymous inserts via edge route with basic rate limiting.
 - Analytics = the applications table. That IS the `/statistics` page.
 
