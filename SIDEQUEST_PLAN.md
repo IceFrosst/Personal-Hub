@@ -28,14 +28,18 @@ ENTRY DENIED   VISA SELECTION
 (red stamp     "Select visa type:"
  slam +         ├── 🗺  TOURIST VISA        — sidequest / spend time together
  appeal         ├── 📋  CONSULTATION PERMIT — seek advice
- button)        └── 💍  FIANCÉ VISA         — go on a date (HIGH RISK stamp)
+ button)        ├── 💍  FIANCÉ VISA         — go on a date (HIGH RISK stamp)
+                └── 📎  SPECIAL PURPOSE     — "other" / free-text sworn statement
                       │
                       ▼
                PROCESSING… → APPROVED
                (visa sticker + stamp slam)
                       │
                       ▼
-               "PROCEED TO CONSULATE" → DM / form
+               CONSULATE APPOINTMENT (time slot picker)
+                      │
+                      ▼
+               APPOINTMENT TICKET → DM deep link with visa + slot
 ```
 
 ## Screens
@@ -67,6 +71,11 @@ ENTRY DENIED   VISA SELECTION
     Processing: 1–3 business moods · Advice quality: not guaranteed
   - 💍 **FIANCÉ VISA** — *"One (1) date with Ignas."*
     Requirements: vibe check · Fee: market price · Red **HIGH RISK** stamp overlapping
+  - 📎 **SPECIAL PURPOSE VISA** — *"Purpose of visit: other. Elaborate. This is being
+    recorded."* Free-text sworn statement with fake checkbox: "☑ I declare under
+    penalty of mild disappointment that the above is true." Random reply variant:
+    "YOUR STATEMENT HAS BEEN FORWARDED TO THE MINISTER. (he will read it on the
+    toilet)". Secretly the best feature — free-text from randos is where the gold is.
 - Selecting one → brief "PROCESSING APPLICATION…" screen with a fake progress bar
   that stutters at 99% (bureaucracy), stamp sound, then:
 
@@ -74,8 +83,7 @@ ENTRY DENIED   VISA SELECTION
 - Green **APPROVED** stamp slams onto a rendered visa sticker with the visitor's
   details ("PHOTO: pending", "VALID: until further notice", "CONDITIONS: bring snacks").
 - Each visa funnels into a real action:
-  - **Tourist Visa** → "PROCEED TO CONSULATE" → IG DM deep link with pre-filled text
-    ("My tourist visa was approved. Planning my itinerary.") or a date picker.
+  - **Tourist Visa** → consulate appointment booking (below) → DM deep link.
   - **Consultation Permit** → one-field official form: "STATE YOUR MATTER, APPLICANT."
     Submissions land in Supabase; Ignas answers in DMs. Bonus: an instant automated
     "preliminary ruling" from a hardcoded list ("Preliminary ruling: you already know
@@ -83,7 +91,27 @@ ENTRY DENIED   VISA SELECTION
   - **Fiancé Visa** → **the vibe check interview**: 3 rapid multiple-choice questions
     styled as customs questions ("Purpose of visit?", "Are you carrying any red flags?",
     "Favorite food — answer carefully, this is binding."). Always ends APPROVED
-    (rigged) → DM link. Answers stored, so Ignas sees them before replying.
+    (rigged) → appointment booking → DM link. Answers stored, so Ignas sees them
+    before replying.
+  - **Special Purpose Visa** → statement stored → appointment booking → DM link.
+
+### 5. Consulate Appointment (time slot picker)
+- After approval, applicant must **schedule an appointment with the Consulate** —
+  a calendar styled as a government booking system (deliberately bureaucratic,
+  actually smooth).
+- Slot labels carry the joke:
+  - "09:00 — CANCELLED"
+  - "11:30 — reserved for someone more important"
+  - "14:00 — AVAILABLE"
+  - "17:00 — the officer is tired but present"
+  - Fiancé visa specials: "19:00 — dinner hours (recommended)",
+    "23:00 — bold choice. noted in your file."
+- Some slots are "FULLY BOOKED" from day one (fake scarcity, funnier).
+- Confirmation renders an **appointment ticket**: "APPOINTMENT CONFIRMED.
+  BRING: yourself, snacks. DO NOT BRING: the vibe you had at entry."
+- The DM deep link includes visa type + chosen slot ("Fiancé visa approved,
+  appointment requested: Fri 19:00"). Picks stored in Supabase; Ignas confirms or
+  declines via DM — he is the entire government.
 
 ## Extra features (ranked, cut from bottom)
 
@@ -99,6 +127,32 @@ ENTRY DENIED   VISA SELECTION
    proceeding. Random reward schedule = people re-visit to get it.
 5. **Konami/secret** — typing "diplomat" (or 5 taps on the coat of arms) unlocks the
    **DIPLOMATIC PASSPORT**: skips all queues, one favor from Ignas, non-negotiable.
+6. **Customs declaration checklist** — on landing, fake declaration checkboxes:
+   "Are you carrying: ☐ ulterior motives ☐ snacks ☐ feelings ☐ a business proposal".
+   Does nothing except get stored + shown to Ignas in DM context. Checking "feelings"
+   auto-recommends the Fiancé visa.
+7. **Visa rejection lottery** — ~5% of legit applications get "APPLICATION DENIED.
+   REASON: quota. APPEAL? [YES]" → appeal always instantly succeeds: "APPEAL GRANTED.
+   THE MINISTRY ADMIRES PERSISTENCE." Fake rejection → win feels great, doubles the joke.
+8. **Officer mood indicator** — header widget "CURRENT OFFICER MOOD: ●●○○○ (proceed
+   with caution)", rotates by hour; bad-mood hours make the copy slightly ruder.
+   Gives people a reason to revisit.
+9. **Bribe button** — tiny "💵 offer bribe" button. Click: "BRIBE ACCEPTED. IT CHANGES
+   NOTHING. THE MINISTRY THANKS YOU." Increments a public "bribes attempted" stat.
+10. **Interpol check** — during processing: "CHECKING INTERPOL DATABASE… CHECKING
+    FOLLOWING/FOLLOWERS RATIO… CHECKING IF YOU LIKED HIS LAST POST…" →
+    "RESULT: concerning, but admissible."
+11. **Duty-free shop** — fake /duty-free page: "Ignas's attention — 15 min — SOLD OUT",
+    "one (1) good morning text — restocked weekly". Everything sold out or
+    "pay at consulate".
+12. **T&C easter egg** — real terms link; paragraph 7: "if you actually read this,
+    screenshot it and send it for an instant diplomatic upgrade."
+13. **Deportation on idle** — 60s inactive: "APPLICANT DEPORTED DUE TO INACTIVITY" →
+    back to landing; DEPORTED stamp added to localStorage passport.
+14. **Rotating denial reasons** — the No branch cycles: "vibes insufficient",
+    "the officer simply didn't feel like it", etc. Replayable = shareable variety.
+15. **Loyalty program** — 3rd visit: "FREQUENT APPLICANT STATUS GRANTED. PERKS: none.
+    RECOGNITION: eternal."
 6. **Official sounds** — stamp thunk, typewriter keys, passport-control beep. Off by
    default, toggle styled as "☐ I consent to noise".
 7. **OG images per route** — sharing `/denied` or `/visa/fiance` gives distinct funny
@@ -137,7 +191,9 @@ ENTRY DENIED   VISA SELECTION
 - `apps/republic` — Next.js (App Router) like siblings, static-first; Vercel free tier.
 - Supabase (existing shared project): new schema `republic` (additive-only per
   `SCHEMA_RULES.md`) — tables: `applicants` (counter), `applications` (visa picks +
-  denials + appeals), `consultations` (advice form), `interviews` (fiancé Q&A).
+  denials + appeals + declaration checkboxes), `consultations` (advice form),
+  `interviews` (fiancé Q&A), `statements` (special-purpose free text),
+  `appointments` (visa type + requested slot + status).
 - No auth. Anonymous inserts via edge route with basic rate limiting.
 - Analytics = the applications table. That IS the `/statistics` page.
 
@@ -147,9 +203,10 @@ ENTRY DENIED   VISA SELECTION
    visa select → processing → approved, with all copy, stamps, and transitions.
    Ship it; it's already funny with zero backend.
 2. Supabase schema + applicant counter + application tally.
-3. Consultation form + fiancé interview + DM deep links + per-route OG images.
-4. Extras: passport stamps, secondary screening, diplomatic passport, sounds,
-   `/statistics`.
+3. Appointment booking + consultation form + fiancé interview + special-purpose
+   statement + DM deep links + per-route OG images.
+4. Extras: passport stamps, secondary screening, rejection lottery, bribe button,
+   diplomatic passport, sounds, `/statistics`.
 
 ## Copy bank (draft — deadpan is the law)
 
