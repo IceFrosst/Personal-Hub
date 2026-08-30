@@ -1,144 +1,167 @@
-# Sidequest — gamified Instagram bio link (plan)
+# Republic of Ignas — gamified Instagram bio link (plan)
 
-> Working name: **`apps/sidequest`** · Domain idea: `quest.ignas.lol` or similar short/funny domain.
-> Status: PLANNED — not scaffolded yet.
+> Working name: **`apps/republic`** (or `apps/border-control`) · Domain idea: `republicofignas.com`,
+> `visa.ignas.lol`, or similar.
+> Status: PLANNED — concept locked (border-control theme), not scaffolded yet.
+> Mockups: `docs/mockups/sidequest-border-*.jpg`
 
 ## The idea
 
-A one-screen, gamified link-in-bio site for Ignas's personal Instagram. The joke that
-carries the whole site: **the visitor is an NPC who just approached the main character.**
-The entire experience is an RPG encounter.
+A one-screen, gamified link-in-bio site for Ignas's personal Instagram, themed as
+**immigration/border control for the Republic of Ignas**. The visitor is a traveler
+trying to enter; every social interaction is a visa application. Deadpan bureaucracy
+is the joke engine — the site takes itself 100% seriously, which is what makes it funny.
 
 ```
 [Visitor taps link in bio]
         │
         ▼
-  ENCOUNTER SCREEN
-  "You have approached IGNAS."
-  "He looks busy. Do you want something from him?"
+  ENTRY DECLARATION (landing)
+  "REPUBLIC OF IGNAS — BORDER CONTROL"
+  "Do you have something to declare?"
         │
    ┌────┴─────┐
-  [No]      [Yes]
+  [NO]      [YES]
    │           │
    ▼           ▼
-GAME OVER    QUEST SELECT
-(fun rude    "Choose your quest:"
- send-off)    ├── 🗺  SIDEQUEST   — hang out / waste time together
-              ├── 🧠  SEEK COUNSEL — get advice
-              └── 💘  ROMANCE ROUTE — go on a date
-                    │
-                    ▼
-              QUEST ACCEPTED screen → funnels to DM / calendar / form
+ENTRY DENIED   VISA SELECTION
+(red stamp     "Select visa type:"
+ slam +         ├── 🗺  TOURIST VISA        — sidequest / spend time together
+ appeal         ├── 📋  CONSULTATION PERMIT — seek advice
+ button)        └── 💍  FIANCÉ VISA         — go on a date (HIGH RISK stamp)
+                      │
+                      ▼
+               PROCESSING… → APPROVED
+               (visa sticker + stamp slam)
+                      │
+                      ▼
+               "PROCEED TO CONSULATE" → DM / form
 ```
-
-## Why it works (awwwards research, Feb 2026)
-
-Patterns stolen from recent Site-of-the-Day winners:
-
-| Site | What we steal |
-|---|---|
-| **Martin Laxenaire '25** (HM 2025) | Arcade/pixel energy, reward notifications, the "Don't want to play? Too bad!" attitude — exactly our "No" branch |
-| **Stas Bondar '25** (SOTD) | Physics-based falling text, playful 404-style rejection animation |
-| **Paris by Emily** (SOTD) | "Experience Selector" — hoverable branching quest cards |
-| **Gucci: Mystery Unfolds** (SOTD) | Branching dialogue as the core mechanic |
-| **Ten Years Away** (SOTD) | Cursor trail / mouse-reactive feel, everything feels alive |
-
-Dominant trends to apply: bold display type (pixel or high-contrast), one loud accent
-color on near-black, GSAP-driven text reveals (typewriter for dialogue), custom cursor
-on desktop, mask/zoom transitions between "scenes", tiny synth SFX (muted by default).
 
 ## Screens
 
-### 1. Encounter (landing)
-- RPG dialogue box, bottom of screen, text types out letter-by-letter (skippable on tap
-  like every JRPG ever).
-- "You have approached **IGNAS**." → beat → "Do you want something from him?"
-- Two buttons: **[ Yes ]** **[ No ]**. The No button may or may not dodge the cursor
-  once before letting you click it (once only — annoying twice).
-- Optional: pixel-art avatar of Ignas idling (2-frame breathing loop).
+### 1. Entry Declaration (landing)
+- Off-white paper background, document texture, monospaced/typewriter type.
+- Header: coat of arms (cheap gag: a crest featuring e.g. a phone, a fork, a heart),
+  "REPUBLIC OF IGNAS", "FORM 1G-NAS — ENTRY DECLARATION".
+- Passport-control beep + text stamps in line by line (typewriter reveal).
+- Question: **"DO YOU HAVE SOMETHING TO DECLARE?"** → [YES] [NO]
+- Details that sell it: form barcode, "PRIORITY" stamp slightly rotated, serial
+  number that's actually the visitor counter ("APPLICANT № 001,043").
 
-### 2. "No" branch — GAME OVER
-- Screen glitches, dialogue box says something like:
-  - "Then why are you here?" → "Blocked. (jk)" → **GAME OVER — YOU GAINED: nothing**
-- Falling-letters physics animation (Stas Bondar style).
-- After 2s a tiny "…wait, actually?" button fades in → loops back to quest select
-  (everyone gets a second chance; also it's funnier).
-- Shareable: the game-over screen should look good in a screenshot. That's the growth
-  loop — people post it to their story.
+### 2. "NO" branch — ENTRY DENIED
+- Screen shakes, giant red **ENTRY DENIED** stamp slams down (scale-in + ink splatter,
+  haptic-feeling spring).
+- Typewriter follow-up: "REASON: NOTHING TO DECLARE." / "STATUS: WASTING OFFICER'S TIME."
+- Fake case number + date. Red fingerprint smudge.
+- After 2s, small link fades in: **"FILE AN APPEAL (wait, actually…)"** → loops to
+  visa selection. Everyone gets a second chance; appeals are very on-theme.
+- This screen must look perfect in a screenshot — it's the growth loop.
 
-### 3. Quest Select
-- Three quest cards (character-select / quest-board energy), hover/tap tilts them,
-  each with rarity tag and fake stats:
-  - 🗺 **SIDEQUEST** — *"Spend time with Ignas."* Difficulty: ★☆☆ · Reward: memories, possibly food
-  - 🧠 **SEEK COUNSEL** — *"Ask the oracle."* Difficulty: ★★☆ · Reward: advice of questionable quality
-  - 💘 **ROMANCE ROUTE** — *"Roll for charisma."* Difficulty: ★★★ · Reward: ???
-- Picking one plays a "QUEST ACCEPTED" banner + confetti/particles + SFX.
+### 3. Visa Selection
+- Three document-style cards (visa stickers with serial numbers, barcodes, fee lines).
+  Card-flip or slide-in animation; tap tilts them like inspecting a document.
+  - 🗺 **TOURIST VISA** — *"Sidequest: spend time together."*
+    Duration: one afternoon · Fee: waived · Processing: immediate
+  - 📋 **CONSULTATION PERMIT** — *"Seek advice."*
+    Processing: 1–3 business moods · Advice quality: not guaranteed
+  - 💍 **FIANCÉ VISA** — *"One (1) date with Ignas."*
+    Requirements: vibe check · Fee: market price · Red **HIGH RISK** stamp overlapping
+- Selecting one → brief "PROCESSING APPLICATION…" screen with a fake progress bar
+  that stutters at 99% (bureaucracy), stamp sound, then:
 
-### 4. Quest Accepted (per-quest outcome)
-Each quest ends in a real action so the site isn't just a joke:
-- **Sidequest** → "Your quest log has been updated" → deep-link to IG DM with a
-  pre-filled vibe ("I accepted the sidequest") or a date-picker.
-- **Seek counsel** → a one-field form: "State your problem, adventurer." Submissions
-  land in Supabase; Ignas answers in DMs. Optionally show a random fortune-cookie
-  answer first ("The oracle is thinking… meanwhile: touch grass").
-- **Romance route** → charisma check: fake d20 dice-roll animation. Any roll ≥ 1
-  "passes" (rigged, that's the joke) → "You passed the vibe check" → DM link or a
-  mini application form (favorite food, star sign, red flags — 3 questions max).
+### 4. APPROVED (per-visa outcome)
+- Green **APPROVED** stamp slams onto a rendered visa sticker with the visitor's
+  details ("PHOTO: pending", "VALID: until further notice", "CONDITIONS: bring snacks").
+- Each visa funnels into a real action:
+  - **Tourist Visa** → "PROCEED TO CONSULATE" → IG DM deep link with pre-filled text
+    ("My tourist visa was approved. Planning my itinerary.") or a date picker.
+  - **Consultation Permit** → one-field official form: "STATE YOUR MATTER, APPLICANT."
+    Submissions land in Supabase; Ignas answers in DMs. Bonus: an instant automated
+    "preliminary ruling" from a hardcoded list ("Preliminary ruling: you already know
+    the answer. Full verdict via DM.").
+  - **Fiancé Visa** → **the vibe check interview**: 3 rapid multiple-choice questions
+    styled as customs questions ("Purpose of visit?", "Are you carrying any red flags?",
+    "Favorite food — answer carefully, this is binding."). Always ends APPROVED
+    (rigged) → DM link. Answers stored, so Ignas sees them before replying.
 
 ## Extra features (ranked, cut from bottom)
 
-1. **Visitor counter as lore** — "You are adventurer #1,043 to approach Ignas." (one
-   Supabase counter, trivially cheap, makes it feel alive)
-2. **Quest stats page** (`/stats`) — public tally: how many chose No, sidequest,
-   advice, date. Screenshot-bait: "94 people chose the romance route."
-3. **Konami code / secret quest** — ↑↑↓↓←→←→BA unlocks a hidden 4th quest
-   ("??? — Ignas owes you one favor. Non-negotiable terms."). Awwwards-core.
-4. **Daily quest modifier** — banner: "2x XP weekend: date quest rewards doubled."
-   Rotates from a hardcoded list by day-of-year. Zero backend.
-5. **Idle dialogue** — 20s of inactivity: "…are you going to say something or just
-   stand there?" (classic NPC behavior)
-6. **Achievements toast** — "Achievement unlocked: Actually read the whole page."
-7. **Sound toggle** — tiny retro SFX (typewriter blips, quest-accept jingle). Off by
-   default, toggle in corner. Huge vibe multiplier for the people who turn it on.
-8. **OG image per branch** — sharing `/gameover` or `/quest/romance` gives distinct
-   funny link previews.
+1. **Applicant counter as lore** — "APPLICANT № 001,043" on the landing form. One
+   Supabase counter, makes it feel alive.
+2. **Public `/statistics` page** — official government-statistics table: entries
+   denied, tourist visas issued, fiancé visa applications, appeals filed. Deadpan
+   numbers in a bureaucratic table = screenshot bait.
+3. **Passport stamps as session memory** — localStorage passport page; each visit /
+   action adds a stamp. Return visitors see "WELCOME BACK. YOUR FILE HAS BEEN FLAGGED."
+4. **Random secondary screening** — ~10% of "YES" clicks get pulled aside first:
+   "YOU HAVE BEEN SELECTED FOR ADDITIONAL SCREENING" + one absurd question before
+   proceeding. Random reward schedule = people re-visit to get it.
+5. **Konami/secret** — typing "diplomat" (or 5 taps on the coat of arms) unlocks the
+   **DIPLOMATIC PASSPORT**: skips all queues, one favor from Ignas, non-negotiable.
+6. **Official sounds** — stamp thunk, typewriter keys, passport-control beep. Off by
+   default, toggle styled as "☐ I consent to noise".
+7. **OG images per route** — sharing `/denied` or `/visa/fiance` gives distinct funny
+   link previews (the DENIED stamp as an OG image is elite).
+8. **Seasonal decrees** — hardcoded banner rotation: "NOTICE: fiancé visa quota
+   reached for February. Applications remain open (exceptions considered)."
 
-## Design direction
+## Design system
 
-- **Format**: mobile-first and mobile-perfect — ~95% of traffic comes from the IG
-  in-app browser. Desktop gets bonus toys (custom cursor, tilt), mobile gets taps
-  and haptic-feeling springs. Test in the actual Instagram webview early.
-- **Look**: near-black background, one loud accent (acid green or hot red), big pixel
-  display font (e.g. "Press Start 2P" or a chunkier custom pixel font) + clean sans
-  for body. CRT scanline/noise overlay at ~4% opacity.
-- **Motion**: GSAP (or Motion One) — typewriter text, dialogue-box spring-in, card
-  tilt, screen-shake on Game Over, dice roll. No WebGL needed; keep it < 200KB JS so
-  it opens instantly inside Instagram's webview.
-- **A11y/sanity**: `prefers-reduced-motion` fallback (instant text, no shake), real
-  buttons, works with JS-light for the core funnel.
+- **Look**: off-white paper (#f4f0e8) with subtle grain, navy ink (#1a2a4a), stamp red
+  (#c0392b), approval green (#2e7d32). Everything looks printed, stamped, or typed.
+- **Type**: monospace/typewriter for form fields (e.g. IBM Plex Mono, Special Elite for
+  stamps), a condensed grotesque for headers. Distressed stamp lettering via SVG + ink
+  texture.
+- **Motion**: stamp slams (scale 3→1 + rotate + screen shake), typewriter text,
+  paper-slide transitions between screens (documents shuffled on a desk), progress bar
+  stutter. GSAP or Motion One; all CSS/SVG — **no WebGL, no canvas**. Tiny bundle.
+- **Mobile-first**: built for the Instagram in-app webview. Desktop bonus: cursor
+  becomes a stamp; clicking anywhere leaves a faint ink mark.
+- **A11y**: `prefers-reduced-motion` = no shake, instant text. Real buttons, semantic
+  form markup (it's literally a form theme — a11y comes almost free).
+
+## Why this wins (vs. other concepts explored)
+
+- Deadpan bureaucracy scales to every touchpoint: errors ("FORM MISPLACED. REF: 404"),
+  loading ("YOUR APPLICATION IS IN A QUEUE"), even the footer ("© Ministry of Interior,
+  Republic of Ignas. Unauthorized fun prohibited.").
+- The paper/stamp aesthetic is typography-driven → cheap to build extremely well in
+  CSS; no 3D/WebGL needed to look awwwards-tier.
+- DENIED/APPROVED stamps are inherently shareable artifacts.
+- Rejected alternatives kept for reference: RPG encounter (mockups `sidequest-encounter/
+  quest-select`), game show (`sidequest-gameshow`), tarot (`sidequest-tarot`).
 
 ## Tech (fits monorepo conventions)
 
-- `apps/sidequest` — Next.js (App Router) like siblings, static-first; Vercel free tier.
-- Supabase (existing shared project): new schema `sidequest` (additive-only per
-  `SCHEMA_RULES.md`) — tables: `visits` (counter), `quest_picks` (choice tally),
-  `counsel_requests` (advice form), `romance_applications` (optional).
-- No auth. Anonymous inserts via RLS-safe RPC or edge route with basic rate limiting.
-- Analytics = the quest_picks table itself. That IS the product's stats page.
+- `apps/republic` — Next.js (App Router) like siblings, static-first; Vercel free tier.
+- Supabase (existing shared project): new schema `republic` (additive-only per
+  `SCHEMA_RULES.md`) — tables: `applicants` (counter), `applications` (visa picks +
+  denials + appeals), `consultations` (advice form), `interviews` (fiancé Q&A).
+- No auth. Anonymous inserts via edge route with basic rate limiting.
+- Analytics = the applications table. That IS the `/statistics` page.
 
 ## Build order
 
-1. Scaffold `apps/sidequest`, static encounter → yes/no → quest select → accepted
-   screens with all copy and transitions (no backend). Ship this — it's already funny.
-2. Supabase schema + visit counter + quest tally.
-3. Advice form + DM deep links + OG images per route.
-4. Extras: konami code, achievements, sound, stats page.
+1. Scaffold `apps/republic`: full static funnel — declaration → denied/appeal →
+   visa select → processing → approved, with all copy, stamps, and transitions.
+   Ship it; it's already funny with zero backend.
+2. Supabase schema + applicant counter + application tally.
+3. Consultation form + fiancé interview + DM deep links + per-route OG images.
+4. Extras: passport stamps, secondary screening, diplomatic passport, sounds,
+   `/statistics`.
 
-## Copy bank (draft, keep the tone)
+## Copy bank (draft — deadpan is the law)
 
-- Landing: "You have approached IGNAS." / "He looks busy." / "Do you want something from him?"
-- No: "Then why are you here?" → "GAME OVER" → "YOU GAINED: nothing"
-- No-button hover (desktop, once): button dodges + "nice try"
-- Quest accepted: "QUEST ACCEPTED. Ignas has been notified. He will respond within 1–3 business moods."
-- Romance dice roll: "Rolling for charisma…" → "Natural 20. Suspicious, but okay."
-- Idle: "…you can't just stand there, this isn't a museum."
+- Landing: "REPUBLIC OF IGNAS — BORDER CONTROL" / "FORM 1G-NAS" /
+  "DO YOU HAVE SOMETHING TO DECLARE?"
+- No: "ENTRY DENIED" / "REASON: NOTHING TO DECLARE." / "STATUS: WASTING OFFICER'S TIME."
+- Appeal link: "FILE AN APPEAL (wait, actually…)"
+- Processing: "PROCESSING APPLICATION… DO NOT REFRESH. THE MINISTRY SEES EVERYTHING."
+- Approved: "VISA GRANTED. VALID: until further notice. CONDITIONS: bring snacks."
+- Consultation auto-reply: "PRELIMINARY RULING: you already know the answer.
+  FULL VERDICT: via DM, 1–3 business moods."
+- Fiancé interview intro: "ROUTINE QUESTIONS. ANSWER HONESTLY. DISHONESTY IS CUTE BUT ILLEGAL."
+- Idle 20s: "APPLICANT. THE QUEUE IS MOVING. ARE YOU?"
+- Footer: "© Ministry of Interior, Republic of Ignas. Unauthorized fun prohibited."
+- 404: "FORM MISPLACED. THE MINISTRY APOLOGIZES FOR NOTHING. REF: 404"
