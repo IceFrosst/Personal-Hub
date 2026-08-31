@@ -12,10 +12,13 @@ import { addStamp } from '@/lib/passport'
 // `router.replace` (not `push`) so this route never lingers in history.
 export function TouristStep() {
   const router = useRouter()
-  const { update } = useApplication()
+  const { selectVisa } = useApplication()
 
   useEffect(() => {
-    update({ visaType: 'tourist' })
+    // `selectVisa` (not a bare `update`) so a direct/deep link straight into
+    // this sub-step still establishes SERIAL № together with visaType — see
+    // lib/applicationContext.tsx#selectVisa.
+    selectVisa('tourist')
     addStamp('TOURIST VISA SELECTED')
     router.replace('/appointment')
     // eslint-disable-next-line react-hooks/exhaustive-deps

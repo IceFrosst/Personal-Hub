@@ -12,7 +12,7 @@ import { playBeep } from '@/lib/sound'
 
 export default function VisaSelectionPage() {
   const router = useRouter()
-  const { update } = useApplication()
+  const { selectVisa } = useApplication()
 
   useEffect(() => {
     addStamp('VISA SELECTION VIEWED')
@@ -20,7 +20,13 @@ export default function VisaSelectionPage() {
 
   function select(slug: (typeof VISAS)[number]['slug']) {
     playBeep()
-    update({ visaType: slug })
+    // SERIAL № is generated exactly once (visa selection) rather than at
+    // issuance, so it can appear on the progress card immediately — but a
+    // repeated/back-navigated selection must NOT regenerate it. `selectVisa`
+    // (see lib/applicationContext.tsx) is the one shared operation that
+    // enforces this — see ApplicationState#serial and the sticker's
+    // single-source note in lib/content.ts.
+    selectVisa(slug)
     router.push(`/visa/${slug}`)
   }
 
@@ -59,7 +65,6 @@ export default function VisaSelectionPage() {
                     ))}
                   </ul>
                 )}
-                <div className="barcode mt-2 h-3" aria-hidden />
               </button>
             ))}
           </div>

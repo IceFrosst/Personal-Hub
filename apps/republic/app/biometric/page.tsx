@@ -22,14 +22,22 @@ export default function BiometricPage() {
     // Same hydration race as /appointment: wait for the persisted session to
     // load before deciding whether to redirect.
     if (!hydrated) return
-    if (!state.visaType) {
+    // A visa selection isn't valid without its SERIAL № (see
+    // lib/applicationContext.tsx#selectVisa) — a legacy/pre-migration
+    // session with `visaType` but no `serial` is treated the same as having
+    // no selection at all and must re-select rather than proceed with a
+    // missing sticker field.
+    if (!state.visaType || !state.serial) {
       router.replace('/visa')
       return
     }
-    if (!state.slot) {
+    // Same invariant for the appointment slot: ISSUED is set in the same
+    // context update as `slot` (see app/appointment/page.tsx), so a session
+    // missing either one hasn't genuinely confirmed an appointment.
+    if (!state.slot || !state.issuedDate) {
       router.replace('/appointment')
     }
-  }, [hydrated, state.visaType, state.slot, router])
+  }, [hydrated, state.visaType, state.serial, state.slot, state.issuedDate, router])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -61,7 +69,7 @@ export default function BiometricPage() {
     router.push('/processing')
   }
 
-  if (!hydrated || !state.visaType || !state.slot) return null
+  if (!hydrated || !state.visaType || !state.serial || !state.slot || !state.issuedDate) return null
 
   return (
     <PageShell showProgress>

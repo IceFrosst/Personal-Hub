@@ -21,12 +21,6 @@ import { playStampThunk } from '@/lib/sound'
 const CANVAS_W = 900
 const CANVAS_H = 560
 
-function deriveSerial(referenceCode: string): string {
-  let n = 0
-  for (const ch of referenceCode) n = (n * 31 + ch.charCodeAt(0)) % 900000
-  return `SN-${String(100000 + n).padStart(6, '0')}`
-}
-
 type CopyStatus = 'idle' | 'pending' | 'copied' | 'failed'
 
 export default function VisaIssuedPage() {
@@ -37,8 +31,17 @@ export default function VisaIssuedPage() {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
-  const serial = useMemo(() => (state.referenceCode ? deriveSerial(state.referenceCode) : ''), [state.referenceCode])
-  const issueDate = useMemo(() => new Date().toLocaleDateString('en-GB'), [])
+  // SERIAL № and ISSUED are both generated earlier in the funnel (visa
+  // selection and appointment confirmation respectively — see
+  // applicationContext.tsx) and stored in context, so they're read straight
+  // from state here rather than recomputed, guaranteeing this sticker shows
+  // the exact same values the progress card already displayed. Deliberately
+  // no fallback/recompute for either — the guards below require both
+  // `state.serial` and `state.issuedDate` before this page renders at all,
+  // so a session missing either is bounced back to /visa instead of ever
+  // reaching a canvas that would have to synthesize an unpersisted value.
+  const serial = state.serial ?? ''
+  const issueDate = state.issuedDate ?? ''
   const referenceLine = useMemo(
     () =>
       visa && state.referenceCode && state.slot
@@ -55,7 +58,14 @@ export default function VisaIssuedPage() {
     // must survive a refresh and stay on this page; only a genuinely
     // incomplete/invalid session bounces back to /visa.
     if (!hydrated) return
-    if (!state.visaType || !state.slot || !state.referenceCode || !state.selfieCaptured) {
+    if (
+      !state.visaType ||
+      !state.serial ||
+      !state.slot ||
+      !state.issuedDate ||
+      !state.referenceCode ||
+      !state.selfieCaptured
+    ) {
       router.replace('/visa')
       return
     }
@@ -242,7 +252,16 @@ export default function VisaIssuedPage() {
     }
   }
 
-  if (!hydrated || !visa || !state.slot || !state.referenceCode || !state.selfieCaptured) return null
+  if (
+    !hydrated ||
+    !visa ||
+    !state.serial ||
+    !state.slot ||
+    !state.issuedDate ||
+    !state.referenceCode ||
+    !state.selfieCaptured
+  )
+    return null
 
   return (
     // Deliberately no `showProgress` here — the big visa sticker is the payoff

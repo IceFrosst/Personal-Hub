@@ -12,12 +12,15 @@ const visa = VISA_BY_SLUG.fiance
 
 export function FianceStep() {
   const router = useRouter()
-  const { update } = useApplication()
+  const { update, selectVisa } = useApplication()
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
 
   useEffect(() => {
-    update({ visaType: 'fiance' })
+    // `selectVisa` (not a bare `update`) so a direct/deep link straight into
+    // this sub-step still establishes SERIAL № together with visaType — see
+    // lib/applicationContext.tsx#selectVisa.
+    selectVisa('fiance')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

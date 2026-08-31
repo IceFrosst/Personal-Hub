@@ -12,11 +12,14 @@ const visa = VISA_BY_SLUG.business
 
 export function BusinessStep() {
   const router = useRouter()
-  const { state, update } = useApplication()
+  const { state, update, selectVisa } = useApplication()
   const [pitch, setPitch] = useState(state.businessPitch)
 
   useEffect(() => {
-    update({ visaType: 'business' })
+    // `selectVisa` (not a bare `update`) so a direct/deep link straight into
+    // this sub-step still establishes SERIAL № together with visaType — see
+    // lib/applicationContext.tsx#selectVisa.
+    selectVisa('business')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

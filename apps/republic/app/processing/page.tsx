@@ -47,7 +47,12 @@ export default function ProcessingPage() {
     // already true from biometric submission, referenceCode not yet generated)
     // must resume finalization in place, not bounce back to /visa and lose the
     // flow. `selfieDataUrl` is never required for flow control anywhere.
-    if (!state.visaType || !state.slot || !state.selfieCaptured) {
+    // Also requires `serial` and `issuedDate` — same single-source invariant
+    // as every other downstream guard (see app/biometric/page.tsx and
+    // lib/applicationContext.tsx#selectVisa): a legacy/incomplete session
+    // missing either one hasn't genuinely completed selection or the
+    // appointment step, so it must restart rather than finalize with a gap.
+    if (!state.visaType || !state.serial || !state.slot || !state.issuedDate || !state.selfieCaptured) {
       router.replace('/visa')
       return
     }
@@ -100,9 +105,9 @@ export default function ProcessingPage() {
       clearInterval(raf)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.referenceCode, state.visaType, state.slot, state.selfieCaptured])
+  }, [hydrated, state.referenceCode, state.visaType, state.serial, state.slot, state.issuedDate, state.selfieCaptured])
 
-  if (!hydrated || !state.visaType) return null
+  if (!hydrated || !state.visaType || !state.serial || !state.slot || !state.issuedDate) return null
 
   return (
     <PageShell showProgress>

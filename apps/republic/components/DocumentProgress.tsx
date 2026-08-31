@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
-import { DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
+import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
 
 /**
  * Plays the field-fill reveal exactly once per field per browser session —
@@ -74,11 +74,14 @@ function Row({
 // *every* field on the sticker, in the sticker's own order — NAME +
 // PASSPORT №, VISA TYPE + SERIAL №, REFERENCE № full-width, then ISSUED +
 // VALID, then CONDITIONS full-width — via STICKER_LABELS, the single shared
-// source. SERIAL №/ISSUED/VALID/CONDITIONS never actually have a value here
-// (they're only ever computed on /visa-issued itself, which this component
-// never renders alongside — see the bottom of this comment), so they always
-// render as ruled blanks; that's intentional, not a missing-data bug. The
-// APPOINTMENT slot is real funnel data known well before issuance, but it is
+// source. By /biometric, every field except REFERENCE № is filled: SERIAL №
+// is set at visa selection, VALID/CONDITIONS fill immediately on visa
+// selection (from APPROVED.validValue/conditionsValue, the same constants
+// /visa-issued renders), and ISSUED fills once the appointment slot is
+// confirmed — see lib/content.ts's DOCUMENT_PROGRESS comment for the full
+// breakdown. REFERENCE № is the one truly issuance-only value and stays a
+// ruled blank until /processing generates it. The APPOINTMENT slot is real
+// funnel data known well before issuance, but it is
 // NOT one of the sticker's own fields, so it's deliberately kept outside the
 // replicated field grid — shown as its own dashed-divider line below it —
 // rather than standing in for (and being confused with) the sticker's ISSUED
@@ -143,11 +146,11 @@ export function DocumentProgress() {
               animKey="passport"
             />
             <Row label={STICKER_LABELS.visaType} value={visa ? visa.name : null} animKey="visaType" />
-            <Row label={STICKER_LABELS.serial} value={null} animKey="serial" />
+            <Row label={STICKER_LABELS.serial} value={state.serial} animKey="serial" />
             <Row label={STICKER_LABELS.reference} value={state.referenceCode} animKey="reference" span />
-            <Row label={STICKER_LABELS.issued} value={null} animKey="issued" />
-            <Row label={STICKER_LABELS.valid} value={null} animKey="valid" />
-            <Row label={STICKER_LABELS.conditions} value={null} animKey="conditions" span />
+            <Row label={STICKER_LABELS.issued} value={state.issuedDate} animKey="issued" />
+            <Row label={STICKER_LABELS.valid} value={visa ? APPROVED.validValue : null} animKey="valid" />
+            <Row label={STICKER_LABELS.conditions} value={visa ? APPROVED.conditionsValue : null} animKey="conditions" span />
           </div>
         </div>
 

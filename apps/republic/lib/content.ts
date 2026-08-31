@@ -15,7 +15,16 @@ export interface VisaDefinition {
 // flavor line (fiancé gets neither, just the HIGH RISK stamp rendered
 // separately in app/visa/page.tsx). Empty `tagline`/`lines` are hidden
 // entirely by that page, not rendered as empty quotes/an empty list.
+// Business visa is listed first per owner request; the rest keep their prior
+// relative order (tourist, consultation, fiance, special).
 export const VISAS: VisaDefinition[] = [
+  {
+    slug: 'business',
+    icon: '💼',
+    name: 'BUSINESS VISA',
+    tagline: '',
+    lines: ['Purpose: money talk, projects'],
+  },
   {
     slug: 'tourist',
     icon: '🗺',
@@ -36,13 +45,6 @@ export const VISAS: VisaDefinition[] = [
     name: 'DATE VISA',
     tagline: '',
     lines: [],
-  },
-  {
-    slug: 'business',
-    icon: '💼',
-    name: 'BUSINESS VISA',
-    tagline: '',
-    lines: ['Purpose: money talk, projects'],
   },
   {
     slug: 'special',
@@ -103,6 +105,18 @@ export const LANDING = {
 /** Zero-padded to 4 digits — matches the 47–4999 range in lib/api.ts#getApplicantNumber. */
 export function formatApplicantNumber(n: number): string {
   return String(n).padStart(4, '0')
+}
+
+// The single date-format source for the sticker's ISSUED field — called
+// exactly once, where the value is first computed (app/appointment/page.tsx,
+// on slot confirmation), and stored in ApplicationState#issuedDate from then
+// on. Every later renderer (components/DocumentProgress.tsx,
+// app/visa-issued/page.tsx) reads that persisted value straight from state
+// rather than calling this again, so the progress card and the final visa
+// always agree even if rendered on different calendar days within the same
+// session — see the single-source note above ApplicationState#issuedDate.
+export function formatIssuedDate(date: Date = new Date()): string {
+  return date.toLocaleDateString('en-GB')
 }
 
 // ---------------------------------------------------------------------------
@@ -375,10 +389,15 @@ export const STICKER_LABELS = {
 // reuses STICKER_LABELS above as the single source for every field label the
 // two share — including NAME/PASSPORT №/VISA TYPE/SERIAL №/REFERENCE №/
 // ISSUED/VALID/CONDITIONS, the republic title, and the "VISA — " prefix.
-// SERIAL №/ISSUED/VALID/CONDITIONS never have a value while this component is
-// mounted (those are only ever computed on /visa-issued, which doesn't render
-// this component alongside them), so they always show as ruled blanks —
-// that's intentional. APPOINTMENT is the only label unique to the progress
+// By /biometric (the last funnel page before the photo), every field except
+// REFERENCE № is filled: SERIAL № is generated once at visa selection and
+// stored in applicationContext (see ApplicationState#serial), VALID/
+// CONDITIONS fill immediately on visa selection from APPROVED.validValue /
+// APPROVED.conditionsValue below (the same constants /visa-issued renders),
+// and ISSUED fills once the appointment slot is confirmed (via
+// formatIssuedDate above, stored in ApplicationState#issuedDate). REFERENCE №
+// only fills once generated on /processing — that's the one truly
+// issuance-only value. APPOINTMENT is the only label unique to the progress
 // card, and is deliberately NOT one of the replicated sticker fields — it's
 // rendered as its own separate line below the field grid, since the
 // appointment slot is real funnel data but has no equivalent row on the

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { VisaType } from './content'
+import { generateSerial } from './referenceCode'
 
 export interface ApplicationState {
   applicantName: string
@@ -20,6 +21,18 @@ export interface ApplicationState {
    *  reconstructed after a refresh loses the full-resolution capture. */
   selfieThumbnailUrl: string | null
   referenceCode: string | null
+  /** Visa sticker SERIAL № — generated exactly once, on the FIRST visa
+   *  selection (see lib/referenceCode.ts#generateSerial), and preserved
+   *  across any later re-selection (returning to /visa and picking again, or
+   *  a direct link into a visa-step sub-page) so the progress card and the
+   *  final /visa-issued sticker always render the identical value. Only ever
+   *  set together with `visaType`, through the shared `selectVisa` operation
+   *  below — never set directly via `update`. */
+  serial: string | null
+  /** Visa sticker ISSUED date — filled once the appointment slot is
+   *  confirmed (see lib/content.ts#formatIssuedDate) so it survives a refresh
+   *  and matches whatever /visa-issued renders later in the same session. */
+  issuedDate: string | null
 }
 
 const EMPTY_STATE: ApplicationState = {
@@ -35,6 +48,8 @@ const EMPTY_STATE: ApplicationState = {
   selfieCaptured: false,
   selfieThumbnailUrl: null,
   referenceCode: null,
+  serial: null,
+  issuedDate: null,
 }
 
 const STORAGE_KEY = 'republic:application'
@@ -42,6 +57,19 @@ const STORAGE_KEY = 'republic:application'
 interface ApplicationContextValue {
   state: ApplicationState
   update: (patch: Partial<ApplicationState>) => void
+  /**
+   * The ONE shared operation that establishes a visa selection. Always sets
+   * `visaType`, and — in the same state update — either preserves an
+   * already-generated `serial` (repeated/back-navigated selection, or a
+   * direct-linked /visa/[type] sub-step) or generates it exactly once
+   * (first-ever selection). Every place that can set `visaType` (the /visa
+   * selection cards and each visa-step sub-page's mount effect, for users who
+   * deep-link straight into a sub-step) MUST go through this instead of
+   * calling `update({ visaType: ... })` directly, so `visaType` and `serial`
+   * can never become desynced — see lib/referenceCode.ts#generateSerial and
+   * the SERIAL № lifecycle note on ApplicationState#serial below.
+   */
+  selectVisa: (visaType: VisaType) => void
   reset: () => void
   hydrated: boolean
 }
@@ -97,6 +125,13 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
     setState((prev) => ({ ...prev, ...patch }))
   }, [])
 
+  const selectVisa = useCallback((visaType: VisaType) => {
+    // Reads `prev.serial` inside the updater (not the `state` closure) so a
+    // rapid repeated call always sees the just-set value, guaranteeing
+    // exact-once generation regardless of render timing.
+    setState((prev) => ({ ...prev, visaType, serial: prev.serial ?? generateSerial() }))
+  }, [])
+
   const reset = useCallback(() => {
     setState(EMPTY_STATE)
     try {
@@ -106,7 +141,10 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
     }
   }, [])
 
-  const value = useMemo(() => ({ state, update, reset, hydrated }), [state, update, reset, hydrated])
+  const value = useMemo(
+    () => ({ state, update, selectVisa, reset, hydrated }),
+    [state, update, selectVisa, reset, hydrated]
+  )
 
   return <ApplicationContext.Provider value={value}>{children}</ApplicationContext.Provider>
 }

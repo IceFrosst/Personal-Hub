@@ -7,7 +7,7 @@ import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
 import { getAvailableSlots } from '@/lib/api'
 import type { Slot } from '@/lib/slots'
-import { APPOINTMENT, VISA_BY_SLUG } from '@/lib/content'
+import { APPOINTMENT, VISA_BY_SLUG, formatIssuedDate } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk, playBeep } from '@/lib/sound'
 
@@ -33,7 +33,11 @@ export default function AppointmentPage() {
   function pick(slot: Slot) {
     if (!slot.available) return
     playStampThunk()
-    update({ slot: slot.time })
+    // ISSUED fills as soon as the appointment slot is confirmed (well before
+    // actual issuance on /visa-issued), using the same formatIssuedDate
+    // helper that page renders with — so the two always agree even if the
+    // session spans midnight.
+    update({ slot: slot.time, issuedDate: formatIssuedDate() })
     addStamp(`APPOINTMENT ${slot.time} CONFIRMED`)
     setConfirmed(slot)
   }

@@ -7,3 +7,13 @@ export function generateReferenceCode(): string {
   }
   return `RIG-${suffix}`
 }
+
+// The visa sticker's SERIAL № format (`SN-` + 6 digits). Generated once per
+// application at visa selection (well before a reference code exists) and
+// stored in applicationContext (see ApplicationState#serial), so the progress
+// card and the final /visa-issued sticker always render the identical value
+// instead of each computing their own.
+export function generateSerial(): string {
+  const n = 100000 + Math.floor(Math.random() * 900000)
+  return `SN-${n}`
+}

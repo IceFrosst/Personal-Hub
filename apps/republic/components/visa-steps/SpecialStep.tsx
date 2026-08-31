@@ -13,12 +13,15 @@ const visa = VISA_BY_SLUG.special
 
 export function SpecialStep() {
   const router = useRouter()
-  const { state, update } = useApplication()
+  const { state, update, selectVisa } = useApplication()
   const [statement, setStatement] = useState(state.specialStatement)
   const [sworn, setSworn] = useState(false)
 
   useEffect(() => {
-    update({ visaType: 'special' })
+    // `selectVisa` (not a bare `update`) so a direct/deep link straight into
+    // this sub-step still establishes SERIAL № together with visaType — see
+    // lib/applicationContext.tsx#selectVisa.
+    selectVisa('special')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
