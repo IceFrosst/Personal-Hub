@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useApplication } from '@/lib/applicationContext'
+import { useApplication, type ApplicationState } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
 
@@ -28,6 +28,36 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
   }, [filled, key])
 
   return animate
+}
+
+// Whatever typed/selected content the chosen visa's sub-step collected, if
+// any — tourist has no sub-step, so this is null for it. Kept as a plain
+// function (not a hook) so it can be called both before the `!hydrated`
+// early return (to drive the reveal-animation hook, which needs the boolean
+// unconditionally on every render per the Rules of Hooks) and after it (to
+// actually render the label/value). Fiancé's three answers are joined into
+// one line — the full answers stay in context state untouched; only the
+// rendered string is compacted, and even that is CSS-truncated rather than
+// sliced, so nothing is ever discarded.
+function getSubStepAddendum(state: ApplicationState): { label: string; value: string } | null {
+  switch (state.visaType) {
+    case 'consultation':
+      return state.consultationMatter
+        ? { label: DOCUMENT_PROGRESS.matterLabel, value: state.consultationMatter }
+        : null
+    case 'business':
+      return state.businessPitch ? { label: DOCUMENT_PROGRESS.pitchLabel, value: state.businessPitch } : null
+    case 'special':
+      return state.specialStatement
+        ? { label: DOCUMENT_PROGRESS.statementLabel, value: state.specialStatement }
+        : null
+    case 'fiance':
+      return state.fianceAnswers.length
+        ? { label: DOCUMENT_PROGRESS.interviewAnswersLabel, value: state.fianceAnswers.join(' · ') }
+        : null
+    default:
+      return null
+  }
 }
 
 function Blank({ wide }: { wide?: boolean }) {
@@ -89,14 +119,22 @@ function Row({
 // (`#cfc8b8` fill + `STICKER_LABELS.photoPlaceholder` text, square corners)
 // until biometrics are captured, then shows the persisted thumbnail; falls
 // back to the placeholder again if the thumbnail never made it (e.g.
-// generation failed). Never rendered on landing or /visa-issued — see that
-// page's <PageShell> call (no `showProgress`).
+// generation failed). Below the field grid, two further optional addendum
+// lines (not sticker fields, same "outside the grid" treatment) can appear:
+// the appointment slot, and — per owner feedback — whatever the chosen
+// visa's sub-step actually collected (consultation matter, business pitch,
+// special-purpose statement, or the fiancé interview answers), once it's
+// been entered; see getSubStepAddendum below and lib/content.ts's
+// DOCUMENT_PROGRESS comment. Never rendered on landing or /visa-issued —
+// see that page's <PageShell> call (no `showProgress`).
 export function DocumentProgress() {
   const { state, hydrated } = useApplication()
   // Called unconditionally (Rules of Hooks) — the `!hydrated` early return
   // below is fine since nothing else in this component calls a hook after it.
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
   const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
+  const subStepAddendum = getSubStepAddendum(state)
+  const subStepAnimate = useRevealAnimation('subStepContent', Boolean(subStepAddendum))
 
   // Same hydration-safety rule as the rest of the funnel: nothing here may
   // read context state before the sessionStorage read completes, so render
@@ -168,6 +206,25 @@ export function DocumentProgress() {
             <Blank />
           )}
         </div>
+
+        {/* Compact addendum: whatever the chosen visa's sub-step collected
+            (matter/pitch/statement/interview answers), shown once it's been
+            entered — same "outside the replicated sticker grid" treatment as
+            APPOINTMENT above, and just as deliberately omitted (not an empty
+            row) when there's nothing to show (no visa chosen yet, tourist's
+            visa has no sub-step, or the sub-step just hasn't been filled in
+            yet). Truncated via CSS, one-time reveal like every other field. */}
+        {subStepAddendum && (
+          <div className="mt-1 flex items-baseline justify-between gap-1.5 border-t border-dashed border-navy/40 pt-1 text-[8px] uppercase tracking-wide">
+            <span className="shrink-0 text-navy">{subStepAddendum.label}</span>
+            <span
+              className={`truncate text-right font-bold text-navy ${subStepAnimate ? 'animate-field-fill' : ''}`}
+              title={subStepAddendum.value}
+            >
+              {subStepAddendum.value}
+            </span>
+          </div>
+        )}
 
         <div className="barcode-mini mt-1.5" aria-hidden />
       </div>

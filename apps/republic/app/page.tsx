@@ -8,22 +8,21 @@ import { OfficerMoodBadge } from '@/components/OfficerMoodBadge'
 import { HiddenBribe } from '@/components/HiddenBribe'
 import { PageShell } from '@/components/PageShell'
 import { Typewriter } from '@/components/Typewriter'
-import { getPassport, registerVisit, addStamp } from '@/lib/passport'
+import { addStamp } from '@/lib/passport'
 import { getApplicantNumber } from '@/lib/api'
 import { clearAnimatedFields } from '@/lib/formProgress'
-import { LANDING, RETURNING_VISITOR, LOYALTY_MESSAGE, formatApplicantNumber } from '@/lib/content'
+import { LANDING, formatApplicantNumber } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 import { useApplication } from '@/lib/applicationContext'
 
 export default function EntryDeclarationPage() {
   const router = useRouter()
   const { state, update, reset } = useApplication()
-  // localStorage-derived values — never read directly during render (this
-  // page is statically prerendered, so the server always sees an empty/
-  // default environment). Both start at SSR-safe defaults and are only ever
-  // populated inside the effect below, after mount.
-  const [visits, setVisits] = useState(0)
-  const [stampCount, setStampCount] = useState(0)
+  // The applicant number is fetched from a Supabase RPC (or read from a
+  // localStorage cache if this browser already has one) — never read/set
+  // synchronously during render, since this page is statically prerendered
+  // and the server always sees an empty/default environment. It starts
+  // `null` and is only ever populated inside the effect below, after mount.
   const [showQuestion, setShowQuestion] = useState(false)
   const [applicantNumber, setApplicantNumber] = useState<number | null>(null)
 
@@ -39,11 +38,12 @@ export default function EntryDeclarationPage() {
     if (preservedName) update({ applicantName: preservedName })
     if (preservedHandle) update({ instagramHandle: preservedHandle })
 
-    const v = registerVisit()
-    setVisits(v)
     addStamp('ENTRY DECLARATION VIEWED')
-    setStampCount(getPassport().stamps.length)
-    setApplicantNumber(getApplicantNumber())
+    // Async: resolves from the localStorage cache instantly if this browser
+    // already has a number, otherwise awaits the Supabase RPC. On failure it
+    // resolves to null and the placeholder just stays put — no fake number
+    // is ever generated locally (see lib/api.ts#getApplicantNumber).
+    getApplicantNumber().then(setApplicantNumber)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -51,9 +51,6 @@ export default function EntryDeclarationPage() {
     playStampThunk()
     router.push(answer === 'no' ? '/denied' : '/identity')
   }
-
-  const isReturning = visits > 1
-  const isLoyal = visits >= 3
 
   return (
     <PageShell fullHeight>
@@ -80,22 +77,6 @@ export default function EntryDeclarationPage() {
         </p>
 
         <div className="barcode mt-2 !h-3" aria-hidden />
-
-        {isReturning && (
-          <p className="mt-2 animate-fade-in text-center text-[10px] font-bold uppercase leading-tight text-stamp">
-            {RETURNING_VISITOR}
-          </p>
-        )}
-        {isLoyal && (
-          <p className="mt-0.5 animate-fade-in text-center text-[10px] font-bold uppercase leading-tight text-approve">
-            {LOYALTY_MESSAGE}
-          </p>
-        )}
-        {stampCount > 3 && (
-          <p className="mt-0.5 text-center text-[9px] uppercase leading-tight text-navy/50">
-            {LANDING.passportStampsLabel} {stampCount}
-          </p>
-        )}
 
         <div className="mt-3 min-h-[3rem] text-center">
           <Typewriter

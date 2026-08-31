@@ -7,7 +7,7 @@ import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
 import { uploadPhoto } from '@/lib/api'
 import { createThumbnail } from '@/lib/photo'
-import { BIOMETRIC } from '@/lib/content'
+import { IDENTITY_VERIFICATION } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep } from '@/lib/sound'
 
@@ -75,18 +75,18 @@ export default function BiometricPage() {
     <PageShell showProgress>
       <div className="paper-card p-5">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">
-          {BIOMETRIC.heading}
+          {IDENTITY_VERIFICATION.heading}
         </h1>
         <p className="mt-2 text-center text-[11px] uppercase leading-relaxed tracking-wide text-navy/80">
-          {BIOMETRIC.instruction}
+          {IDENTITY_VERIFICATION.instruction}
         </p>
 
         <div className="relative mx-auto mt-5 flex h-56 w-44 items-center justify-center overflow-hidden border-2 border-navy bg-paper-dark">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt={BIOMETRIC.photoAlt} className="h-full w-full object-cover" />
+            <img src={preview} alt={IDENTITY_VERIFICATION.photoAlt} className="h-full w-full object-cover" />
           ) : (
-            <span className="px-3 text-center text-[10px] uppercase text-navy/40">{BIOMETRIC.noPhoto}</span>
+            <span className="px-3 text-center text-[10px] uppercase text-navy/40">{IDENTITY_VERIFICATION.noPhoto}</span>
           )}
           <div
             className="pointer-events-none absolute inset-4 rounded-[50%] border-2 border-dashed border-navy/50"
@@ -96,7 +96,7 @@ export default function BiometricPage() {
 
         {!preview ? (
           <label className="mt-5 block min-h-11 w-full cursor-pointer border-2 border-navy bg-navy py-3 text-center font-stamp text-sm uppercase tracking-widest text-paper transition-opacity hover:opacity-90">
-            {BIOMETRIC.takePhoto}
+            {IDENTITY_VERIFICATION.takePhoto}
             <input
               ref={inputRef}
               type="file"
@@ -113,7 +113,7 @@ export default function BiometricPage() {
               onClick={retake}
               className="min-h-11 flex-1 border-2 border-navy bg-paper py-3 font-stamp text-sm uppercase tracking-widest text-navy transition-colors hover:bg-navy hover:text-paper"
             >
-              {BIOMETRIC.retake}
+              {IDENTITY_VERIFICATION.retake}
             </button>
             <button
               type="button"
@@ -121,14 +121,10 @@ export default function BiometricPage() {
               onClick={handleSubmit}
               className="min-h-11 flex-1 border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {submitting ? BIOMETRIC.submitting : BIOMETRIC.submit}
+              {submitting ? IDENTITY_VERIFICATION.submitting : IDENTITY_VERIFICATION.submit}
             </button>
           </div>
         )}
-
-        <p className="mt-4 text-center text-[9px] uppercase leading-relaxed text-navy/40">
-          {BIOMETRIC.purgeNotice}
-        </p>
       </div>
       <Footer />
     </PageShell>

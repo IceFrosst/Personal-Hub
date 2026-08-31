@@ -1,10 +1,20 @@
-// localStorage "passport" — visit count + stamps, purely client-side memory.
+// localStorage "stamp log" — a rolling, capped list of stamp events, purely
+// client-side memory. Used as an append-only audit trail of what happened
+// during a session (visa selected, appointment confirmed, biometrics
+// submitted, etc. — see the addStamp() call sites throughout app/*).
+//
+// This file used to also track a per-browser visit count, which powered a
+// "returning visitor" / "frequent applicant" (loyalty) message and a
+// passport-stamps-on-file line on the landing page. That whole repeat-visitor
+// detection feature was removed per owner feedback — the landing must not
+// detect or display anything about prior visits — so the visit counter
+// (`registerVisit`, the old `visits` field) is gone too. The stamp log itself
+// was kept: it's still useful as a lightweight local activity trail, it just
+// no longer has anything to do with visit counting.
 
-const VISITS_KEY = 'republic:visits'
 const STAMPS_KEY = 'republic:stamps'
 
 export interface PassportState {
-  visits: number
   stamps: string[]
 }
 
@@ -13,27 +23,13 @@ function isBrowser() {
 }
 
 export function getPassport(): PassportState {
-  if (!isBrowser()) return { visits: 0, stamps: [] }
+  if (!isBrowser()) return { stamps: [] }
   try {
-    const visits = Number(window.localStorage.getItem(VISITS_KEY) ?? '0')
     const stamps = JSON.parse(window.localStorage.getItem(STAMPS_KEY) ?? '[]') as string[]
-    return { visits, stamps }
+    return { stamps }
   } catch {
-    return { visits: 0, stamps: [] }
+    return { stamps: [] }
   }
-}
-
-/** Call once per landing-page view. Returns the visit count *after* incrementing. */
-export function registerVisit(): number {
-  if (!isBrowser()) return 0
-  const current = getPassport()
-  const next = current.visits + 1
-  try {
-    window.localStorage.setItem(VISITS_KEY, String(next))
-  } catch {
-    // ignore
-  }
-  return next
 }
 
 export function addStamp(label: string) {

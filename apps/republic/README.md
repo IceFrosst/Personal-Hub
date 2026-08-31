@@ -20,7 +20,7 @@ ENTRY DECLARATION (no-scroll landing: "do you have something to declare?")
           → per-visa sub-step (1-field form / fiancé interview — sidequest has none) →
             straight to CONSULATE APPOINTMENT, no confirmation screen in between
           → CONSULATE APPOINTMENT (time-slot picker, real scarcity)
-          → BIOMETRIC VERIFICATION (selfie via file input, final step)
+          → IDENTITY VERIFICATION (selfie via file input, final step; route stays /biometric)
           → PROCESSING (progress bar stutters at 99%)
           → VISA ISSUED (canvas-composited visa sticker, download, DM handoff)
 ```
@@ -68,33 +68,46 @@ confirms/declines by DM.
 
 ## The progress card
 
-`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A compact mini
-visa card, same design language as the final `/visa-issued` sticker shrunk down: a navy
-double-line border on paper, a small "DICTATORSHIP OF IGNAS" header, an oval photo box
-(solid black/silhouette until biometrics are captured, then the persisted selfie
-thumbnail — falls back to black again if the thumbnail never made it) and a short
-barcode strip along the bottom. The data fields sit in a two-column grid next to the
-photo, paired NAME + PASSPORT № / VISA TYPE + APPOINTMENT / DECLARATION + BIOMETRICS,
-with the relevant sub-step's answer (truncated) and, once actually approved, STATUS each
-spanning both columns (`/visa-issued` — the only page where STATUS would matter — doesn't
-show this card at all). Unfilled fields render as a blank ruled line; a field (including
-the photo) animates once, the moment it's first filled, via a small "field-fill" pop —
-but only once ever per browser session (`lib/formProgress.ts` tracks which field keys
-have already played the animation in `sessionStorage`, separate from the funnel's own
-state, so refreshing mid-funnel never replays it for something that was already on the
-form). `prefers-reduced-motion` collapses the animation to a single instant frame via the
-same global rule every other animation in this app uses — no special-casing needed. The
-two-column layout keeps the card noticeably shorter than the old single-column
-passport-booklet design while staying readable at 390px.
+`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A faithful DOM
+replica of the final `/visa-issued` canvas sticker, shrunk down: a navy double-line
+border on paper, a small "DICTATORSHIP OF IGNAS" header, a SQUARE photo box (filled with
+the sticker's own placeholder treatment until biometrics are captured, then the
+persisted selfie thumbnail) and a barcode-mini strip along the bottom. The two-column
+field grid replicates every field the sticker itself has, in the sticker's own order —
+NAME + PASSPORT №, VISA TYPE + SERIAL №, REFERENCE № (full-width), ISSUED + VALID, then
+CONDITIONS (full-width). Below that grid sit up to two further one-line addenda, each
+set off with its own dashed divider (not sticker fields, so deliberately kept outside
+the replicated grid): the confirmed APPOINTMENT slot, and — once the chosen visa's
+sub-step has actually collected something — its content (the consultation matter, the
+business pitch, the special-purpose sworn statement, or the fiancé interview answers,
+joined into one compact line). Tourist has no sub-step, so that second addendum never
+appears for it; every other addendum/field only renders once its underlying value
+exists, never as an empty placeholder row. Unfilled fields render as a blank ruled line;
+a field (including the photo and each addendum) animates once, the moment it's first
+filled, via a small "field-fill" pop — but only once ever per browser session
+(`lib/formProgress.ts` tracks which field keys have already played the animation in
+`sessionStorage`, separate from the funnel's own state, so refreshing mid-funnel never
+replays it for something that was already on the form). Long values (especially the
+fiancé addendum, which joins three answers) are CSS-truncated (`truncate`, plus a
+`title` attribute with the full text) rather than sliced in code, so nothing is ever
+discarded from context state — only the on-screen rendering is compacted.
+`prefers-reduced-motion` collapses the animation to a single instant frame via the same
+global rule every other animation in this app uses — no special-casing needed.
 
 ## Applicant number
 
-The landing page shows a distinct applicant number per device — generated once
-(`lib/api.ts#getApplicantNumber`, random in 47–4999, cached in `localStorage`,
-zero-padded to 4 digits) and stable across visits on the same device/browser. It starts
-as a placeholder and is only ever filled in from a client effect (hydration-safe, since
-this page is statically prerendered). It's structured as its own function specifically
-so a real backend counter can replace the body later without touching call sites.
+The landing page shows a real, globally sequential applicant number, shared by every
+visitor — not a per-device random number. `lib/api.ts#getApplicantNumber` calls the
+`republic.next_applicant_number()` Supabase RPC (a Postgres sequence wrapped in a
+SECURITY DEFINER function; see `supabase/migrations/0001_applicant_number_sequence.sql`)
+**at most once per browser/device**: the very first resolved value is cached in
+`localStorage` and zero-padded to 4 digits for display, and every later visit on the
+same device reads that cache instead of calling the RPC again. If the RPC call fails (no
+Supabase env vars configured, network error, or the schema isn't exposed to PostgREST
+yet), the app does **not** fabricate a number — it just keeps showing
+`LANDING.applicantNumberPlaceholder` until a later attempt succeeds. The value starts
+`null` and is only ever resolved from a client effect (hydration-safe, since this page
+is statically prerendered).
 
 ## Stack
 
@@ -119,10 +132,14 @@ so a real backend counter can replace the body later without touching call sites
   app's global `appearance: none` reset is exactly what made the sworn-statement
   checkbox on `/visa/special` invisible in production.
 - `lib/api.ts` — typed backend stubs (`recordApplication`, `recordAppointment`,
-  `recordBribe`, `getApplicantNumber`, `getAvailableSlots`, `uploadPhoto`) that always
-  work off localStorage and best-effort (try/catch-swallowed) POST to Supabase only if
-  `NEXT_PUBLIC_SUPABASE_URL` is set — no schema/migrations exist yet, so this is
-  forward-compatible scaffolding, not a live integration
+  `recordBribe`, `getAvailableSlots`, `uploadPhoto`) that always work off localStorage
+  and best-effort (try/catch-swallowed) POST to Supabase only if
+  `NEXT_PUBLIC_SUPABASE_URL` is set — no `applications`/`appointments`/`bribes` tables
+  exist yet, so this is forward-compatible scaffolding, not a live integration.
+  `getApplicantNumber`, specifically, is a real (if narrow) integration already: it
+  calls the `republic.next_applicant_number()` Supabase RPC (see `supabase/migrations/`)
+  to hand out a real global sequential number, at most once per browser/device — see
+  "Applicant number" above.
 - No bot defenses (no Turnstile, no honeypot) and no server persistence beyond the
   best-effort stub above — this is a client-side joke funnel, not a form product
 
@@ -150,9 +167,10 @@ in-app browser. Check the landing specifically at 390×660 (Instagram webview ch
 ## All copy lives in one place
 
 `lib/content.ts` — visa definitions, denial reasons, gag lines, interview questions,
-identity/passport-card labels, statistics placeholders (including the "one citizen"
-footnote), duty-free stock, terms paragraphs (including the paragraph 7 easter egg and
-the democracy clause), the DM handle/deep link, and the reference-line format. Edit copy
+identity/passport-card labels (including the progress card's per-visa sub-step addendum
+labels), statistics placeholders (including the "one citizen" footnote), duty-free
+stock, terms paragraphs (including the paragraph 6 screenshot easter egg and the
+democracy clause), the DM handle/deep link, and the reference-line format. Edit copy
 there, not scattered across components. A few sub-step gag lines (preliminary rulings,
 the sworn-statement replies, the fiancé "vibe check passed" message, the old tourist
 notice) are still defined there but currently unused — they used to power an
