@@ -67,10 +67,8 @@ the Dictatorship is also a full democracy.
   `getAvailableDates()` → the server-only `/api/available-dates` Route Handler → Google
   Calendar `freeBusy` via `lib/googleCalendar.ts`. Candidate dates begin tomorrow and
   each candidate's complete local day is queried/checked using timezone-aware midnight
-  boundaries (including DST); any timed/all-day overlap removes the whole day. Republic
-  sends only those boundaries to Lock In's authenticated server-to-server free-days
-  bridge; Lock In reuses its existing durable Google connection and returns only date
-  keys, so no token, busy interval, or event detail crosses into Republic. A chosen day
+  boundaries (including DST); any timed/all-day overlap removes the whole day. The
+  service-account key stays server-only and no event details are returned. A chosen day
   reveals fixed times on the same page; choosing a time immediately stores the dated
   slot and navigates to `/biometric`, with no confirmation screen. The old seeded
   `lib/slots.ts`/`getAvailableSlots` code is unused fallback/demo reference only.
@@ -150,9 +148,9 @@ the Dictatorship is also a full democracy.
   number just by reloading. RPC calls are POSTs to `rest/v1/rpc/next_applicant_number`
   with a `Content-Profile: republic` header (same schema-header mechanism `tryRest` uses
   for table writes) since the function lives in a custom schema. There is **no
-  random/fake fallback**: if the RPC fails for any reason (no Supabase env vars
-  configured yet — true today, since this app's env vars aren't set — network error, or
-  the schema not yet exposed to PostgREST per SCHEMA_RULES.md's Data API exposure note),
+  random/fake fallback**: if the RPC fails for any reason (missing Supabase env vars,
+  network error, or the schema not yet exposed to PostgREST per SCHEMA_RULES.md's Data
+  API exposure note),
   `getApplicantNumber()` resolves `null` and the landing just keeps showing
   `LANDING.applicantNumberPlaceholder` until a later visit succeeds; it never invents a
   number locally. The response body is parsed defensively (`Number.isFinite` +
@@ -340,8 +338,9 @@ via charm.” Every visa sub-step navigates directly to `/appointment`. Appointm
 shows Google Calendar-backed completely-free days beginning tomorrow, then fixed times
 on the same page; choosing a time immediately stores the dated slot and navigates to
 `/biometric` without a confirmation screen. Calendar access is server-only `freeBusy`,
-reuses the durable Google connection already stored by Lock In, checks each candidate's
-entire local day with DST-safe boundaries, returns no event details, and fails closed.
+uses the configured shared calendar's actual ID (never service-account `primary`),
+checks each candidate's entire local day with DST-safe boundaries, returns no event
+details, and fails closed.
 
 The final `/visa-issued` screen uses the same `VisaDocument` structure as the progress
 card, sized to remain readable around 390px: square photo, two-column fields, appointment
@@ -551,15 +550,14 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
-**Handoff:** Calendar availability now reuses Lock In's durable Google connection through
-an authenticated server-to-server free-days bridge. Deploy both app changes and set the
-shared bridge secret/URL; the applicant-number backend setup also remains.
+**Handoff:** Dedicated Republic Calendar access is configured and verified independently
+of Lock In. Deploy this cleanup pass; the applicant-number backend setup remains.
 
-- Republic needs `LOCK_IN_CALENDAR_API_URL` (stable Lock In URL from
-  `apps/hub/config/apps.json` + `/api/calendar/free-days`) and the same server-only
-  `REPUBLIC_CALENDAR_API_SECRET` configured on both Vercel projects. Lock In retains all
-  Google refresh/OAuth/Supabase credentials; no second consent flow or service account is
-  needed. Timezone defaults to `Europe/Vilnius`.
+- **Calendar integration ready:** Google Calendar API enabled; dedicated service account
+  shared with the primary calendar using “See only free/busy (hide details)”; production
+  and preview Vercel environments contain `GOOGLE_CALENDAR_ID`,
+  `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, and timezone.
+  A live freeBusy request succeeded without exposing event details.
 - **Existing applicant-number backend blocker:** apply
   `supabase/migrations/0001_applicant_number_sequence.sql`, expose the `republic` schema
   through the Data API/authenticator configuration, and reload PostgREST config/schema.
