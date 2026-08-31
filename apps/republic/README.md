@@ -123,12 +123,13 @@ is statically prerendered).
 
 ## Consulate appointment availability (Google Calendar)
 
-`/appointment` shows real free days from the shared Google Calendar configured by its actual Calendar ID, then a
-fixed set of times once a day is picked. `app/api/available-dates/route.ts` (a server-only
-Route Handler) calls `lib/googleCalendar.ts`, which authenticates as a Google service
-account (JWT signed with Node's built-in `crypto`, no `googleapis` SDK) and queries the
-Calendar **freeBusy** API — busy/free intervals only, never event titles or other
-details, and never writes anything. Candidates begin tomorrow. The query spans every
+`/appointment` shows real free days from the Google Calendar already connected through
+Lock In, then a fixed set of times once a day is picked. `app/api/available-dates/route.ts`
+(a server-only Route Handler) calls `lib/googleCalendar.ts`, which reads Ignas's existing
+offline refresh token from `lock_in.calendar_connections` with the shared Supabase
+service-role key, refreshes it with Lock In's Google OAuth client, and queries the
+connected account's primary Calendar through the **freeBusy** API — busy/free intervals
+only, never event titles or other details, and never writes anything. Candidates begin tomorrow. The query spans every
 candidate's complete local day, and a day is only returned as “free” if it has zero busy
 time at all (any overlapping timed or all-day event blocks the whole day) within a
 bounded 30-day window; local-midnight boundaries remain correct across DST. The route
@@ -136,13 +137,12 @@ caches its response for ~60s. Any missing env var,
 auth failure, or malformed response fails closed to an empty date list — the appointment
 page then shows "no appointments available," never a fabricated bookable day.
 
-Requires three server-only credentials (see `.env.example` for the full manual setup —
-enabling the Calendar API, creating the service account, sharing the actual target calendar
-with it using least-privilege “See only free/busy (hide details)” permission, and copying
-that calendar's ID — never `primary`, which means the service account's own calendar):
-`GOOGLE_CALENDAR_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, and
-`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`. `GOOGLE_CALENDAR_TIME_ZONE` is optional and defaults
-to `Europe/Vilnius`. None are `NEXT_PUBLIC_`-prefixed or sent to the browser. Picking a time immediately
+No second Google consent or service account is needed. Republic reuses Lock In's existing
+`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, and
+`GOOGLE_OAUTH_CLIENT_SECRET`, plus `GOOGLE_CALENDAR_ACCOUNT_EMAIL` to select the connected
+row. `NEXT_PUBLIC_SUPABASE_URL` identifies the shared project;
+`GOOGLE_CALENDAR_TIME_ZONE` is optional and defaults to `Europe/Vilnius`. All privileged
+values remain server-only and are never sent to the browser. Picking a time immediately
 stores an unambiguous `"<DATE> — <TIME>"` string in `state.slot` and navigates straight
 to `/biometric` — no confirmation screen, matching the rest of the funnel.
 

@@ -67,9 +67,10 @@ the Dictatorship is also a full democracy.
   `getAvailableDates()` → the server-only `/api/available-dates` Route Handler → Google
   Calendar `freeBusy` via `lib/googleCalendar.ts`. Candidate dates begin tomorrow and
   each candidate's complete local day is queried/checked using timezone-aware midnight
-  boundaries (including DST); any timed/all-day overlap removes the whole day. The
-  service-account key stays server-only and no event details are returned. A chosen day
-  reveals fixed times on the same page; choosing a time immediately stores the dated
+  boundaries (including DST); any timed/all-day overlap removes the whole day. It reuses
+  Ignas's existing Lock In refresh-token row plus Lock In's Google OAuth client; the
+  service-role/OAuth credentials stay server-only and no event details are returned. A
+  chosen day reveals fixed times on the same page; choosing a time immediately stores the dated
   slot and navigates to `/biometric`, with no confirmation screen. The old seeded
   `lib/slots.ts`/`getAvailableSlots` code is unused fallback/demo reference only.
 - Reusable primitives: `PageShell` (mobile-first max-w-md container + paper-slide-in;
@@ -338,9 +339,8 @@ via charm.” Every visa sub-step navigates directly to `/appointment`. Appointm
 shows Google Calendar-backed completely-free days beginning tomorrow, then fixed times
 on the same page; choosing a time immediately stores the dated slot and navigates to
 `/biometric` without a confirmation screen. Calendar access is server-only `freeBusy`,
-uses the configured shared calendar's actual ID (never service-account `primary`),
-checks each candidate's entire local day with DST-safe boundaries, returns no event
-details, and fails closed.
+reuses the durable Google connection already stored by Lock In, checks each candidate's
+entire local day with DST-safe boundaries, returns no event details, and fails closed.
 
 The final `/visa-issued` screen uses the same `VisaDocument` structure as the progress
 card, sized to remain readable around 390px: square photo, two-column fields, appointment
@@ -550,16 +550,15 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
-**Handoff:** Republic feedback pass is complete and validated locally; no remote changes
-were made. Manual Google Calendar and existing applicant-number backend setup remain.
+**Handoff:** Republic feedback pass is complete and validated. Calendar availability now
+reuses Lock In's existing durable Google connection; the shared server credentials were
+copied to Republic's Vercel environments. The applicant-number backend setup remains.
 
-- **Manual Calendar blocker:** in Google Cloud, enable Calendar API, create the service
-  account + JSON key, and share the actual target calendar with the service-account
-  email using least-privilege “See only free/busy (hide details)” permission. Copy that
-  calendar's real Calendar ID (do not use `primary`) and set the three required Vercel
-  variables: `GOOGLE_CALENDAR_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, and
-  `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`. `GOOGLE_CALENDAR_TIME_ZONE` is optional and
-  defaults to `Europe/Vilnius`.
+- Calendar reuse depends on Ignas's existing `lock_in.calendar_connections` row and the
+  server-only `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, and
+  `GOOGLE_OAUTH_CLIENT_SECRET`; no second consent flow or service account is needed.
+  `GOOGLE_CALENDAR_ACCOUNT_EMAIL` selects the connection, and timezone defaults to
+  `Europe/Vilnius`.
 - **Existing applicant-number backend blocker:** apply
   `supabase/migrations/0001_applicant_number_sequence.sql`, expose the `republic` schema
   through the Data API/authenticator configuration, and reload PostgREST config/schema.
