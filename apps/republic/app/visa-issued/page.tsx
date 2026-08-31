@@ -104,23 +104,28 @@ export default function VisaIssuedPage() {
     // after a refresh; if neither exists, skip the Image load entirely and
     // draw the "PHOTO ON FILE" placeholder frame straight away.
     const photoSrc = state.selfieDataUrl ?? state.selfieThumbnailUrl
+    // The declared-IQ wojak face stamped beside the IQ addendum line — same
+    // asset the on-screen documents show, so the PNG can't disagree.
+    const faceSrc = screeningAddenda.find((item) => item.imageSrc)?.imageSrc ?? null
 
-    if (!photoSrc) {
-      draw(ctx, null)
-      setReady(true)
-      return
-    }
+    const loadImage = (src: string | null) =>
+      new Promise<HTMLImageElement | null>((resolve) => {
+        if (!src) {
+          resolve(null)
+          return
+        }
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = () => resolve(null)
+        img.src = src
+      })
 
-    const img = new Image()
-    img.onload = () => {
-      draw(ctx, img)
+    let cancelled = false
+    void Promise.all([loadImage(photoSrc), loadImage(faceSrc)]).then(([photo, face]) => {
+      if (cancelled) return
+      draw(ctx, photo, face)
       setReady(true)
-    }
-    img.onerror = () => {
-      draw(ctx, null)
-      setReady(true)
-    }
-    img.src = photoSrc
+    })
 
     function fitText(context: CanvasRenderingContext2D, text: string, maxWidth: number): string {
       if (context.measureText(text).width <= maxWidth) return text
@@ -131,7 +136,11 @@ export default function VisaIssuedPage() {
       return `${truncated}…`
     }
 
-    function draw(context: CanvasRenderingContext2D, photo: HTMLImageElement | null) {
+    function draw(
+      context: CanvasRenderingContext2D,
+      photo: HTMLImageElement | null,
+      face: HTMLImageElement | null
+    ) {
       const NAVY = '#1a2a4a'
       const PAPER = '#f4f0e8'
       const GREEN = '#2e7d32'
@@ -177,7 +186,14 @@ export default function VisaIssuedPage() {
         ...item,
         lines: wrapText(item.value, CANVAS_W - 120),
       }))
-      const documentHeight = Math.max(CANVAS_H, 535 + wrappedAddenda.reduce((height, item) => height + 37 + item.lines.length * 20, 0))
+      const documentHeight = Math.max(
+        CANVAS_H,
+        535 +
+          wrappedAddenda.reduce(
+            (height, item) => height + Math.max(37 + item.lines.length * 20, item.imageSrc ? 62 : 0),
+            0
+          )
+      )
       if (context.canvas.height !== documentHeight) context.canvas.height = documentHeight
 
       context.clearRect(0, 0, CANVAS_W, documentHeight)
@@ -272,7 +288,7 @@ export default function VisaIssuedPage() {
       // sticker field grid, with the same dashed-divider treatment as the DOM
       // document, and are included in the PNG rather than being screen-only.
       let addendumY = rowY + 54
-      const addendum = (label: string, lines: string[]) => {
+      const addendum = (label: string, lines: string[], stamp?: HTMLImageElement | null) => {
         context.save()
         context.setLineDash([7, 5])
         context.strokeStyle = NAVY
@@ -287,9 +303,26 @@ export default function VisaIssuedPage() {
         context.fillText(label, 60, addendumY)
         context.font = '15px "Courier New", monospace'
         lines.forEach((line, index) => context.fillText(line, 60, addendumY + 20 + index * 20))
-        addendumY += 37 + lines.length * 20
+        if (stamp) {
+          // Small bordered wojak stamp, right-aligned on the addendum row —
+          // mirrors the bordered <img> treatment in components/VisaDocument.tsx.
+          const size = 52
+          const sx = CANVAS_W - 60 - size
+          const sy = addendumY - 8
+          context.fillStyle = '#ffffff'
+          context.fillRect(sx, sy, size, size)
+          const scale = Math.min(size / stamp.width, size / stamp.height)
+          const dw = stamp.width * scale
+          const dh = stamp.height * scale
+          context.drawImage(stamp, sx + (size - dw) / 2, sy + (size - dh) / 2, dw, dh)
+          context.strokeStyle = NAVY
+          context.lineWidth = 1.5
+          context.strokeRect(sx, sy, size, size)
+          context.fillStyle = NAVY
+        }
+        addendumY += Math.max(37 + lines.length * 20, stamp ? 62 : 0)
       }
-      wrappedAddenda.forEach((item) => addendum(item.label, item.lines))
+      wrappedAddenda.forEach((item) => addendum(item.label, item.lines, item.imageSrc ? face : null))
 
       // barcode
       context.save()
@@ -316,6 +349,10 @@ export default function VisaIssuedPage() {
       context.textAlign = 'center'
       context.fillText(APPROVED.stamp, 0, 12)
       context.restore()
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [
     visa,
@@ -394,7 +431,13 @@ export default function VisaIssuedPage() {
     addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
   }
   screeningAddenda.forEach((item, index) => {
-    addenda.push({ key: `screening-${index}`, label: item.label, value: item.value })
+    addenda.push({
+      key: `screening-${index}`,
+      label: item.label,
+      value: item.value,
+      imageSrc: item.imageSrc,
+      imageAlt: item.imageAlt,
+    })
   })
 
   return (

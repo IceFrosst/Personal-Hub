@@ -119,7 +119,13 @@ export function DocumentProgress() {
     })
   }
   getScreeningAddenda(state).forEach((item, index) => {
-    addenda.push({ key: `screening-${index}`, label: item.label, value: item.value })
+    addenda.push({
+      key: `screening-${index}`,
+      label: item.label,
+      value: item.value,
+      imageSrc: item.imageSrc,
+      imageAlt: item.imageAlt,
+    })
   })
 
   return (

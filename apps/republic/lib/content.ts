@@ -456,6 +456,22 @@ export const SCREENING = {
   submit: 'SUBMIT FOR SCREENING',
 }
 
+// Which bell-curve wojak the declared IQ lands on — shown live next to the
+// slider AND stamped into the small IQ field on both documents (and the
+// downloadable PNG). Bands follow the meme itself: the curve's ±1σ midwit
+// region is 85–115.
+export interface IqFace {
+  src: string
+  alt: string
+  caption: string
+}
+
+export function iqFaceFor(iq: number): IqFace {
+  if (iq < 85) return { src: '/iq-face-low.png', alt: 'Blissful low-IQ wojak', caption: 'BLISSFUL. NO NOTES.' }
+  if (iq <= 115) return { src: '/iq-face-mid.png', alt: 'Crying midwit wojak', caption: 'MIDWIT. CONDOLENCES.' }
+  return { src: '/iq-face-high.png', alt: 'Hooded enlightened wojak', caption: 'ENLIGHTENED. ALLEGEDLY.' }
+}
+
 export const PROCESSING_HEADING = 'PROCESSING APPLICATION'
 
 export const PROCESSING_LINES = [

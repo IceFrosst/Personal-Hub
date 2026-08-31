@@ -1,9 +1,12 @@
 import type { ApplicationState } from './applicationContext'
-import { DOCUMENT_PROGRESS, SCREENING } from './content'
+import { DOCUMENT_PROGRESS, SCREENING, iqFaceFor } from './content'
 
 export interface VisaAddendumContent {
   label: string
   value: string
+  /** Optional small stamp image (the IQ wojak face) rendered beside the value. */
+  imageSrc?: string
+  imageAlt?: string
 }
 
 /** The selected/typed visa-specific answer printed on both progress and final documents. */
@@ -39,7 +42,13 @@ export function getScreeningAddenda(state: ApplicationState): VisaAddendumConten
     addenda.push({ label: DOCUMENT_PROGRESS.screeningLabel, value: state.screeningAnswer })
   }
   if (state.declaredIq !== null) {
-    addenda.push({ label: DOCUMENT_PROGRESS.iqLabel, value: `${state.declaredIq}${SCREENING.iqValueSuffix}` })
+    const face = iqFaceFor(state.declaredIq)
+    addenda.push({
+      label: DOCUMENT_PROGRESS.iqLabel,
+      value: `${state.declaredIq}${SCREENING.iqValueSuffix}`,
+      imageSrc: face.src,
+      imageAlt: face.alt,
+    })
   }
   return addenda
 }

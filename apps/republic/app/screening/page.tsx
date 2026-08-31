@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
-import { SCREENING, SCREENING_QUESTIONS } from '@/lib/content'
+import { SCREENING, SCREENING_QUESTIONS, iqFaceFor } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep, playStampThunk } from '@/lib/sound'
 
@@ -52,6 +52,9 @@ export default function ScreeningPage() {
 
   const question =
     SCREENING_QUESTIONS.find((q) => q.question === state.screeningQuestion) ?? SCREENING_QUESTIONS[0]
+
+  const face = iqFaceFor(iq)
+  const fillPercent = Math.round(((iq - SCREENING.iqMin) / (SCREENING.iqMax - SCREENING.iqMin)) * 100)
 
   function pickAnswer(option: string) {
     playBeep()
@@ -100,7 +103,22 @@ export default function ScreeningPage() {
           {/* Static meme chart — decorative context for the slider, no event
               details, no external requests (served from /public). */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/iq-bell-curve.png" alt={SCREENING.iqImageAlt} className="mt-3 w-full border-2 border-navy/30" />
+          <img src="/iq-bell-curve.jpg" alt={SCREENING.iqImageAlt} className="mt-3 w-full border-2 border-navy/30" />
+
+          {/* Live verdict — the wojak the declared IQ currently lands on. */}
+          <div className="mt-4 flex items-center justify-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={face.src}
+              alt={face.alt}
+              className="h-16 w-16 border-2 border-navy bg-white object-contain"
+            />
+            <div className="text-left">
+              <p className="font-stamp text-2xl uppercase tracking-widest text-navy">{iq}</p>
+              <p className="text-[9px] uppercase tracking-wide text-navy/60">{face.caption}</p>
+            </div>
+          </div>
+
           <input
             type="range"
             min={SCREENING.iqMin}
@@ -108,12 +126,16 @@ export default function ScreeningPage() {
             value={iq}
             onChange={(event) => setIq(Number(event.target.value))}
             aria-label={SCREENING.iqHeading}
-            className="mt-3 h-11 w-full cursor-pointer accent-approve"
+            className="iq-slider mt-4 w-full cursor-pointer"
+            style={{
+              background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
+            }}
           />
-          <p className="text-center font-stamp text-base uppercase tracking-widest text-navy">
-            {iq}
-            <span className="text-[10px] tracking-wide text-navy/50">{SCREENING.iqValueSuffix}</span>
-          </p>
+          <div className="mt-1 flex justify-between text-[9px] uppercase tracking-wide text-navy/50">
+            <span>{SCREENING.iqMin}</span>
+            <span>100</span>
+            <span>{SCREENING.iqMax}</span>
+          </div>
         </div>
 
         <button

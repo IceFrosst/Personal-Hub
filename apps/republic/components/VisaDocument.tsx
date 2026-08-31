@@ -31,6 +31,9 @@ export interface VisaDocumentAddendum {
   key: string
   label: string
   value: string | null
+  /** Optional small stamp image (e.g. the declared-IQ wojak face) shown beside the value. */
+  imageSrc?: string
+  imageAlt?: string
   animate?: boolean
 }
 
@@ -148,10 +151,18 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
             <span className="shrink-0 text-navy">{item.label}</span>
             {item.value ? (
               <span
-                className={`${size === 'full' ? 'w-full break-words text-left leading-snug' : 'truncate text-right'} font-bold text-navy ${item.animate ? 'animate-field-fill' : ''}`}
+                className={`${size === 'full' ? 'flex w-full items-center gap-2 text-left leading-snug' : 'flex min-w-0 items-center justify-end gap-1'} font-bold text-navy ${item.animate ? 'animate-field-fill' : ''}`}
                 title={item.value}
               >
-                {item.value}
+                {item.imageSrc && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.imageSrc}
+                    alt={item.imageAlt ?? ''}
+                    className={`shrink-0 border border-navy bg-white object-contain ${size === 'full' ? 'h-10 w-10' : 'h-5 w-5'}`}
+                  />
+                )}
+                <span className={size === 'full' ? 'break-words' : 'truncate'}>{item.value}</span>
               </span>
             ) : (
               <Blank size={size} />
