@@ -551,7 +551,7 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 ## Next
 
 **Handoff:** Dedicated Republic Calendar access is configured and verified independently
-of Lock In. Deploy this cleanup pass; the applicant-number backend setup remains.
+of Lock In. The applicant-number backend setup remains.
 
 - **Calendar integration ready:** Google Calendar API enabled; dedicated service account
   shared with the primary calendar using “See only free/busy (hide details)”; production
