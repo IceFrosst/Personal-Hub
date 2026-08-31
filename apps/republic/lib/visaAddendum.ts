@@ -1,9 +1,12 @@
 import type { ApplicationState } from './applicationContext'
-import { DOCUMENT_PROGRESS } from './content'
+import { DOCUMENT_PROGRESS, SCREENING, iqFaceFor } from './content'
 
 export interface VisaAddendumContent {
   label: string
   value: string
+  /** Optional small stamp image (the IQ wojak face) rendered beside the value. */
+  imageSrc?: string
+  imageAlt?: string
 }
 
 /** The selected/typed visa-specific answer printed on both progress and final documents. */
@@ -26,4 +29,26 @@ export function getVisaAddendum(state: ApplicationState): VisaAddendumContent | 
     default:
       return null
   }
+}
+
+/**
+ * Secondary-screening addenda (absurd-question answer + self-declared IQ)
+ * printed on both the progress card and the final document — shared so the
+ * two documents (and the downloadable PNG canvas) can never disagree.
+ */
+export function getScreeningAddenda(state: ApplicationState): VisaAddendumContent[] {
+  const addenda: VisaAddendumContent[] = []
+  if (state.screeningAnswer) {
+    addenda.push({ label: DOCUMENT_PROGRESS.screeningLabel, value: state.screeningAnswer })
+  }
+  if (state.declaredIq !== null) {
+    const face = iqFaceFor(state.declaredIq)
+    addenda.push({
+      label: DOCUMENT_PROGRESS.iqLabel,
+      value: `${state.declaredIq}${SCREENING.iqValueSuffix}`,
+      imageSrc: face.src,
+      imageAlt: face.alt,
+    })
+  }
+  return addenda
 }

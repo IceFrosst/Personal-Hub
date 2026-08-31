@@ -31,6 +31,9 @@ export interface VisaDocumentAddendum {
   key: string
   label: string
   value: string | null
+  /** Optional small stamp image (e.g. the declared-IQ wojak face) shown beside the value. */
+  imageSrc?: string
+  imageAlt?: string
   animate?: boolean
 }
 
@@ -66,7 +69,7 @@ const SIZE = {
     inner: 'p-3',
     title: 'text-base',
     subtitle: 'text-[10px]',
-    photo: 'h-28 w-28',
+    photo: 'h-24 w-24',
     photoText: 'text-[9px] px-1',
     photoGap: 'gap-3',
     grid: 'w-full text-[12px] gap-x-4 gap-y-3',
@@ -103,7 +106,10 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
           </div>
         )}
 
-        <div className={`mt-2 flex ${size === 'full' ? 'flex-col items-center' : 'items-start'} ${s.photoGap}`}>
+        {/* Photo left, fields right — SAME horizontal layout in both sizes
+            (the full document used to stack the photo above the grid; owner
+            asked for the horizontal progress-card arrangement everywhere). */}
+        <div className={`mt-2 flex items-start ${s.photoGap}`}>
           <div className={`shrink-0 overflow-hidden border border-navy bg-[#cfc8b8] ${s.photo}`}>
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -148,10 +154,18 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
             <span className="shrink-0 text-navy">{item.label}</span>
             {item.value ? (
               <span
-                className={`${size === 'full' ? 'w-full break-words text-left leading-snug' : 'truncate text-right'} font-bold text-navy ${item.animate ? 'animate-field-fill' : ''}`}
+                className={`${size === 'full' ? 'flex w-full items-center gap-2 text-left leading-snug' : 'flex min-w-0 items-center justify-end gap-1'} font-bold text-navy ${item.animate ? 'animate-field-fill' : ''}`}
                 title={item.value}
               >
-                {item.value}
+                {item.imageSrc && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.imageSrc}
+                    alt={item.imageAlt ?? ''}
+                    className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-10 w-10' : 'h-5 w-5'}`}
+                  />
+                )}
+                <span className={size === 'full' ? 'break-words' : 'truncate'}>{item.value}</span>
               </span>
             ) : (
               <Blank size={size} />

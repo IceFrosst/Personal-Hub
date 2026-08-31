@@ -93,8 +93,7 @@ export const LANDING = {
   // line below — this second line is the form-code line, and reads plainly
   // as "ENTRY DECLARATION" (no "FORM 1G-NAS" prefix; that internal form-code
   // string was cut per owner feedback, see CLAUDE.md).
-  subtitle: 'BORDER CONTROL',
-  formCode: 'ENTRY DECLARATION',
+  subtitle: 'BORDER CONTROL — ENTRY DECLARATION',
   applicantNumberPrefix: 'APPLICANT №',
   // Shown until lib/api.ts#getApplicantNumber resolves inside a client effect
   // (never during render — see the hydration-safety Gotcha in CLAUDE.md).
@@ -102,8 +101,17 @@ export const LANDING = {
   question: 'DO YOU HAVE SOMETHING TO DECLARE?',
   yes: 'YES',
   no: 'NO',
+  genderQuestion: 'GENDER OF APPLICANT?',
   priorityStamp: 'PRIORITY',
 }
+
+// Asked on the landing card right after the follow-up question is cleared.
+// `value` is what the passport's SEX field prints (see STICKER_LABELS.sex).
+export const GENDER_OPTIONS: { label: string; value: string }[] = [
+  { label: 'MALE', value: 'M' },
+  { label: 'FEMALE', value: 'F' },
+  { label: 'CLASSIFIED', value: 'X' },
+]
 
 /** Zero-padded to 4 digits. The underlying number is now a real global
  *  sequential count from the `republic.next_applicant_number()` Supabase RPC
@@ -136,6 +144,15 @@ export const IDENTITY = {
   nameLabel: 'NAME OF APPLICANT:',
   namePlaceholder: '____________________',
   nameRequiredError: 'NAME REQUIRED. THE MINISTRY DOES NOT PROCESS ANONYMOUS APPLICANTS.',
+  continue: 'CONTINUE',
+}
+
+// Instagram handle is asked on its own page AFTER the visa type is chosen and
+// the appointment is booked, right before the photo (owner request) — see
+// app/handle/page.tsx.
+export const HANDLE_STEP = {
+  heading: 'PASSPORT REGISTRY',
+  note: 'THE MINISTRY REQUIRES YOUR INSTAGRAM FOR PASSPORT ISSUANCE. THIS IS NORMAL.',
   handleLabel: 'PASSPORT №: @',
   handlePlaceholder: 'instagram_handle',
   handleRequiredError: 'INSTAGRAM HANDLE REQUIRED. NO HANDLE, NO PASSPORT, NO ENTRY.',
@@ -267,23 +284,42 @@ export const SPECIAL_REPLIES = [
 // button; picking a time immediately persists it and navigates on.
 // ---------------------------------------------------------------------------
 
+// "Consulate" was dropped from every user-facing appointment string per
+// owner feedback (unclear word) — the heading is just APPOINTMENT and the
+// calendar copy refers to "the calendar" / "the Ministry" instead.
 export const APPOINTMENT = {
-  heading: 'CONSULATE APPOINTMENT',
-  daySub: 'SELECT AN AVAILABLE DAY. THE CONSULATE THANKS YOU FOR YOUR PATIENCE, WHICH IS MANDATORY.',
-  timeSub: 'SELECT A TIME. THE WHOLE DAY IS OPEN.',
-  loadingDays: 'CHECKING THE CONSULATE CALENDAR…',
+  heading: 'APPOINTMENT',
+  daySub: 'SELECT AN AVAILABLE DAY.',
+  timeSub: 'SELECT A TIME OF DAY. EXACT HOURS ARE ASSIGNED BY THE MINISTRY.',
+  loadingDays: 'CHECKING THE CALENDAR…',
   unavailableHeading: 'NO APPOINTMENTS AVAILABLE.',
   unavailableNote:
-    'THE CONSULATE CALENDAR IS FULLY BOOKED OR TEMPORARILY UNREACHABLE. TRY AGAIN LATER, OR MESSAGE THE MINISTRY DIRECTLY.',
+    'THE CALENDAR IS FULLY BOOKED OR TEMPORARILY UNREACHABLE. TRY AGAIN LATER, OR MESSAGE THE MINISTRY DIRECTLY.',
+  emptyMonth: 'NO FREE DAYS THIS MONTH. THE MINISTRY IS IN DEMAND.',
   changeDay: 'CHANGE DAY',
 }
 
-// Fixed time choices shown once a completely-free calendar day is picked. A
-// day only ever reaches this list when the WHOLE local day had zero busy
-// intervals (see lib/googleCalendar.ts), so every time below is offered as
-// available — deliberately no per-time unavailability logic, unlike the old
-// joke slot pool further down this file.
-export const APPOINTMENT_TIMES: string[] = ['09:00', '10:30', '12:00', '14:00', '15:30', '17:00']
+// Time-of-day choices shown once a completely-free calendar day is picked. A
+// day only ever reaches this step when the WHOLE local day had zero busy
+// intervals (see lib/googleCalendar.ts), so every period below is offered as
+// available — deliberately vague day-parts, never clock hours (owner
+// request), and no per-period unavailability logic, unlike the old joke slot
+// pool further down this file. Per-visa rules: SEEK ADVICE PERMIT
+// (consultation) skips the time step entirely — picking a day IS the whole
+// appointment — and only the SIDEQUEST VISA (tourist) additionally offers
+// FULL DAY and MULTI-DAY expedition durations.
+const BASE_APPOINTMENT_PERIODS: string[] = ['MORNING', 'AFTERNOON', 'EVENING']
+const SIDEQUEST_APPOINTMENT_PERIODS: string[] = [...BASE_APPOINTMENT_PERIODS, 'FULL DAY', 'MULTI-DAY']
+
+/**
+ * Time-of-day options for a visa, or null when the visa requires no time at
+ * all (picking a day completes the appointment immediately).
+ */
+export function appointmentPeriodsFor(visaType: VisaType): string[] | null {
+  if (visaType === 'consultation') return null
+  if (visaType === 'tourist') return SIDEQUEST_APPOINTMENT_PERIODS
+  return BASE_APPOINTMENT_PERIODS
+}
 
 /** Uppercase display label for a 'YYYY-MM-DD' date string, e.g. "SAT, 14 JUN 2025". */
 export function formatSlotDateLabel(dateIso: string): string {
@@ -300,9 +336,22 @@ export function formatSlotDateLabel(dateIso: string): string {
     .toUpperCase()
 }
 
-/** The single unambiguous string stored in ApplicationState#slot — date and time together, never just one or the other. */
-export function formatSlot(dateIso: string, time: string): string {
-  return `${formatSlotDateLabel(dateIso)} — ${time}`
+/**
+ * The single unambiguous string stored in ApplicationState#slot. With a
+ * period it's "SAT, 14 JUN 2025 — MORNING"; without one (visas that need no
+ * time, i.e. consultation) it's just the date label.
+ */
+export function formatSlot(dateIso: string, period?: string): string {
+  const label = formatSlotDateLabel(dateIso)
+  return period ? `${label} — ${period}` : label
+}
+
+/** Uppercase month heading for the appointment calendar grid, e.g. "SEPTEMBER 2026". */
+export function formatMonthLabel(monthIso: string): string {
+  const [year, month] = monthIso.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, 1))
+    .toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' })
+    .toUpperCase()
 }
 
 // ---------------------------------------------------------------------------
@@ -370,6 +419,76 @@ export const IDENTITY_VERIFICATION = {
 // Processing
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Secondary screening — the "absurd question" step. GUARANTEED for every
+// applicant (owner request: 100% occurrence, no probability roll), with the
+// question itself drawn from a small rotation pool, picked once per session
+// and persisted (ApplicationState#screeningQuestion) so a refresh doesn't
+// re-roll it. The IQ self-assessment (bell-curve meme + slider) is always
+// shown alongside, regardless of which question was drawn.
+// ---------------------------------------------------------------------------
+
+export interface ScreeningQuestion {
+  question: string
+  options: string[]
+}
+
+export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
+  {
+    question: 'A PIGEON HAS BEEN FOLLOWING YOU FOR THREE BLOCKS. WHAT DO YOU DO?',
+    options: ['NOTHING. IT HAS CLEARANCE.', 'FOLLOW IT BACK.', 'FILE A COMPLAINT WITH THE PIGEON.'],
+  },
+  {
+    question: 'HOW MANY UNREAD MESSAGES ARE YOU CURRENTLY IGNORING?',
+    options: ['A NORMAL AMOUNT.', 'THE NUMBER IS CLASSIFIED.', 'I AM THE UNREAD MESSAGE.'],
+  },
+  {
+    question: 'YOU ARE SCARED OF SPIDERS. A SPIDERMAN APPEARS IN YOUR ROOM. WHAT DO YOU DO?',
+    options: ['YOU KILL IT.', 'CATCH AND RELEASE. I AM MERCIFUL.', 'WE HAVE A ROOMMATE AGREEMENT.'],
+  },
+  {
+    question: 'YOUR ALARM RINGS. FIRST OFFICIAL ACT?',
+    options: [
+      'SNOOZE. WE NEGOTIATE DAILY.',
+      'STAND UP IMMEDIATELY LIKE A PSYCHOPATH.',
+      'MATH: \u201CIF I SKIP BREAKFAST AND TELEPORT…\u201D',
+    ],
+  },
+  {
+    question: 'A GROUP PHOTO IS BEING TAKEN. WHERE ARE YOU?',
+    options: ['MIDDLE. NATURAL LEADER.', 'EDGE, FOR EASY CROPPING.', 'HOLDING THE PHONE. UNCROPPABLE. IMMORTAL.'],
+  },
+]
+
+export const SCREENING = {
+  heading: 'SECONDARY SCREENING',
+  sub: 'YOU HAVE BEEN RANDOMLY SELECTED FOR ADDITIONAL QUESTIONING. EVERYONE IS.',
+  iqHeading: 'COGNITIVE SELF-ASSESSMENT',
+  iqInstruction: 'DECLARE YOUR IQ. THE MINISTRY WILL NOT VERIFY IT, BUT IT WILL JUDGE.',
+  iqImageAlt: 'IQ bell curve distribution chart, official Ministry issue',
+  iqMin: 55,
+  iqMax: 145,
+  iqDefault: 100,
+  iqValueSuffix: ' — SELF-DECLARED, UNVERIFIED',
+  submit: 'SUBMIT FOR SCREENING',
+}
+
+// Which bell-curve wojak the declared IQ lands on — shown live next to the
+// slider AND stamped into the small IQ field on both documents (and the
+// downloadable PNG). Bands follow the meme itself: the curve's ±1σ midwit
+// region is 85–115.
+export interface IqFace {
+  src: string
+  alt: string
+  caption: string
+}
+
+export function iqFaceFor(iq: number): IqFace {
+  if (iq < 85) return { src: '/iq-face-low.jpg', alt: 'Blissful low-IQ wojak', caption: 'BLISSFUL. NO NOTES.' }
+  if (iq <= 115) return { src: '/iq-face-mid.jpg', alt: 'Crying midwit wojak', caption: 'MIDWIT. CONDOLENCES.' }
+  return { src: '/iq-face-high.jpg', alt: 'Hooded enlightened wojak', caption: 'ENLIGHTENED. ALLEGEDLY.' }
+}
+
 export const PROCESSING_HEADING = 'PROCESSING APPLICATION'
 
 export const PROCESSING_LINES = [
@@ -395,7 +514,7 @@ export const APPROVED = {
   valid: 'VALID: until further notice.',
   conditions: 'CONDITIONS: bring snacks.',
   download: 'DOWNLOAD VISA',
-  proceed: 'PROCEED TO CONSULATE',
+  proceed: 'REPORT TO THE MINISTRY',
   rendering: 'RENDERING VISA…',
   filePrefix: 'visa-',
   fallbackFileSlug: 'dictatorship-of-ignas',
@@ -411,6 +530,7 @@ export const STICKER_LABELS = {
   name: 'NAME:',
   passport: 'PASSPORT №:',
   visaType: 'VISA TYPE:',
+  sex: 'SEX:',
   serial: 'SERIAL №:',
   reference: 'REFERENCE №:',
   issued: 'ISSUED:',
@@ -462,6 +582,8 @@ export const DOCUMENT_PROGRESS = {
   pitchLabel: 'PITCH:',
   statementLabel: 'STATEMENT:',
   interviewAnswersLabel: 'INTERVIEW:',
+  screeningLabel: 'SCREENING:',
+  iqLabel: 'DECLARED IQ:',
 }
 
 // ---------------------------------------------------------------------------

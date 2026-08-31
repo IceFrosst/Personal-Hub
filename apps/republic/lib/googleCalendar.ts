@@ -23,16 +23,16 @@
 
 import 'server-only'
 import { createSign } from 'crypto'
-import { buildCandidateWindow, freeDatesFromResponse } from './calendarAvailability'
+import { WINDOW_DAYS, buildCandidateWindow, freeDatesFromResponse } from './calendarAvailability'
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const FREEBUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy'
 const SCOPE = 'https://www.googleapis.com/auth/calendar.freebusy'
 
-// Bounded upcoming window — see the Requirements this implements: "search a
-// bounded upcoming window (e.g. next 30 days)". Also caps the day-walking
-// loop below at a sane size regardless of any malformed interval data.
-const WINDOW_DAYS = 30
+// Bounded upcoming window — now lives in lib/calendarAvailability.ts so the
+// client-side appointment calendar can browse the same span of months the
+// server actually queried. Still caps the day-walking loop below at a sane
+// size regardless of any malformed interval data.
 
 export interface FreeDatesResult {
   ok: true

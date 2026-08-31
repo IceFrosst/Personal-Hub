@@ -5,7 +5,7 @@ import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
-import { getVisaAddendum } from '@/lib/visaAddendum'
+import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 
 /**
  * Plays the field-fill reveal exactly once per field per browser session —
@@ -66,7 +66,7 @@ export function DocumentProgress() {
   const referenceAnimate = useRevealAnimation('reference', Boolean(state.referenceCode))
   const issuedAnimate = useRevealAnimation('issued', Boolean(state.issuedDate))
   const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
-  const conditionsAnimate = useRevealAnimation('conditions', Boolean(state.visaType))
+  const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
   const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
   const subStepAddendum = getVisaAddendum(state)
@@ -98,13 +98,7 @@ export function DocumentProgress() {
     },
     { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
-    {
-      key: 'conditions',
-      label: STICKER_LABELS.conditions,
-      value: visa ? APPROVED.conditionsValue : null,
-      span: true,
-      animate: conditionsAnimate,
-    },
+    { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
   ]
 
   const addenda: VisaDocumentAddendum[] = [
@@ -118,6 +112,15 @@ export function DocumentProgress() {
       animate: subStepAnimate,
     })
   }
+  getScreeningAddenda(state).forEach((item, index) => {
+    addenda.push({
+      key: `screening-${index}`,
+      label: item.label,
+      value: item.value,
+      imageSrc: item.imageSrc,
+      imageAlt: item.imageAlt,
+    })
+  })
 
   return (
     <div className="sticky top-0 z-20 mb-2">
