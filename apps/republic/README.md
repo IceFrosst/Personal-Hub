@@ -33,9 +33,9 @@ context so it survives client-side navigation between them. Landing restarts the
 *application* on every visit but preserves identity already on file this session (real
 border control doesn't re-check your passport every time you walk up to the counter).
 
-A small passport-styled progress card is pinned to the top of every page from
+A small mini-visa-card progress card is pinned to the top of every page from
 `/identity` onward (never the landing, which never scrolls, and never `/visa-issued`,
-where the big visa sticker is the payoff and stands alone) — see "The passport card"
+where the big visa sticker is the payoff and stands alone) — see "The progress card"
 below.
 
 ## Visas on offer
@@ -56,31 +56,36 @@ appointment picker — there's no "continue" confirmation screen in between anym
 
 There's no login. `/identity` collects a name + self-reported Instagram handle before
 visa selection; the final step of *every* visa is a selfie (composited into the
-downloadable visa sticker), and the last screen's "PROCEED TO CONSULATE" button opens
-`https://ig.me/m/ignas_simanavicius` and best-effort copies a reference line
-(`VISA TYPE · RIG-XXXX · slot`) to the clipboard — Instagram's `ig.me` deep links can't
-pre-fill message text, so the flow is open thread → paste (the reference line is always
-shown on-screen too, in case the copy silently fails). Ignas looks up the reference code
-to see what was submitted and confirms/declines by DM.
+downloadable visa sticker, which already prints the reference № on the sticker itself), and the last
+screen's "PROCEED TO CONSULATE" button opens `https://ig.me/m/ignas_simanavicius` and
+best-effort copies a reference line (`VISA TYPE · RIG-XXXX · slot`) to the clipboard —
+Instagram's `ig.me` deep links can't pre-fill message text, so the flow is open thread →
+paste. There's no permanent on-screen reference-line box (redundant with the sticker); a
+small truthful status note appears under the button instead — "copied, paste it in the
+DM" on success, or the reference line shown inline in small text with a manual-copy note
+on failure. Ignas looks up the reference code to see what was submitted and
+confirms/declines by DM.
 
-## The passport card
+## The progress card
 
-`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A small sticky-
-top passport booklet: a dark navy "cover" with a "PASSPORT" heading and a purely
-decorative machine-readable-zone line along the bottom, and a lighter inner "page" with
-a small photo box (solid black/silhouette until biometrics are captured, then the
-persisted selfie thumbnail — falls back to black again if the thumbnail never made it)
-next to the data fields: DECLARATION (checked the moment you reach `/identity`) → NAME +
-PASSPORT № → VISA TYPE → the relevant sub-step's answer (truncated) → APPOINTMENT slot →
-BIOMETRICS → STATUS (only once actually approved, though `/visa-issued` — the only page
-where that would matter — doesn't show this card at all). Unfilled fields render as a
-blank ruled line; a field (including the photo) animates once, the moment it's first
-filled, via a small "field-fill" pop — but only once ever per browser session
-(`lib/formProgress.ts` tracks which field keys have already played the animation in
-`sessionStorage`, separate from the funnel's own state, so refreshing mid-funnel never
-replays it for something that was already on the form). `prefers-reduced-motion`
-collapses the animation to a single instant frame via the same global rule every other
-animation in this app uses — no special-casing needed.
+`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A compact mini
+visa card, same design language as the final `/visa-issued` sticker shrunk down: a navy
+double-line border on paper, a small "DICTATORSHIP OF IGNAS" header, an oval photo box
+(solid black/silhouette until biometrics are captured, then the persisted selfie
+thumbnail — falls back to black again if the thumbnail never made it) and a short
+barcode strip along the bottom. The data fields sit in a two-column grid next to the
+photo, paired NAME + PASSPORT № / VISA TYPE + APPOINTMENT / DECLARATION + BIOMETRICS,
+with the relevant sub-step's answer (truncated) and, once actually approved, STATUS each
+spanning both columns (`/visa-issued` — the only page where STATUS would matter — doesn't
+show this card at all). Unfilled fields render as a blank ruled line; a field (including
+the photo) animates once, the moment it's first filled, via a small "field-fill" pop —
+but only once ever per browser session (`lib/formProgress.ts` tracks which field keys
+have already played the animation in `sessionStorage`, separate from the funnel's own
+state, so refreshing mid-funnel never replays it for something that was already on the
+form). `prefers-reduced-motion` collapses the animation to a single instant frame via the
+same global rule every other animation in this app uses — no special-casing needed. The
+two-column layout keeps the card noticeably shorter than the old single-column
+passport-booklet design while staying readable at 390px.
 
 ## Applicant number
 

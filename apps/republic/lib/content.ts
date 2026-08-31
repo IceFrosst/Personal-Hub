@@ -375,7 +375,7 @@ export const STICKER_LABELS = {
 // ---------------------------------------------------------------------------
 
 export const DOCUMENT_PROGRESS = {
-  title: 'PASSPORT',
+  title: 'DICTATORSHIP OF IGNAS',
   declarationLabel: 'DECLARATION:',
   declarationValue: 'SOMETHING TO DECLARE',
   nameLabel: 'NAME:',
@@ -395,11 +395,6 @@ export const DOCUMENT_PROGRESS_SUBSTEP_LABELS: Partial<Record<VisaType, string>>
   special: 'STATEMENT:',
   fiance: 'INTERVIEW:',
 }
-
-// Purely decorative machine-readable-zone flavor line for the passport-styled
-// components/DocumentProgress.tsx — not functionally parsed, just dressing.
-// Padded to the real TD3 MRZ line length (44 chars) with `<` filler.
-export const PASSPORT_MRZ_LINE = 'P<IGNDICTATORSHIP<OF<IGNAS'.padEnd(44, '<')
 
 // ---------------------------------------------------------------------------
 // Officer mood — rotates by hour
@@ -542,8 +537,9 @@ export const TERMS_PARAGRAPHS: string[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// Deep link — ig.me can't prefill DM text, so the flow is: copy the reference
-// line to the clipboard, then open the DM thread and paste it.
+// Deep link — ig.me can't prefill DM text, so the flow is: open the DM thread
+// synchronously (avoids popup blocking), then best-effort copy the reference
+// line to the clipboard so the applicant can paste it.
 // ---------------------------------------------------------------------------
 
 export const CONSULATE_HANDLE = 'ignas_simanavicius'
@@ -557,9 +553,10 @@ export function buildReferenceLine(params: {
   return `${params.visaType} ${params.referenceCode} — ${params.slot}`
 }
 
-export const REFERENCE_LINE_LABEL = 'YOUR REFERENCE LINE (for the DM):'
-export const COPY_BUTTON_LABEL = 'COPY REFERENCE LINE'
-export const COPY_INSTRUCTION =
-  'REFERENCE LINE COPIED. PASTE IT INTO THE DM. THE MINISTRY DOES NOT PRE-FILL FORMS IT DID NOT WRITE.'
-export const COPY_FAILED_INSTRUCTION =
-  'COULD NOT COPY AUTOMATICALLY. COPY THE REFERENCE LINE ABOVE MANUALLY AND PASTE IT INTO THE DM.'
+// The reference № is already printed on the visa sticker itself, so there is
+// no separate always-visible "reference line" box on /visa-issued anymore —
+// tapping PROCEED best-effort copies it straight to the clipboard instead.
+// COPY_FAILED_NOTE is only shown alongside the reference line itself (as
+// small inline text) when the clipboard write actually failed.
+export const COPY_INSTRUCTION = 'REFERENCE LINE COPIED — PASTE IT IN THE DM.'
+export const COPY_FAILED_INSTRUCTION = 'COULD NOT COPY AUTOMATICALLY. COPY THE LINE BELOW AND PASTE IT INTO THE DM.'

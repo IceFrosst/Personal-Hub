@@ -173,34 +173,42 @@ the Dictatorship is also a full democracy.
   nice-to-have. (The longer title was checked against the available card width at build
   time and still fits on one line with margin; redo that check if the title changes
   again.)
-- **`DocumentProgress` is a small passport, not the old flat "FORM 1G-NAS" strip, and it
-  never renders on `/visa-issued`.** `PageShell`'s `showProgress` prop mounts it; every
-  funnel page from `/identity` through `/processing` passes it, but `/visa-issued`
-  deliberately doesn't (the canvas-composited visa sticker is the payoff and stands
-  alone). The card is a dark navy "cover" (`DOCUMENT_PROGRESS.title` = "PASSPORT") over a
-  lighter inner "page" holding a small photo box + the data rows, plus
-  `PASSPORT_MRZ_LINE` (a purely decorative, non-functional machine-readable-zone string,
-  padded to the real 44-char TD3 length with `<` filler) along the bottom of the cover.
-  The photo box is `bg-black` by default (a silhouette) and only shows an `<img>` when
-  `state.selfieThumbnailUrl` is set — never `selfieDataUrl` (DocumentProgress has no
-  business holding the full-res capture) — so it stays solid black if biometrics haven't
-  run yet **or** if thumbnail generation failed, which is the intended fallback, not a
-  bug. The photo reveal uses the same one-time `useRevealAnimation` hook as the text
-  rows (key `'photo'`).
+- **`DocumentProgress` is a compact mini visa card, not the old flat "FORM 1G-NAS" strip
+  or the later single-column passport booklet, and it never renders on `/visa-issued`.**
+  `PageShell`'s `showProgress` prop mounts it; every funnel page from `/identity` through
+  `/processing` passes it, but `/visa-issued` deliberately doesn't (the
+  canvas-composited visa sticker is the payoff and stands alone). It reuses the visa
+  sticker's own design language, shrunk down: a navy double-line border on paper, a
+  small `DOCUMENT_PROGRESS.title` ("DICTATORSHIP OF IGNAS") header, an oval photo box on
+  the left, and a `.barcode-mini` strip (see `app/globals.css`) along the bottom. The
+  data fields sit in a two-column CSS grid next to the photo (paired NAME + PASSPORT № /
+  VISA TYPE + APPOINTMENT / DECLARATION + BIOMETRICS, via `Row`'s `span` prop the
+  sub-step summary and STATUS rows run full-width across both columns) — deliberately
+  shorter than the old single-column layout while staying readable at 390px. The photo
+  box is `bg-black` by default (a silhouette), `rounded-[50%]` to match the oval frame
+  on the sticker, and only shows an `<img>` when `state.selfieThumbnailUrl` is set —
+  never `selfieDataUrl` (DocumentProgress has no business holding the full-res capture)
+  — so it stays solid black if biometrics haven't run yet **or** if thumbnail
+  generation failed, which is the intended fallback, not a bug. The photo reveal uses
+  the same one-time `useRevealAnimation` hook as the text rows (key `'photo'`).
 - **`Footer` takes a `compact` prop** (smaller margins/padding/text) used only by the
   landing, to fit the no-scroll budget; every other page still gets the normal footer.
 - **Instagram deep link cannot pre-fill DM text, and never blocks on the clipboard.**
-  `ig.me/m/<handle>` opens the thread but ignores any query/text params, so
-  `/visa-issued` always shows the reference line (`buildReferenceLine` in
-  `lib/content.ts`, format `"<VISA NAME> <RIG-XXXX> — <slot>"`) **permanently on
-  screen** (never only after a copy attempt), plus a manual "copy" button. The
-  "PROCEED TO CONSULATE" button calls `window.open(CONSULATE_DM_URL, ...)`
-  **synchronously, first** — calling it after an `await`'d clipboard write breaks the
-  user-gesture chain and some browsers silently popup-block it — then attempts
-  `navigator.clipboard.writeText` as a genuinely non-blocking side effect. The status
-  message is truthful: `COPY_INSTRUCTION` only renders on an actual resolved write,
-  `COPY_FAILED_INSTRUCTION` on a rejected one; it never claims success it didn't have.
-  The handle is `ignas_simanavicius` — the **only** place it should be hardcoded is
+  `ig.me/m/<handle>` opens the thread but ignores any query/text params. `/visa-issued`
+  has no permanent on-screen reference-line box anymore — the reference № is already
+  printed on the visa sticker itself, so a separate always-visible copy of
+  `buildReferenceLine` (`lib/content.ts`, format `"<VISA NAME> <RIG-XXXX> — <slot>"`)
+  would just be redundant. Instead, the "PROCEED TO CONSULATE" button calls
+  `window.open(CONSULATE_DM_URL, ...)` **synchronously, first** — calling it after an
+  `await`'d clipboard write breaks the user-gesture chain and some browsers silently
+  popup-block it — then attempts `navigator.clipboard.writeText` as a genuinely
+  non-blocking side effect (`copyReferenceLine`, also reachable from anywhere else that
+  needs it, though currently only `handleProceed` calls it). The status note under the
+  button is truthful: `COPY_INSTRUCTION` ("copied — paste it in the DM") only renders on
+  an actual resolved write; on a rejected one, `COPY_FAILED_INSTRUCTION` renders
+  *alongside the reference line itself* in small inline text (since it's no longer
+  shown anywhere else on the page) so the applicant can still copy it manually. The
+  handle is `ignas_simanavicius` — the **only** place it should be hardcoded is
   `CONSULATE_HANDLE`/`CONSULATE_DM_URL` in `lib/content.ts`.
 - **Hydration-unsafe values must never be read/computed during render** (this app is
   statically prerendered — the server render is frozen at build time forever, so
@@ -302,10 +310,12 @@ processing (progress bar stutters at 99%, cycling Interpol-style gag lines, gene
 the reference code and writes the **one** finalized application record — a refresh here
 before or after that point resumes correctly, never duplicating) → visa issued
 (canvas-composited sticker: selfie in an oval frame, name + handle, baked-in APPROVED
-stamp, serial + reference code; download button; reference line always visible on
-screen; "PROCEED TO CONSULATE" opens the `ig.me` DM thread immediately and best-effort
-copies the reference line with a truthful success/failure message, plus a manual copy
-button; **no passport progress card on this page** — the sticker stands alone).
+stamp, serial + reference code; download button; "PROCEED TO CONSULATE" opens the
+`ig.me` DM thread immediately and best-effort copies the reference line, showing a
+truthful status note under the button (success: short confirmation; failure: the
+reference line itself, inline, plus a manual-copy note) — no permanent on-screen
+reference-line box, since the sticker already prints the reference №; **no progress
+card on this page** — the sticker stands alone).
 
 **Owner feedback round — this pass:**
 - **Rebranded "Republic of Ignas" → "Dictatorship of Ignas"** everywhere user-facing:
@@ -316,7 +326,9 @@ button; **no passport progress card on this page** — the sticker stands alone)
   with 100% of the vote." Reference code prefix (`RIG-`) and the `apps/republic` folder
   name were deliberately left alone (code-format/slug details, not prose).
 - **`DocumentProgress` redesigned as a small passport** (see Gotchas) and no longer shown
-  on `/visa-issued`.
+  on `/visa-issued`. *(Superseded by a later pass — it's now a compact mini visa card,
+  two-column, matching the `/visa-issued` sticker's design language; see the current
+  Gotchas entry.)*
 - **Visa cards trimmed and renamed**: Tourist → SIDEQUEST VISA ("Reward: infinite
   memories"), Consultation → SEEK ADVICE PERMIT ("Advice quality: unknown"), Fiancé →
   DATE VISA (no descriptive text at all, just the HIGH RISK stamp), Business → BUSINESS
@@ -363,6 +375,25 @@ button; **no passport progress card on this page** — the sticker stands alone)
   screen transition). All four are pure CSS/SVG, additive only, and were checked against
   the landing's no-scroll height budget (negligible impact — well within the documented
   slack).
+
+**Latest polish pass (this pass):**
+- **`/visa-issued`'s dashed reference-line box removed.** The reference № is already
+  printed on the visa sticker itself, so a second always-visible copy of it was
+  redundant. "PROCEED TO CONSULATE" still opens the DM synchronously first and
+  best-effort copies the reference line, but the result now only ever shows as a small
+  truthful status note under the button — a short confirmation on success, or the
+  reference line itself (inline, small text) plus a manual-copy note on failure. The
+  now-separately-redundant manual "copy" button was removed along with it;
+  `REFERENCE_LINE_LABEL`/`COPY_BUTTON_LABEL` were deleted from `lib/content.ts` as
+  unused.
+- **`DocumentProgress` redesigned again**, from the single-column passport booklet to a
+  compact two-column mini visa card matching the `/visa-issued` sticker's own design
+  language (navy double-line border on paper, small header, oval photo, two-column field
+  grid, thin `.barcode-mini` strip) — noticeably shorter while staying readable at
+  390px. `PASSPORT_MRZ_LINE` was deleted from `lib/content.ts` (no MRZ line in the new
+  design); `DOCUMENT_PROGRESS.title` changed from "PASSPORT" to "DICTATORSHIP OF IGNAS".
+  Same underlying data, hydration guard, and one-time reveal-animation machinery as
+  before — untouched.
 
 Explicitly not built (per plan's "cut by decree" + owner override): rejection lottery,
 diplomatic passport easter egg, customs declaration checklist, deportation-on-idle,

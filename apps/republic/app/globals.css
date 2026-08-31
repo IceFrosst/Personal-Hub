@@ -116,6 +116,26 @@ button {
   opacity: 0.85;
 }
 
+/* Thin barcode strip for the compact mini-visa progress card
+   (components/DocumentProgress.tsx) — same repeating pattern as `.barcode`
+   above, just squashed down to fit a much shorter card. */
+.barcode-mini {
+  background: repeating-linear-gradient(
+    90deg,
+    #1a2a4a 0px,
+    #1a2a4a 1px,
+    transparent 1px,
+    transparent 2px,
+    #1a2a4a 2px,
+    #1a2a4a 2.5px,
+    transparent 2.5px,
+    transparent 4.5px
+  );
+  height: 8px;
+  width: 100%;
+  opacity: 0.8;
+}
+
 /* Moving highlight sweep on the hidden-bribe tab (components/HiddenBribe.tsx)
    — a diagonal gradient band animated via background-position (see
    `bribe-shimmer` in tailwind.config.ts). Layered on top of the bob + glow;

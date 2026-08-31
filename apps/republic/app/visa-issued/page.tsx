@@ -12,8 +12,6 @@ import {
   CONSULATE_DM_URL,
   COPY_INSTRUCTION,
   COPY_FAILED_INSTRUCTION,
-  COPY_BUTTON_LABEL,
-  REFERENCE_LINE_LABEL,
   VISA_BY_SLUG,
   buildReferenceLine,
 } from '@/lib/content'
@@ -278,15 +276,6 @@ export default function VisaIssuedPage() {
           )}
         </div>
 
-        {referenceLine && (
-          <div className="mt-4 border-2 border-dashed border-navy/40 p-2">
-            <p className="text-[9px] uppercase tracking-wide text-navy/50">{REFERENCE_LINE_LABEL}</p>
-            <p className="mt-1 break-words font-stamp text-[13px] font-bold uppercase tracking-wide text-navy">
-              {referenceLine}
-            </p>
-          </div>
-        )}
-
         <div className="mt-5 flex flex-col gap-3">
           <button
             type="button"
@@ -303,20 +292,14 @@ export default function VisaIssuedPage() {
           >
             {APPROVED.proceed}
           </button>
-          <button
-            type="button"
-            onClick={() => void copyReferenceLine()}
-            className="min-h-11 w-full border-2 border-navy/40 bg-paper py-2 font-stamp text-[11px] uppercase tracking-widest text-navy/70 transition-all hover:border-navy hover:text-navy active:scale-[0.97]"
-          >
-            {COPY_BUTTON_LABEL}
-          </button>
           {copyStatus === 'copied' && (
             <p className="animate-fade-in text-[10px] uppercase leading-relaxed text-approve">{COPY_INSTRUCTION}</p>
           )}
-          {copyStatus === 'failed' && (
-            <p className="animate-fade-in text-[10px] uppercase leading-relaxed text-stamp">
-              {COPY_FAILED_INSTRUCTION}
-            </p>
+          {copyStatus === 'failed' && referenceLine && (
+            <div className="animate-fade-in text-[10px] uppercase leading-relaxed text-stamp">
+              <p>{COPY_FAILED_INSTRUCTION}</p>
+              <p className="mt-1 break-words font-bold text-navy">{referenceLine}</p>
+            </div>
           )}
         </div>
       </div>
