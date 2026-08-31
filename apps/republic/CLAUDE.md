@@ -173,24 +173,45 @@ the Dictatorship is also a full democracy.
   nice-to-have. (The longer title was checked against the available card width at build
   time and still fits on one line with margin; redo that check if the title changes
   again.)
-- **`DocumentProgress` is a compact mini visa card, not the old flat "FORM 1G-NAS" strip
-  or the later single-column passport booklet, and it never renders on `/visa-issued`.**
-  `PageShell`'s `showProgress` prop mounts it; every funnel page from `/identity` through
-  `/processing` passes it, but `/visa-issued` deliberately doesn't (the
-  canvas-composited visa sticker is the payoff and stands alone). It reuses the visa
-  sticker's own design language, shrunk down: a navy double-line border on paper, a
-  small `DOCUMENT_PROGRESS.title` ("DICTATORSHIP OF IGNAS") header, an oval photo box on
-  the left, and a `.barcode-mini` strip (see `app/globals.css`) along the bottom. The
-  data fields sit in a two-column CSS grid next to the photo (paired NAME + PASSPORT № /
-  VISA TYPE + APPOINTMENT / DECLARATION + BIOMETRICS, via `Row`'s `span` prop the
-  sub-step summary and STATUS rows run full-width across both columns) — deliberately
-  shorter than the old single-column layout while staying readable at 390px. The photo
-  box is `bg-black` by default (a silhouette), `rounded-[50%]` to match the oval frame
-  on the sticker, and only shows an `<img>` when `state.selfieThumbnailUrl` is set —
-  never `selfieDataUrl` (DocumentProgress has no business holding the full-res capture)
-  — so it stays solid black if biometrics haven't run yet **or** if thumbnail
-  generation failed, which is the intended fallback, not a bug. The photo reveal uses
-  the same one-time `useRevealAnimation` hook as the text rows (key `'photo'`).
+- **`DocumentProgress` is a faithful DOM replica of the final `/visa-issued` sticker,
+  not the old flat "FORM 1G-NAS" strip or the later single-column passport booklet, and
+  it never renders on `/visa-issued` itself.** `PageShell`'s `showProgress` prop mounts
+  it; every funnel page from `/identity` through `/processing` passes it, but
+  `/visa-issued` deliberately doesn't (the canvas-composited sticker is the payoff and
+  stands alone — the progress card is "the same document, being filled in," the sticker
+  is its completed form). It shares `STICKER_LABELS` (`lib/content.ts`) directly with the
+  canvas draw code as a single source — the republic title, the "VISA — " prefix, and
+  the NAME/PASSPORT №/VISA TYPE/SERIAL №/REFERENCE №/ISSUED/VALID/CONDITIONS field labels
+  are the *exact same strings* on both, not a parallel copy that could drift. Same navy
+  double-line border on paper, same header + subtitle line (subtitle is a blank ruled
+  line until a visa is chosen, same as every other blank field), a SQUARE photo box on
+  the left (square everywhere now — see the square-photo Gotcha below), and a
+  `.barcode-mini` strip (see `app/globals.css`) along the bottom. Fields sit in the
+  existing two-column CSS grid next to the photo, in the sticker's own order — NAME +
+  PASSPORT №, VISA TYPE + SERIAL №, REFERENCE № full-width (via `Row`'s `span` prop),
+  ISSUED + VALID, then CONDITIONS full-width — replicating *every* sticker field, not a
+  trimmed subset. SERIAL №/ISSUED/VALID/CONDITIONS never actually have a value while this
+  component is mounted (those are only ever computed on `/visa-issued`, which never
+  renders this component alongside them), so those four always render as ruled blanks —
+  intentional, not missing data. The old DECLARATION/BIOMETRICS/STATUS rows and the
+  per-visa sub-step summary were dropped in an earlier pass along with
+  `DOCUMENT_PROGRESS_SUBSTEP_LABELS` (now deleted from `lib/content.ts`) — the photo box
+  itself already signals biometrics status, and REFERENCE № going from blank to filled
+  already signals "done," so a separate STATUS row was redundant. The appointment slot is
+  real funnel data known well before issuance, but it is **not** one of the sticker's own
+  fields, so it's deliberately kept *outside* the replicated field grid — its own
+  dashed-divider line beneath it, not a stand-in for ISSUED. `DOCUMENT_PROGRESS` in
+  `lib/content.ts` now only holds `appointmentLabel` — every other label lives on
+  `STICKER_LABELS`. The photo box fills with `#cfc8b8` and centers
+  `STICKER_LABELS.photoPlaceholder` text (the sticker's own placeholder treatment, not a
+  black silhouette) with square corners (no `rounded-*` class at all), and only shows an
+  `<img>` when `state.selfieThumbnailUrl` is set — never `selfieDataUrl` (DocumentProgress
+  has no business holding the full-res capture) — so it falls back to the placeholder if
+  biometrics haven't run yet **or** if thumbnail generation failed, which is the intended
+  fallback, not a bug. The photo reveal uses the same one-time `useRevealAnimation` hook
+  as the text rows (key `'photo'`); the appointment line uses its own instance of the same
+  hook (key `'appointment'`), called unconditionally alongside `photoAnimate` — both
+  before the component's `!hydrated` early return, per the Rules of Hooks.
 - **`Footer` takes a `compact` prop** (smaller margins/padding/text) used only by the
   landing, to fit the no-scroll budget; every other page still gets the normal footer.
 - **Instagram deep link cannot pre-fill DM text, and never blocks on the clipboard.**
@@ -252,11 +273,23 @@ the Dictatorship is also a full democracy.
   full-resolution `selfieDataUrl` is stripped before the sessionStorage write. Every
   read that used to check `selfieDataUrl` for "was a selfie captured" checks
   `selfieCaptured` instead — `/visa-issued`'s guard, its final render guard,
-  `app/processing/page.tsx`'s pre-finalization guard, and `DocumentProgress`'s
-  BIOMETRICS row (and its photo box, which uses `selfieThumbnailUrl` specifically).
+  `app/processing/page.tsx`'s pre-finalization guard, and `DocumentProgress`'s photo box
+  (which uses `selfieThumbnailUrl` specifically; there's no separate BIOMETRICS text row
+  anymore — see the `DocumentProgress` Gotcha above).
   `/visa-issued`'s canvas draw picks `state.selfieDataUrl ?? state.selfieThumbnailUrl` as
   the image source, and if **both** are absent draws `STICKER_LABELS.photoPlaceholder`
-  ("PHOTO ON FILE") straight into the oval frame instead of loading an image at all.
+  ("PHOTO ON FILE") straight into the square frame instead of loading an image at all.
+- **Photo frames are square everywhere, not oval.** Both the canvas sticker
+  (`app/visa-issued/page.tsx`) and `DocumentProgress`'s photo box used to clip to an
+  ellipse; per owner feedback the ellipse read as an unwanted "passport photo oval" look
+  and was replaced with a plain rectangular clip + stroke at the exact same position/size
+  (`photoX`/`photoY`/`photoW`/`photoH` on the sticker are unchanged — only the clip/stroke
+  shape changed from `ellipse()` to `rect()`/`strokeRect()`). `DocumentProgress`'s photo
+  box went from `rounded-[50%]` to no `rounded-*` class at all (true square corners,
+  matching the sticker exactly, not just "barely rounded") for the same reason. The
+  **camera capture guide overlay on `/biometric`** (a dashed ellipse over the
+  live preview) is a separate, unrelated UI element and was deliberately left alone —
+  it's a face-alignment aid during capture, not a photo frame.
 - **Never use a bare `<input type="checkbox">` (or `type="radio"`) in this app.** The
   global `input { appearance: none }` reset in `app/globals.css` strips native checkbox
   chrome with nothing to replace it, which is exactly what made the sworn-statement
@@ -309,7 +342,7 @@ biometric selfie (`<input type=file accept=image/* capture=user>`, oval guide ov
 processing (progress bar stutters at 99%, cycling Interpol-style gag lines, generates
 the reference code and writes the **one** finalized application record — a refresh here
 before or after that point resumes correctly, never duplicating) → visa issued
-(canvas-composited sticker: selfie in an oval frame, name + handle, baked-in APPROVED
+(canvas-composited sticker: selfie in a square frame, name + handle, baked-in APPROVED
 stamp, serial + reference code; download button; "PROCEED TO CONSULATE" opens the
 `ig.me` DM thread immediately and best-effort copies the reference line, showing a
 truthful status note under the button (success: short confirmation; failure: the
@@ -393,7 +426,48 @@ card on this page** — the sticker stands alone).
   390px. `PASSPORT_MRZ_LINE` was deleted from `lib/content.ts` (no MRZ line in the new
   design); `DOCUMENT_PROGRESS.title` changed from "PASSPORT" to "DICTATORSHIP OF IGNAS".
   Same underlying data, hydration guard, and one-time reveal-animation machinery as
-  before — untouched.
+  before — untouched. *(Superseded by a later pass — square photo, `STICKER_LABELS` as
+  the shared label source, and a trimmed field list; see the current `DocumentProgress`
+  Gotcha.)*
+
+**Square photo + faithful-replica progress card pass:**
+- **Photo frames are square everywhere** (canvas sticker + `DocumentProgress` photo box)
+  — see the dedicated square-photo Gotcha above.
+- **`DocumentProgress` rebuilt as a faithful DOM replica of the final canvas sticker**
+  rather than just "the same design language" — it now imports `STICKER_LABELS` directly
+  as the single source for every label it shares with the sticker, drops the
+  DECLARATION/BIOMETRICS/STATUS rows and the per-visa sub-step summary (and the
+  `truncate()`/`SUB_STEP_TRUNCATE` helper that supported it), and keeps the same
+  two-column grid, one-time reveal animations, and hydration guard as before.
+  `lib/content.ts`'s `DOCUMENT_PROGRESS_SUBSTEP_LABELS` was deleted (no remaining
+  consumer); `DOCUMENT_PROGRESS` now only holds `appointmentLabel`. *(Superseded by the
+  next pass below, which fixed this pass's incomplete field list and photo treatment.)*
+
+**Full sticker-field parity pass (this pass):**
+- **`DocumentProgress`'s field grid now replicates every sticker field, not a trimmed
+  subset.** A prior pass shipped only NAME/PASSPORT №/VISA TYPE/APPOINTMENT/REFERENCE №,
+  substituting APPOINTMENT for the sticker's ISSUED row — code review correctly flagged
+  this as neither a faithful replica nor a proper use of the shared `STICKER_LABELS`
+  source (SERIAL №/ISSUED/VALID/CONDITIONS labels existed in `STICKER_LABELS` but were
+  never rendered). Fixed: the grid now renders all eight sticker fields in the sticker's
+  own order (NAME + PASSPORT №, VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED +
+  VALID, CONDITIONS full-width); SERIAL №/ISSUED/VALID/CONDITIONS always render as ruled
+  blanks (`Row`'s existing blank state) since this component never renders alongside
+  `/visa-issued`, the only place those four are ever computed. APPOINTMENT moved out of
+  the field grid entirely into its own dashed-divider line beneath it, since it isn't a
+  sticker field and shouldn't be confused with (or substitute for) ISSUED.
+- **Photo box now matches the sticker's own placeholder treatment.** Previously
+  `bg-black` (a plain silhouette) with `rounded-sm` corners; now `bg-[#cfc8b8]` with
+  centered `STICKER_LABELS.photoPlaceholder` text when no thumbnail exists (the exact
+  same fallback the canvas sticker draws), and no `rounded-*` class at all (true square
+  corners). `Row`'s label color changed from `text-navy/50` to `text-navy`, and the visa
+  subtitle line from `text-navy/70` to `text-navy`, to match the sticker's fully-opaque
+  navy text rather than a muted DOM-only convention.
+- No `lib/content.ts` copy strings changed — `STICKER_LABELS`/`DOCUMENT_PROGRESS` values
+  are unchanged; only comments were updated to describe the corrected design, and
+  `DocumentProgress.tsx` gained a second `useRevealAnimation('appointment', ...)` call
+  (alongside the existing `'photo'` one, both before the `!hydrated` early return, per
+  the Rules of Hooks) for the relocated appointment line's reveal animation.
 
 Explicitly not built (per plan's "cut by decree" + owner override): rejection lottery,
 diplomatic passport easter egg, customs declaration checklist, deportation-on-idle,
@@ -417,9 +491,11 @@ this folder (and via `turbo run <task> --filter=./apps/republic` from the repo r
 - If `getAvailableSlots` grows a real Google Calendar backend, keep the function
   signature (`visaType → Promise<Slot[]>`) and move the seeded-pool logic in
   `lib/slots.ts` behind a feature flag rather than deleting it (useful fallback/demo mode).
-- The passport card currently truncates free-text sub-step answers at a fixed 20 chars
-  (`DocumentProgress.tsx`, tightened from 26 when the card shrank); revisit if a future
-  visa's answer format needs different handling.
+- `DocumentProgress` no longer shows a per-visa sub-step summary (matter/pitch/statement/
+  interview) — dropped when the card was rebuilt as a faithful sticker replica (see
+  Current state). If that visibility is wanted back, it'd need its own home (e.g. a
+  small line under the grid) without regressing the "stays short" requirement that drove
+  the rebuild.
 - The unused sub-step gag-line copy in `lib/content.ts` (see Conventions) has no home
   right now — if it's wanted back, the likely place is a brief, non-blocking auto-advance
   toast rather than the old button-gated screen (which was explicitly removed).

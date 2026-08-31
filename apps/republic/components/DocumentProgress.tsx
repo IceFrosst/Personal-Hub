@@ -3,14 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
-import { DOCUMENT_PROGRESS, DOCUMENT_PROGRESS_SUBSTEP_LABELS, VISA_BY_SLUG } from '@/lib/content'
-
-const SUB_STEP_TRUNCATE = 20
-
-function truncate(text: string, max = SUB_STEP_TRUNCATE): string {
-  const trimmed = text.trim()
-  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed
-}
+import { DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
 
 /**
  * Plays the field-fill reveal exactly once per field per browser session —
@@ -37,8 +30,8 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
   return animate
 }
 
-function Blank() {
-  return <span className="inline-block h-2 w-9 border-b border-navy/30" aria-hidden />
+function Blank({ wide }: { wide?: boolean }) {
+  return <span className={`inline-block h-2 border-b border-navy/30 ${wide ? 'w-16' : 'w-9'}`} aria-hidden />
 }
 
 function Row({
@@ -50,7 +43,7 @@ function Row({
   label: string
   value: string | null
   animKey: string
-  /** Sub-step summaries and the final STATUS row run wide across both columns. */
+  /** REFERENCE № runs full-width across both columns, same as on the sticker. */
   span?: boolean
 }) {
   const filled = Boolean(value)
@@ -58,26 +51,41 @@ function Row({
 
   return (
     <div className={`flex items-baseline justify-between gap-1.5 ${span ? 'col-span-2' : ''}`}>
-      <span className="shrink-0 text-navy/50">{label}</span>
+      <span className="shrink-0 text-navy">{label}</span>
       {filled ? (
         <span className={`truncate text-right font-bold text-navy ${animate ? 'animate-field-fill' : ''}`}>
           {value}
         </span>
       ) : (
-        <Blank />
+        <Blank wide={span} />
       )}
     </div>
   )
 }
 
-// A compact mini visa card — the same design language as the final
-// canvas-composited sticker on /visa-issued (navy double-line border on
-// paper, small "DICTATORSHIP OF IGNAS" header, oval photo, short barcode
-// strip), just shrunk and rearranged into a two-column field grid so it
-// stays noticeably shorter than the old single-column passport-booklet
-// design while remaining readable at 390px. The photo box is solid black —
-// a silhouette — until biometrics are captured, then shows the persisted
-// thumbnail; falls back to black again if the thumbnail never made it (e.g.
+// A faithful DOM replica of the final canvas-composited visa sticker on
+// /visa-issued — "the same document, being filled in." Shares the exact
+// label copy with the sticker via STICKER_LABELS (single source; see
+// lib/content.ts) and mirrors its design language: the same double navy
+// border on paper, the same "DICTATORSHIP OF IGNAS" header + "VISA — <TYPE>"
+// subtitle line (blank/ruled until a visa is chosen), a SQUARE photo box
+// (not the sticker's old oval — square everywhere per owner feedback), and
+// a barcode strip along the bottom. The two-column field grid replicates
+// *every* field on the sticker, in the sticker's own order — NAME +
+// PASSPORT №, VISA TYPE + SERIAL №, REFERENCE № full-width, then ISSUED +
+// VALID, then CONDITIONS full-width — via STICKER_LABELS, the single shared
+// source. SERIAL №/ISSUED/VALID/CONDITIONS never actually have a value here
+// (they're only ever computed on /visa-issued itself, which this component
+// never renders alongside — see the bottom of this comment), so they always
+// render as ruled blanks; that's intentional, not a missing-data bug. The
+// APPOINTMENT slot is real funnel data known well before issuance, but it is
+// NOT one of the sticker's own fields, so it's deliberately kept outside the
+// replicated field grid — shown as its own dashed-divider line below it —
+// rather than standing in for (and being confused with) the sticker's ISSUED
+// row. The photo box uses the sticker's own placeholder treatment
+// (`#cfc8b8` fill + `STICKER_LABELS.photoPlaceholder` text, square corners)
+// until biometrics are captured, then shows the persisted thumbnail; falls
+// back to the placeholder again if the thumbnail never made it (e.g.
 // generation failed). Never rendered on landing or /visa-issued — see that
 // page's <PageShell> call (no `showProgress`).
 export function DocumentProgress() {
@@ -85,70 +93,77 @@ export function DocumentProgress() {
   // Called unconditionally (Rules of Hooks) — the `!hydrated` early return
   // below is fine since nothing else in this component calls a hook after it.
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
+  const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
 
   // Same hydration-safety rule as the rest of the funnel: nothing here may
   // read context state before the sessionStorage read completes, so render
   // nothing (not even the card shell) until then.
   if (!hydrated) return null
 
-  const subStepLabel = state.visaType ? DOCUMENT_PROGRESS_SUBSTEP_LABELS[state.visaType] : undefined
-  let subStepValue: string | null = null
-  if (state.visaType === 'consultation' && state.consultationMatter) subStepValue = truncate(state.consultationMatter)
-  if (state.visaType === 'business' && state.businessPitch) subStepValue = truncate(state.businessPitch)
-  if (state.visaType === 'special' && state.specialStatement) subStepValue = truncate(state.specialStatement)
-  if (state.visaType === 'fiance' && state.fianceAnswers.length > 0) {
-    subStepValue = DOCUMENT_PROGRESS.fianceAnsweredValue
-  }
+  const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
   return (
     <div className="sticky top-0 z-20 mb-2 border-2 border-navy bg-paper p-1 shadow-[2px_2px_0_rgba(26,42,74,0.15)]">
-      <div className="border border-navy/70 p-1.5">
-        <p className="text-center font-stamp text-[8px] uppercase tracking-[0.25em] text-navy">
-          {DOCUMENT_PROGRESS.title}
+      <div className="border border-navy p-1.5">
+        <p className="text-center font-stamp text-[9px] uppercase tracking-[0.2em] text-navy">
+          {STICKER_LABELS.republicTitle}
         </p>
+        {visa ? (
+          <p className="text-center text-[7px] uppercase tracking-[0.15em] text-navy">
+            {STICKER_LABELS.visaPrefix}
+            {visa.name}
+          </p>
+        ) : (
+          <div className="mt-0.5 flex justify-center">
+            <Blank wide />
+          </div>
+        )}
 
         <div className="mt-1 flex items-start gap-1.5">
-          <div className="h-11 w-8 shrink-0 overflow-hidden rounded-[50%] border border-navy bg-black">
-            {state.selfieThumbnailUrl && (
+          <div className="h-11 w-8 shrink-0 overflow-hidden border border-navy bg-[#cfc8b8]">
+            {state.selfieThumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={state.selfieThumbnailUrl}
                 alt=""
                 className={`h-full w-full object-cover ${photoAnimate ? 'animate-field-fill' : ''}`}
               />
+            ) : (
+              <p className="flex h-full w-full items-center justify-center px-px text-center text-[3px] font-bold uppercase leading-[1.1] text-navy">
+                {STICKER_LABELS.photoPlaceholder}
+              </p>
             )}
           </div>
 
           <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-2 gap-y-0.5 text-[8px] uppercase tracking-wide">
-            <Row label={DOCUMENT_PROGRESS.nameLabel} value={state.applicantName || null} animKey="name" />
+            <Row label={STICKER_LABELS.name} value={state.applicantName || null} animKey="name" />
             <Row
-              label={DOCUMENT_PROGRESS.passportLabel}
+              label={STICKER_LABELS.passport}
               value={state.instagramHandle ? `@${state.instagramHandle}` : null}
               animKey="passport"
             />
-            <Row
-              label={DOCUMENT_PROGRESS.visaTypeLabel}
-              value={state.visaType ? VISA_BY_SLUG[state.visaType].name : null}
-              animKey="visaType"
-            />
-            <Row label={DOCUMENT_PROGRESS.appointmentLabel} value={state.slot} animKey="appointment" />
-            <Row
-              label={DOCUMENT_PROGRESS.declarationLabel}
-              value={DOCUMENT_PROGRESS.declarationValue}
-              animKey="declaration"
-            />
-            <Row
-              label={DOCUMENT_PROGRESS.biometricsLabel}
-              value={state.selfieCaptured ? DOCUMENT_PROGRESS.biometricsValue : null}
-              animKey="biometrics"
-            />
-            {subStepLabel && (
-              <Row label={subStepLabel} value={subStepValue} animKey={`substep-${state.visaType}`} span />
-            )}
-            {state.referenceCode && (
-              <Row label={DOCUMENT_PROGRESS.statusLabel} value={DOCUMENT_PROGRESS.statusValue} animKey="status" span />
-            )}
+            <Row label={STICKER_LABELS.visaType} value={visa ? visa.name : null} animKey="visaType" />
+            <Row label={STICKER_LABELS.serial} value={null} animKey="serial" />
+            <Row label={STICKER_LABELS.reference} value={state.referenceCode} animKey="reference" span />
+            <Row label={STICKER_LABELS.issued} value={null} animKey="issued" />
+            <Row label={STICKER_LABELS.valid} value={null} animKey="valid" />
+            <Row label={STICKER_LABELS.conditions} value={null} animKey="conditions" span />
           </div>
+        </div>
+
+        {/* Appointment slot: real funnel data, but deliberately outside the
+            replicated sticker field grid above (it isn't one of the sticker's
+            own fields) — set off with its own dashed divider so it reads as
+            an addendum, not a stand-in for ISSUED. */}
+        <div className="mt-1 flex items-baseline justify-between gap-1.5 border-t border-dashed border-navy/40 pt-1 text-[8px] uppercase tracking-wide">
+          <span className="shrink-0 text-navy">{DOCUMENT_PROGRESS.appointmentLabel}</span>
+          {state.slot ? (
+            <span className={`truncate text-right font-bold text-navy ${appointmentAnimate ? 'animate-field-fill' : ''}`}>
+              {state.slot}
+            </span>
+          ) : (
+            <Blank />
+          )}
         </div>
 
         <div className="barcode-mini mt-1.5" aria-hidden />

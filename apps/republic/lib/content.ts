@@ -362,7 +362,7 @@ export const STICKER_LABELS = {
   valid: 'VALID:',
   conditions: 'CONDITIONS:',
   unknownName: 'APPLICANT UNKNOWN',
-  // Shown in the oval photo frame when neither the full-resolution capture
+  // Shown in the square photo frame when neither the full-resolution capture
   // nor its persisted thumbnail survived a refresh (see
   // lib/applicationContext.tsx and app/visa-issued/page.tsx).
   photoPlaceholder: 'PHOTO ON FILE',
@@ -370,30 +370,23 @@ export const STICKER_LABELS = {
 
 // ---------------------------------------------------------------------------
 // Persistent document progress card (components/DocumentProgress.tsx) — shown
-// on every funnel page from /identity onward. Labels only; which rows are
-// visible/filled and the free-text truncation logic live in the component.
+// on every funnel page from /identity onward. It's a faithful DOM replica of
+// the final canvas-composited visa sticker (app/visa-issued/page.tsx), so it
+// reuses STICKER_LABELS above as the single source for every field label the
+// two share — including NAME/PASSPORT №/VISA TYPE/SERIAL №/REFERENCE №/
+// ISSUED/VALID/CONDITIONS, the republic title, and the "VISA — " prefix.
+// SERIAL №/ISSUED/VALID/CONDITIONS never have a value while this component is
+// mounted (those are only ever computed on /visa-issued, which doesn't render
+// this component alongside them), so they always show as ruled blanks —
+// that's intentional. APPOINTMENT is the only label unique to the progress
+// card, and is deliberately NOT one of the replicated sticker fields — it's
+// rendered as its own separate line below the field grid, since the
+// appointment slot is real funnel data but has no equivalent row on the
+// sticker itself.
 // ---------------------------------------------------------------------------
 
 export const DOCUMENT_PROGRESS = {
-  title: 'DICTATORSHIP OF IGNAS',
-  declarationLabel: 'DECLARATION:',
-  declarationValue: 'SOMETHING TO DECLARE',
-  nameLabel: 'NAME:',
-  passportLabel: 'PASSPORT №:',
-  visaTypeLabel: 'VISA TYPE:',
-  fianceAnsweredValue: 'ANSWERED',
   appointmentLabel: 'APPOINTMENT:',
-  biometricsLabel: 'BIOMETRICS:',
-  biometricsValue: 'CAPTURED',
-  statusLabel: 'STATUS:',
-  statusValue: 'STAMPED: APPROVED',
-}
-
-export const DOCUMENT_PROGRESS_SUBSTEP_LABELS: Partial<Record<VisaType, string>> = {
-  consultation: 'MATTER:',
-  business: 'PITCH:',
-  special: 'STATEMENT:',
-  fiance: 'INTERVIEW:',
 }
 
 // ---------------------------------------------------------------------------

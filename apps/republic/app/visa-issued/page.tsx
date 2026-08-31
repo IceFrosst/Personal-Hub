@@ -118,22 +118,14 @@ export default function VisaIssuedPage() {
 
       context.textAlign = 'left'
 
-      // photo frame — oval clip
+      // photo frame — square clip (was an ellipse; owner rejected the oval look)
       const photoX = 60
       const photoY = 130
       const photoW = 220
       const photoH = 280
       context.save()
       context.beginPath()
-      context.ellipse(
-        photoX + photoW / 2,
-        photoY + photoH / 2,
-        photoW / 2,
-        photoH / 2,
-        0,
-        0,
-        Math.PI * 2
-      )
+      context.rect(photoX, photoY, photoW, photoH)
       context.closePath()
       context.clip()
       if (photo) {
@@ -159,9 +151,7 @@ export default function VisaIssuedPage() {
       context.restore()
       context.strokeStyle = NAVY
       context.lineWidth = 3
-      context.beginPath()
-      context.ellipse(photoX + photoW / 2, photoY + photoH / 2, photoW / 2, photoH / 2, 0, 0, Math.PI * 2)
-      context.stroke()
+      context.strokeRect(photoX, photoY, photoW, photoH)
 
       // text block
       const textX = photoX + photoW + 36
