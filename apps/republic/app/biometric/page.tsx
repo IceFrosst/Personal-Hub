@@ -66,7 +66,7 @@ export default function BiometricPage() {
     const thumbnail = await createThumbnail(finalDataUrl)
     update({ selfieDataUrl: finalDataUrl, selfieCaptured: true, selfieThumbnailUrl: thumbnail })
     addStamp('BIOMETRICS SUBMITTED')
-    router.push('/processing')
+    router.push('/screening')
   }
 
   if (!hydrated || !state.visaType || !state.serial || !state.slot || !state.issuedDate) return null

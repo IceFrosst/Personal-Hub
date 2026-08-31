@@ -1,3 +1,9 @@
+// Bounded upcoming booking window, shared by the server (freeBusy query span,
+// see lib/googleCalendar.ts) and the client (how many months the appointment
+// calendar lets you browse, see app/appointment/page.tsx). 60 days so the
+// "next month" arrow always has a real month to show — was 30.
+export const WINDOW_DAYS = 60
+
 export interface BusyInterval {
   start: Date
   end: Date

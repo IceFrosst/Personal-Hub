@@ -20,6 +20,14 @@ export interface ApplicationState {
   /** Persisted small (~200px JPEG) fallback so the visa sticker can still be
    *  reconstructed after a refresh loses the full-resolution capture. */
   selfieThumbnailUrl: string | null
+  /** Secondary-screening absurd question drawn for this session — persisted
+   *  so a refresh mid-screening doesn't re-roll the rotation (see
+   *  app/screening/page.tsx and lib/content.ts#SCREENING_QUESTIONS). */
+  screeningQuestion: string | null
+  /** The chosen answer to the screening question above. */
+  screeningAnswer: string | null
+  /** Self-declared IQ from the bell-curve slider — never verified, obviously. */
+  declaredIq: number | null
   referenceCode: string | null
   /** Visa sticker SERIAL № — generated exactly once, on the FIRST visa
    *  selection (see lib/referenceCode.ts#generateSerial), and preserved
@@ -47,6 +55,9 @@ const EMPTY_STATE: ApplicationState = {
   selfieDataUrl: null,
   selfieCaptured: false,
   selfieThumbnailUrl: null,
+  screeningQuestion: null,
+  screeningAnswer: null,
+  declaredIq: null,
   referenceCode: null,
   serial: null,
   issuedDate: null,

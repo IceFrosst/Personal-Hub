@@ -19,7 +19,7 @@ import {
 } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
-import { getVisaAddendum } from '@/lib/visaAddendum'
+import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 
 // The downloadable PNG is composited on an off-screen canvas at a fixed
 // resolution — kept entirely for the DOWNLOAD VISA button (canvas.toDataURL);
@@ -56,6 +56,7 @@ export default function VisaIssuedPage() {
   const serial = state.serial ?? ''
   const issueDate = state.issuedDate ?? ''
   const visaAddendum = useMemo(() => getVisaAddendum(state), [state])
+  const screeningAddenda = useMemo(() => getScreeningAddenda(state), [state])
   const referenceLine = useMemo(
     () =>
       visa && state.referenceCode && state.slot
@@ -137,6 +138,7 @@ export default function VisaIssuedPage() {
       const addendumValues = [
         { label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot ?? '' },
         ...(visaAddendum ? [visaAddendum] : []),
+        ...screeningAddenda,
       ]
 
       const wrapText = (text: string, maxWidth: number): string[] => {
@@ -326,6 +328,7 @@ export default function VisaIssuedPage() {
     issueDate,
     state.slot,
     visaAddendum,
+    screeningAddenda,
   ])
 
   function handleDownload() {
@@ -390,6 +393,9 @@ export default function VisaIssuedPage() {
   if (visaAddendum) {
     addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
   }
+  screeningAddenda.forEach((item, index) => {
+    addenda.push({ key: `screening-${index}`, label: item.label, value: item.value })
+  })
 
   return (
     // Deliberately no `showProgress` here — the final document is the payoff

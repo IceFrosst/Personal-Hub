@@ -540,7 +540,7 @@ and DM handoff behavior remain idempotent/non-blocking as documented above.
 
 Explicitly not built (per plan's "cut by decree" + owner override): rejection lottery,
 diplomatic passport easter egg, customs declaration checklist, deportation-on-idle,
-Turnstile/honeypot bot defenses, random secondary screening, seasonal decree banner,
+Turnstile/honeypot bot defenses, seasonal decree banner,
 per-route OG images, real Supabase persistence for applications/appointments/bribes
 (still stubbed to localStorage) — the applicant-number counter is the one narrow
 exception, backed by a real migration/RPC; see the dedicated Gotcha above.
@@ -550,8 +550,16 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
-**Handoff:** Dedicated Republic Calendar access is configured and verified independently
-of Lock In. The applicant-number backend setup remains.
+**Handoff:** Appointment redesign pass in flight on `feat/calendar-grid-appointment`:
+calendar month GRID (Option A mock) replaced the date list; time slots became
+day-part periods via `appointmentPeriodsFor` (consultation skips time entirely;
+tourist/sidequest adds FULL DAY + MULTI-DAY); "CONSULATE" removed from user-facing
+copy; booking window extended to 60 days (shared `WINDOW_DAYS` in
+`lib/calendarAvailability.ts`) with browsable next month; NEW /screening step
+(guaranteed absurd question from `SCREENING_QUESTIONS` rotation + IQ bell-curve
+meme slider, `public/iq-bell-curve.png`) between /biometric and /processing, with
+both answers printed on progress/final documents and the PNG via
+`getScreeningAddenda`. The applicant-number backend setup remains.
 
 - **Calendar integration ready:** Google Calendar API enabled; dedicated service account
   shared with the primary calendar using “See only free/busy (hide details)”; production

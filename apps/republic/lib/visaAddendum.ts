@@ -1,5 +1,5 @@
 import type { ApplicationState } from './applicationContext'
-import { DOCUMENT_PROGRESS } from './content'
+import { DOCUMENT_PROGRESS, SCREENING } from './content'
 
 export interface VisaAddendumContent {
   label: string
@@ -26,4 +26,20 @@ export function getVisaAddendum(state: ApplicationState): VisaAddendumContent | 
     default:
       return null
   }
+}
+
+/**
+ * Secondary-screening addenda (absurd-question answer + self-declared IQ)
+ * printed on both the progress card and the final document — shared so the
+ * two documents (and the downloadable PNG canvas) can never disagree.
+ */
+export function getScreeningAddenda(state: ApplicationState): VisaAddendumContent[] {
+  const addenda: VisaAddendumContent[] = []
+  if (state.screeningAnswer) {
+    addenda.push({ label: DOCUMENT_PROGRESS.screeningLabel, value: state.screeningAnswer })
+  }
+  if (state.declaredIq !== null) {
+    addenda.push({ label: DOCUMENT_PROGRESS.iqLabel, value: `${state.declaredIq}${SCREENING.iqValueSuffix}` })
+  }
+  return addenda
 }

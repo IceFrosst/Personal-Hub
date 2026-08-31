@@ -5,7 +5,7 @@ import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
-import { getVisaAddendum } from '@/lib/visaAddendum'
+import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 
 /**
  * Plays the field-fill reveal exactly once per field per browser session —
@@ -118,6 +118,9 @@ export function DocumentProgress() {
       animate: subStepAnimate,
     })
   }
+  getScreeningAddenda(state).forEach((item, index) => {
+    addenda.push({ key: `screening-${index}`, label: item.label, value: item.value })
+  })
 
   return (
     <div className="sticky top-0 z-20 mb-2">
