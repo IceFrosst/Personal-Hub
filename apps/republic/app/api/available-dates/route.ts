@@ -2,16 +2,11 @@ import { NextResponse } from 'next/server'
 import { getFreeDates } from '@/lib/googleCalendar'
 
 // Node runtime (not edge) — lib/googleCalendar.ts uses Node's built-in
-// `crypto` module to sign the service-account JWT.
+// `crypto` module to sign the service-account JWT. Force runtime execution so
+// a build without credentials can never bake an empty availability response
+// into the deployment; the response itself is still CDN-cached for 60s below.
 export const runtime = 'nodejs'
-
-// Conservative revalidation window per the requirement ("around 60s") — long
-// enough to avoid hammering the Google Calendar API on every appointment-page
-// load, short enough that a newly-busy day doesn't stay shown as bookable for
-// long. Also mirrored in the response's own Cache-Control header below so a
-// CDN/browser cache agrees even if Next's route-level revalidate doesn't
-// apply in a given deployment context.
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 /**
  * Free/busy-only, read-only calendar availability. Never returns event
