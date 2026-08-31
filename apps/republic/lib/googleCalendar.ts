@@ -1,25 +1,37 @@
-// Server-only Google Calendar free/busy lookup, reusing the durable Google
-// connection already established by Lock In.
+// Server-only Google Calendar free/busy lookup, via a service account.
 //
-// Lock In stores Ignas's offline Google refresh token in
-// `lock_in.calendar_connections`. This module reads that one token with the
-// shared Supabase service-role key, refreshes it with the same Google OAuth
-// client used by Lock In, then calls Google's freeBusy endpoint for the
-// connected account's primary calendar. Republic therefore does not need a
-// second Google authorization or service account.
+// SECURITY: this module reads private key material from env vars
+// (GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) and must only ever be imported from a
+// server-only file — today that's exactly one place,
+// app/api/available-dates/route.ts (a Route Handler, which always runs on
+// the server). Never import this from a Client Component or anything that
+// could end up in a browser bundle.
 //
-// SECURITY: every credential remains server-only. The public route returns
-// date strings only; it never returns the refresh/access token, event titles,
-// descriptions, attendees, or busy intervals. This module performs no
-// calendar writes and fails closed on every config/auth/network/data error.
+// Deliberately no `googleapis` SDK (heavyweight for one read-only call) —
+// builds and signs the service-account JWT with Node's built-in `crypto`,
+// exchanges it for an OAuth2 access token, then calls the freeBusy endpoint
+// directly. Only busy/free *intervals* are ever read from the response —
+// never event titles, descriptions, attendees, or any other detail — and
+// this module never writes anything to the calendar (read-only, freeBusy
+// only, no events.insert/patch/delete anywhere in this file).
+//
+// Fails closed everywhere: any missing env var, auth failure, network
+// error, or malformed response resolves `{ ok: false }` rather than
+// throwing or fabricating a date — see app/api/available-dates/route.ts,
+// which turns that into an empty `dates` array for the client. Nothing here
+// ever returns a "free" date it isn't actually sure about.
 
 import 'server-only'
+import { createSign } from 'crypto'
 import { buildCandidateWindow, freeDatesFromResponse } from './calendarAvailability'
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const FREEBUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy'
-const LOCK_IN_SCHEMA = 'lock_in'
-const PRIMARY_CALENDAR = 'primary'
+const SCOPE = 'https://www.googleapis.com/auth/calendar.freebusy'
+
+// Bounded upcoming window — see the Requirements this implements: "search a
+// bounded upcoming window (e.g. next 30 days)". Also caps the day-walking
+// loop below at a sane size regardless of any malformed interval data.
 const WINDOW_DAYS = 30
 
 export interface FreeDatesResult {
@@ -34,67 +46,67 @@ export interface FreeDatesError {
 }
 
 interface CalendarConfig {
-  supabaseUrl: string
-  serviceRoleKey: string
-  accountEmail: string
-  oauthClientId: string
-  oauthClientSecret: string
+  calendarId: string
   timeZone: string
+  clientEmail: string
+  privateKey: string
+}
+
+function base64url(input: Buffer): string {
+  return input.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 function readConfig(): CalendarConfig | null {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const accountEmail = process.env.GOOGLE_CALENDAR_ACCOUNT_EMAIL
-  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID
-  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET
+  const calendarId = process.env.GOOGLE_CALENDAR_ID
   const timeZone = process.env.GOOGLE_CALENDAR_TIME_ZONE || 'Europe/Vilnius'
-  if (!supabaseUrl || !serviceRoleKey || !accountEmail || !oauthClientId || !oauthClientSecret) return null
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+  if (!calendarId || calendarId.trim().toLowerCase() === 'primary' || !clientEmail || !rawKey) return null
   try {
+    // Validate before any date calculations so a typo also follows the
+    // module's fail-closed contract instead of escaping as a RangeError.
     new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date(0))
   } catch {
     return null
   }
-  return { supabaseUrl, serviceRoleKey, accountEmail, oauthClientId, oauthClientSecret, timeZone }
+  // Vercel/most env-var UIs store multiline PEM keys with literal `\n`
+  // escape sequences rather than real newlines — restore them before
+  // handing the key to Node's crypto module, which needs the real thing.
+  const privateKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey
+  return { calendarId, timeZone, clientEmail, privateKey }
 }
 
-async function readLockInRefreshToken(config: CalendarConfig): Promise<string | null> {
-  const url = new URL(`${config.supabaseUrl}/rest/v1/calendar_connections`)
-  url.searchParams.set('select', 'google_refresh_token')
-  url.searchParams.set('google_email', `eq.${config.accountEmail}`)
-  url.searchParams.set('limit', '1')
+async function fetchAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
+  const now = Math.floor(Date.now() / 1000)
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const claim = {
+    iss: clientEmail,
+    scope: SCOPE,
+    aud: TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  }
+  const unsigned = `${base64url(Buffer.from(JSON.stringify(header)))}.${base64url(Buffer.from(JSON.stringify(claim)))}`
 
+  let signature: string
   try {
-    const response = await fetch(url, {
-      headers: {
-        apikey: config.serviceRoleKey,
-        Authorization: `Bearer ${config.serviceRoleKey}`,
-        'Accept-Profile': LOCK_IN_SCHEMA,
-      },
-      cache: 'no-store',
-    })
-    if (!response.ok) return null
-    const body: unknown = await response.json()
-    if (!Array.isArray(body) || body.length !== 1) return null
-    const row = body[0]
-    if (typeof row !== 'object' || row === null) return null
-    const token = (row as Record<string, unknown>).google_refresh_token
-    return typeof token === 'string' && token.length > 0 ? token : null
+    const signer = createSign('RSA-SHA256')
+    signer.update(unsigned)
+    signer.end()
+    signature = base64url(signer.sign(privateKey))
   } catch {
+    // Malformed/mismatched private key — never surface details, just fail.
     return null
   }
-}
+  const assertion = `${unsigned}.${signature}`
 
-async function refreshAccessToken(config: CalendarConfig, refreshToken: string): Promise<string | null> {
   try {
     const response = await fetch(TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: config.oauthClientId,
-        client_secret: config.oauthClientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
       }),
       cache: 'no-store',
     })
@@ -109,19 +121,19 @@ async function refreshAccessToken(config: CalendarConfig, refreshToken: string):
 }
 
 /**
- * Returns upcoming local dates with zero busy time on the Google account
- * already connected through Lock In. Any timed or all-day interval touching
- * a date excludes that entire date.
+ * Fetches this window's freeBusy data for the configured calendar and
+ * returns the local calendar dates with ZERO busy time — any timed or
+ * all-day busy interval that touches a day at all (even partially) removes
+ * that whole day from the result, per the "completely empty" requirement.
  */
 export async function getFreeDates(): Promise<FreeDatesResult | FreeDatesError> {
   const config = readConfig()
   if (!config) return { ok: false, error: 'not_configured' }
 
-  const refreshToken = await readLockInRefreshToken(config)
-  if (!refreshToken) return { ok: false, error: 'lock_in_connection_missing' }
-  const accessToken = await refreshAccessToken(config, refreshToken)
+  const accessToken = await fetchAccessToken(config.clientEmail, config.privateKey)
   if (!accessToken) return { ok: false, error: 'auth_failed' }
 
+  // Complete local-day boundaries naturally span 23/25-hour DST days.
   const { candidateKeys, timeMin, timeMax } = buildCandidateWindow(new Date(), config.timeZone, WINDOW_DAYS)
 
   let response: Response
@@ -136,7 +148,7 @@ export async function getFreeDates(): Promise<FreeDatesResult | FreeDatesError> 
         timeMin: timeMin.toISOString(),
         timeMax: timeMax.toISOString(),
         timeZone: config.timeZone,
-        items: [{ id: PRIMARY_CALENDAR }],
+        items: [{ id: config.calendarId }],
       }),
       cache: 'no-store',
     })
@@ -153,7 +165,7 @@ export async function getFreeDates(): Promise<FreeDatesResult | FreeDatesError> 
     return { ok: false, error: 'invalid_response' }
   }
 
-  const freeDates = freeDatesFromResponse(body, PRIMARY_CALENDAR, candidateKeys, config.timeZone)
+  const freeDates = freeDatesFromResponse(body, config.calendarId, candidateKeys, config.timeZone)
   if (freeDates === null) return { ok: false, error: 'invalid_response' }
   return { ok: true, dates: freeDates }
 }

@@ -18,7 +18,10 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const result = await getFreeDates()
 
-  if (!result.ok && process.env.NODE_ENV !== 'production') {
+  if (!result.ok) {
+    // Error codes are deliberately coarse and contain no credentials or
+    // calendar details; keep this visible in production for fail-closed
+    // availability diagnostics.
     console.warn(`[republic] available-dates: ${result.error}`)
   }
 
