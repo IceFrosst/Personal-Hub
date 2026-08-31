@@ -39,12 +39,7 @@ button lands here. Pure-black theme with a gold accent.
 - Web Speech API support varies by browser; always keep the typed-input path working.
 - **Game Plan token flow:** `provider_refresh_token` is only present on the *initial* OAuth code exchange with `access_type=offline` + `prompt=consent`. `app/auth/callback/route.ts` captures it when the connect flow passes `?connect=1`. Supabase does **not** refresh Google provider tokens for you — the cron mints fresh access tokens itself from the stored refresh token (`lib/google/calendar.ts`), which needs `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` (the same client configured in Supabase's Google provider).
 - **Two token paths** in `app/api/game-plan/plan/route.ts`: durable (stored refresh token + Google client secret) and a fallback that uses the browser session's live `provider_token` (works ~1h after connecting, before the OAuth secrets are set). The cron only has the durable path.
-- **Republic reuses the durable calendar connection through a private bridge.**
-  `POST /api/calendar/free-days` accepts only validated date boundaries and requires
-  `Authorization: Bearer $REPUBLIC_CALENDAR_API_SECRET`; it reads the existing refresh
-  token server-side, calls Google `freeBusy`, and returns only completely free date keys.
-  Never return tokens, busy intervals, or event details from this route.
-- **Never import `lib/supabase/admin.ts` into client code** — it's the service_role client (bypasses RLS), for unattended/private server routes only.
+- **Never import `lib/supabase/admin.ts` into client code** — it's the service_role client (bypasses RLS), for the cron only.
 - The cron (`app/api/cron/plan-day`, scheduled in `vercel.json`) returns **503** until `SUPABASE_SERVICE_ROLE_KEY` and the Google OAuth secrets are set — by design, so the on-demand button still works meanwhile.
 - **Planning is fully deterministic** (`lib/game-plan/planner.ts`) — no model call. Everything is placed against one running `occupied` list and `hasOverlap` exists to assert that invariant. If you reintroduce an AI pass, it must not be able to emit a block at coordinates the rest of the layout doesn't know about; that exact shape caused a live double-booking.
 - **A Deep Work session's task list is not in `plan_blocks`** — it's `deep_work_items`, keyed by `block_id`. Replanning deletes and recreates the block rows, so anything that rebuilds a day must carry those lists over (see `run.ts`) or the user's hand-built session empties itself.
@@ -240,9 +235,7 @@ from today onward + their calendar events — durable token, so the list's delet
 
 Provisioned by this session: `GEMINI_API_KEY` and `CRON_SECRET` are set on the `icefrosst-lock-in`
 Vercel project. Calendar connect is **live and working** (schema exposure + token capture fixed);
-the **on-demand button works now** (via the live-session token, ~1h window). The private
-`/api/calendar/free-days` bridge now lets Republic reuse that durable connection without
-copying Google or Supabase credentials into the Republic project.
+the **on-demand button works now** (via the live-session token, ~1h window).
 
 **Recurring tasks** — the add-task bar has a loop toggle (`AddTaskBar`); on, it swaps priority+date
 for row 1 (Flexible/Fixed time-mode · typed **h/m duration** inputs · when Fixed, a time chip that
@@ -258,10 +251,6 @@ for today and it returns next due day. Long-press → delete routine. **Fixed** 
 add bar are gold (priority, Every day/Custom, weekday chips, loop); time-mode/duration stay neutral.
 
 ## Next
-
-**Handoff:** Deploy the Lock In calendar free-days bridge with the Republic branch and set
-the same `REPUBLIC_CALENDAR_API_SECRET` on both Vercel projects.
-
 - **Deep Work follow-ups (just shipped — watch these first):**
   - **On a packed day no session fits** (routines + meetings leave no 2 h stretch) and the client
     just says so. Open question for the user: should Deep Work outrank *flexible* routines (so a

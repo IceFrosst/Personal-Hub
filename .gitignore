@@ -14,6 +14,11 @@ dist/
 .env
 .env*.local
 
+# Downloaded Google service-account credentials (never commit private keys)
+/icefrosst-apps-*.json
+/*service-account*.json
+*.json:Zone.Identifier
+
 # Logs
 *.log
 npm-debug.log*
