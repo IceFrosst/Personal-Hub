@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
-import { SCREENING, iqFaceFor } from '@/lib/content'
+import { SCREENING } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 
@@ -39,7 +39,6 @@ export default function ScreeningPage() {
 
   if (!hydrated || !state.visaType || !state.selfieCaptured) return null
 
-  const face = iqFaceFor(iq)
   const fillPercent = Math.round(((iq - SCREENING.iqMin) / (SCREENING.iqMax - SCREENING.iqMin)) * 100)
 
   function submit() {
@@ -67,15 +66,10 @@ export default function ScreeningPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/iq-bell-curve.jpg" alt={SCREENING.iqImageAlt} className="mt-3 w-full" />
 
-          {/* Live verdict — the wojak the declared IQ currently lands on. */}
-          <div className="mt-4 flex items-center justify-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={face.src} alt={face.alt} className="h-16 w-16 border-2 border-navy object-contain" />
-            <div className="text-left">
-              <p className="font-stamp text-2xl uppercase tracking-widest text-navy">{iq}</p>
-              <p className="text-[9px] uppercase tracking-wide text-navy/60">{face.caption}</p>
-            </div>
-          </div>
+          {/* Just the declared number — no live wojak preview here (owner
+              request); the matching face still gets stamped on the passport
+              via lib/visaAddendum.ts. */}
+          <p className="mt-4 text-center font-stamp text-3xl uppercase tracking-widest text-navy">{iq}</p>
 
           <input
             type="range"

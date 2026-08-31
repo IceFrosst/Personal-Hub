@@ -93,8 +93,7 @@ export const LANDING = {
   // line below — this second line is the form-code line, and reads plainly
   // as "ENTRY DECLARATION" (no "FORM 1G-NAS" prefix; that internal form-code
   // string was cut per owner feedback, see CLAUDE.md).
-  subtitle: 'BORDER CONTROL',
-  formCode: 'ENTRY DECLARATION',
+  subtitle: 'BORDER CONTROL — ENTRY DECLARATION',
   applicantNumberPrefix: 'APPLICANT №',
   // Shown until lib/api.ts#getApplicantNumber resolves inside a client effect
   // (never during render — see the hydration-safety Gotcha in CLAUDE.md).
@@ -102,8 +101,17 @@ export const LANDING = {
   question: 'DO YOU HAVE SOMETHING TO DECLARE?',
   yes: 'YES',
   no: 'NO',
+  genderQuestion: 'GENDER OF APPLICANT?',
   priorityStamp: 'PRIORITY',
 }
+
+// Asked on the landing card right after the follow-up question is cleared.
+// `value` is what the passport's SEX field prints (see STICKER_LABELS.sex).
+export const GENDER_OPTIONS: { label: string; value: string }[] = [
+  { label: 'MALE', value: 'M' },
+  { label: 'FEMALE', value: 'F' },
+  { label: 'CLASSIFIED', value: 'X' },
+]
 
 /** Zero-padded to 4 digits. The underlying number is now a real global
  *  sequential count from the `republic.next_applicant_number()` Supabase RPC
@@ -136,6 +144,15 @@ export const IDENTITY = {
   nameLabel: 'NAME OF APPLICANT:',
   namePlaceholder: '____________________',
   nameRequiredError: 'NAME REQUIRED. THE MINISTRY DOES NOT PROCESS ANONYMOUS APPLICANTS.',
+  continue: 'CONTINUE',
+}
+
+// Instagram handle is asked on its own page AFTER the visa type is chosen and
+// the appointment is booked, right before the photo (owner request) — see
+// app/handle/page.tsx.
+export const HANDLE_STEP = {
+  heading: 'PASSPORT REGISTRY',
+  note: 'THE MINISTRY REQUIRES YOUR INSTAGRAM FOR PASSPORT ISSUANCE. THIS IS NORMAL.',
   handleLabel: 'PASSPORT №: @',
   handlePlaceholder: 'instagram_handle',
   handleRequiredError: 'INSTAGRAM HANDLE REQUIRED. NO HANDLE, NO PASSPORT, NO ENTRY.',
@@ -513,6 +530,7 @@ export const STICKER_LABELS = {
   name: 'NAME:',
   passport: 'PASSPORT №:',
   visaType: 'VISA TYPE:',
+  sex: 'SEX:',
   serial: 'SERIAL №:',
   reference: 'REFERENCE №:',
   issued: 'ISSUED:',

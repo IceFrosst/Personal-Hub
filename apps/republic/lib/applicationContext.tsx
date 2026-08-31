@@ -28,6 +28,8 @@ export interface ApplicationState {
   screeningAnswer: string | null
   /** Self-declared IQ from the bell-curve slider — never verified, obviously. */
   declaredIq: number | null
+  /** Passport SEX field value ('M' / 'F' / 'X') from the landing gender question. */
+  gender: string | null
   referenceCode: string | null
   /** Visa sticker SERIAL № — generated exactly once, on the FIRST visa
    *  selection (see lib/referenceCode.ts#generateSerial), and preserved
@@ -58,6 +60,7 @@ const EMPTY_STATE: ApplicationState = {
   screeningQuestion: null,
   screeningAnswer: null,
   declaredIq: null,
+  gender: null,
   referenceCode: null,
   serial: null,
   issuedDate: null,

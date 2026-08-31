@@ -66,6 +66,7 @@ export function DocumentProgress() {
   const referenceAnimate = useRevealAnimation('reference', Boolean(state.referenceCode))
   const issuedAnimate = useRevealAnimation('issued', Boolean(state.issuedDate))
   const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
+  const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
   const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
   const subStepAddendum = getVisaAddendum(state)
@@ -97,6 +98,7 @@ export function DocumentProgress() {
     },
     { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
+    { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
   ]
 
   const addenda: VisaDocumentAddendum[] = [

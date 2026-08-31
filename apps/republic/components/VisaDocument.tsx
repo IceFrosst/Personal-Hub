@@ -69,7 +69,7 @@ const SIZE = {
     inner: 'p-3',
     title: 'text-base',
     subtitle: 'text-[10px]',
-    photo: 'h-28 w-28',
+    photo: 'h-24 w-24',
     photoText: 'text-[9px] px-1',
     photoGap: 'gap-3',
     grid: 'w-full text-[12px] gap-x-4 gap-y-3',
@@ -106,7 +106,10 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
           </div>
         )}
 
-        <div className={`mt-2 flex ${size === 'full' ? 'flex-col items-center' : 'items-start'} ${s.photoGap}`}>
+        {/* Photo left, fields right — SAME horizontal layout in both sizes
+            (the full document used to stack the photo above the grid; owner
+            asked for the horizontal progress-card arrangement everywhere). */}
+        <div className={`mt-2 flex items-start ${s.photoGap}`}>
           <div className={`shrink-0 overflow-hidden border border-navy bg-[#cfc8b8] ${s.photo}`}>
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

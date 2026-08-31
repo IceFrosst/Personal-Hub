@@ -11,7 +11,7 @@ import { Typewriter } from '@/components/Typewriter'
 import { addStamp } from '@/lib/passport'
 import { getApplicantNumber } from '@/lib/api'
 import { clearAnimatedFields } from '@/lib/formProgress'
-import { LANDING, SCREENING_QUESTIONS, formatApplicantNumber, type ScreeningQuestion } from '@/lib/content'
+import { GENDER_OPTIONS, LANDING, SCREENING_QUESTIONS, formatApplicantNumber, type ScreeningQuestion } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 import { useApplication } from '@/lib/applicationContext'
 
@@ -30,6 +30,9 @@ export default function EntryDeclarationPage() {
   // SCREENING_QUESTIONS at random; the answer prints on the passport via
   // lib/visaAddendum.ts#getScreeningAddenda.
   const [followUp, setFollowUp] = useState<ScreeningQuestion | null>(null)
+  // 'declare' → 'followUp' → 'gender' → /identity. Gender lands on the
+  // passport's SEX field (see STICKER_LABELS.sex / ApplicationState#gender).
+  const [stage, setStage] = useState<'declare' | 'followUp' | 'gender'>('declare')
 
   useEffect(() => {
     // Landing restarts the funnel on every visit, but identity is preserved
@@ -59,8 +62,9 @@ export default function EntryDeclarationPage() {
       return
     }
     // Declaring something triggers immediate follow-up questioning — the
-    // officer needs details. Navigation waits for the answer below.
+    // officer needs details. Navigation waits for the answers below.
     setFollowUp(SCREENING_QUESTIONS[Math.floor(Math.random() * SCREENING_QUESTIONS.length)])
+    setStage('followUp')
   }
 
   function answerFollowUp(option: string) {
@@ -68,6 +72,12 @@ export default function EntryDeclarationPage() {
     playStampThunk()
     update({ screeningQuestion: followUp.question, screeningAnswer: option })
     addStamp('FOLLOW-UP QUESTIONING CLEARED')
+    setStage('gender')
+  }
+
+  function answerGender(value: string) {
+    playStampThunk()
+    update({ gender: value })
     router.push('/identity')
   }
 
@@ -89,15 +99,12 @@ export default function EntryDeclarationPage() {
 
         <div className="my-2 h-px bg-navy/30" />
 
-        <p className="text-center text-[10px] uppercase tracking-wide text-navy/70">{LANDING.formCode}</p>
         <p className="mt-0.5 text-center text-[10px] text-navy/60">
           {LANDING.applicantNumberPrefix}{' '}
           {applicantNumber !== null ? formatApplicantNumber(applicantNumber) : LANDING.applicantNumberPlaceholder}
         </p>
 
-        <div className="barcode mt-2 !h-3" aria-hidden />
-
-        {!followUp ? (
+        {stage === 'declare' ? (
           <>
             <div className="mt-3 min-h-[3rem] text-center">
               <Typewriter
@@ -126,7 +133,7 @@ export default function EntryDeclarationPage() {
               </button>
             </div>
           </>
-        ) : (
+        ) : stage === 'followUp' && followUp ? (
           <div className="animate-fade-in mt-3">
             <p className="text-center font-stamp text-sm uppercase leading-relaxed tracking-wide text-navy">
               {followUp.question}
@@ -140,6 +147,24 @@ export default function EntryDeclarationPage() {
                   className="min-h-11 border-2 border-navy/40 px-3 py-2 text-left text-[12px] uppercase tracking-wide text-navy transition-all hover:border-approve hover:bg-approve hover:text-paper active:scale-[0.97]"
                 >
                   <span className="font-stamp">{option}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="animate-fade-in mt-3">
+            <p className="text-center font-stamp text-sm uppercase leading-relaxed tracking-wide text-navy">
+              {LANDING.genderQuestion}
+            </p>
+            <div className="mt-3 flex flex-col gap-2">
+              {GENDER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => answerGender(option.value)}
+                  className="min-h-11 border-2 border-navy/40 px-3 py-2 text-left text-[12px] uppercase tracking-wide text-navy transition-all hover:border-approve hover:bg-approve hover:text-paper active:scale-[0.97]"
+                >
+                  <span className="font-stamp">{option.label}</span>
                 </button>
               ))}
             </div>

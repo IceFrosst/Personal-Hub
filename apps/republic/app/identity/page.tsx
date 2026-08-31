@@ -8,19 +8,15 @@ import { useApplication } from '@/lib/applicationContext'
 import { IDENTITY } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 
-function normalizeHandle(raw: string): string {
-  return raw.trim().replace(/^@+/, '')
-}
-
+// Instagram handle moved to its own /handle page (after visa type +
+// appointment, before the photo) per owner feedback — this page is name-only.
 export default function IdentityPage() {
   const router = useRouter()
   const { state, update, hydrated } = useApplication()
   const [name, setName] = useState('')
-  const [handle, setHandle] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
-  const [handleTouched, setHandleTouched] = useState(false)
 
-  const hasIdentity = state.applicantName.trim().length > 0 && state.instagramHandle.trim().length > 0
+  const hasIdentity = state.applicantName.trim().length > 0
 
   useEffect(() => {
     // Same hydration race as every other route guard in this funnel.
@@ -34,19 +30,16 @@ export default function IdentityPage() {
       return
     }
     setName(state.applicantName)
-    setHandle(state.instagramHandle)
-  }, [hydrated, hasIdentity, state.applicantName, state.instagramHandle, router])
+  }, [hydrated, hasIdentity, state.applicantName, router])
 
   const nameValid = name.trim().length > 0
-  const handleValid = normalizeHandle(handle).length > 0
 
   function handleContinue() {
-    if (!nameValid || !handleValid) {
+    if (!nameValid) {
       setNameTouched(true)
-      setHandleTouched(true)
       return
     }
-    update({ applicantName: name.trim(), instagramHandle: normalizeHandle(handle) })
+    update({ applicantName: name.trim() })
     playStampThunk()
     router.push('/visa')
   }
@@ -76,26 +69,6 @@ export default function IdentityPage() {
             />
             {nameTouched && !nameValid && (
               <p className="mt-1 text-[10px] uppercase text-stamp">{IDENTITY.nameRequiredError}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="applicant-handle" className="block text-[11px] uppercase tracking-wide text-navy">
-              {IDENTITY.handleLabel}
-              <span className="text-stamp">*</span>
-            </label>
-            <input
-              id="applicant-handle"
-              type="text"
-              required
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              onBlur={() => setHandleTouched(true)}
-              placeholder={IDENTITY.handlePlaceholder}
-              className="mt-1 w-full border-b-2 border-navy bg-transparent px-1 py-2 font-stamp text-base lowercase tracking-wide text-navy placeholder:text-navy/30 focus:outline-none"
-            />
-            {handleTouched && !handleValid && (
-              <p className="mt-1 text-[10px] uppercase text-stamp">{IDENTITY.handleRequiredError}</p>
             )}
           </div>
 

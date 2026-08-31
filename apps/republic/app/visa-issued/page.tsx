@@ -281,6 +281,8 @@ export default function VisaIssuedPage() {
       rowY += rowGap
       cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
+      rowY += rowGap
+      cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, colWidth)
       // CONDITIONS row removed from the passport per owner feedback — the
       // "bring snacks" gag survives only in the /visa-issued page subtitle.
 
@@ -364,6 +366,7 @@ export default function VisaIssuedPage() {
     serial,
     issueDate,
     state.slot,
+    state.gender,
     visaAddendum,
     screeningAddenda,
   ])
@@ -422,6 +425,7 @@ export default function VisaIssuedPage() {
     { key: 'reference', label: STICKER_LABELS.reference, value: state.referenceCode, span: true },
     { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
+    { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
   ]
   const addenda: VisaDocumentAddendum[] = [
     { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot },

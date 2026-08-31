@@ -139,7 +139,8 @@ export default function AppointmentPage() {
       // line, buildApplicationRecord) reads from state.
       update({ slot, issuedDate: formatIssuedDate() })
       addStamp(`APPOINTMENT ${slot} CONFIRMED`)
-      router.push('/biometric')
+      // Handle registry first, then photo — see app/handle/page.tsx.
+      router.push('/handle')
     },
     [update, router]
   )
