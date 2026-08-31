@@ -6,5 +6,8 @@
       "path": "/api/cron/ingest",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": false
+  }
 }
