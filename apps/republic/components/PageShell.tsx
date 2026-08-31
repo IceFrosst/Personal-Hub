@@ -8,7 +8,7 @@ export function PageShell({
   children: React.ReactNode
   /** Landing only: fits entirely within one viewport, no scroll — see app/page.tsx. */
   fullHeight?: boolean
-  /** Every funnel page from /identity onward: the persistent FORM 1G-NAS card. */
+  /** Every funnel page from /identity onward: the persistent mini visa/progress card. */
   showProgress?: boolean
 }) {
   if (fullHeight) {

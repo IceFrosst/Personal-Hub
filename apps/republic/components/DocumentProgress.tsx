@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
+import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
+import { getVisaAddendum } from '@/lib/visaAddendum'
 
 /**
  * Plays the field-fill reveal exactly once per field per browser session —
@@ -30,73 +32,45 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
   return animate
 }
 
-function Blank({ wide }: { wide?: boolean }) {
-  return <span className={`inline-block h-2 border-b border-navy/30 ${wide ? 'w-16' : 'w-9'}`} aria-hidden />
-}
-
-function Row({
-  label,
-  value,
-  animKey,
-  span,
-}: {
-  label: string
-  value: string | null
-  animKey: string
-  /** REFERENCE № runs full-width across both columns, same as on the sticker. */
-  span?: boolean
-}) {
-  const filled = Boolean(value)
-  const animate = useRevealAnimation(animKey, filled)
-
-  return (
-    <div className={`flex items-baseline justify-between gap-1.5 ${span ? 'col-span-2' : ''}`}>
-      <span className="shrink-0 text-navy">{label}</span>
-      {filled ? (
-        <span className={`truncate text-right font-bold text-navy ${animate ? 'animate-field-fill' : ''}`}>
-          {value}
-        </span>
-      ) : (
-        <Blank wide={span} />
-      )}
-    </div>
-  )
-}
-
 // A faithful DOM replica of the final canvas-composited visa sticker on
-// /visa-issued — "the same document, being filled in." Shares the exact
-// label copy with the sticker via STICKER_LABELS (single source; see
-// lib/content.ts) and mirrors its design language: the same double navy
-// border on paper, the same "DICTATORSHIP OF IGNAS" header + "VISA — <TYPE>"
-// subtitle line (blank/ruled until a visa is chosen), a SQUARE photo box
-// (not the sticker's old oval — square everywhere per owner feedback), and
-// a barcode strip along the bottom. The two-column field grid replicates
-// *every* field on the sticker, in the sticker's own order — NAME +
-// PASSPORT №, VISA TYPE + SERIAL №, REFERENCE № full-width, then ISSUED +
-// VALID, then CONDITIONS full-width — via STICKER_LABELS, the single shared
-// source. By /biometric, every field except REFERENCE № is filled: SERIAL №
-// is set at visa selection, VALID/CONDITIONS fill immediately on visa
-// selection (from APPROVED.validValue/conditionsValue, the same constants
-// /visa-issued renders), and ISSUED fills once the appointment slot is
-// confirmed — see lib/content.ts's DOCUMENT_PROGRESS comment for the full
-// breakdown. REFERENCE № is the one truly issuance-only value and stays a
-// ruled blank until /processing generates it. The APPOINTMENT slot is real
-// funnel data known well before issuance, but it is
-// NOT one of the sticker's own fields, so it's deliberately kept outside the
-// replicated field grid — shown as its own dashed-divider line below it —
-// rather than standing in for (and being confused with) the sticker's ISSUED
-// row. The photo box uses the sticker's own placeholder treatment
-// (`#cfc8b8` fill + `STICKER_LABELS.photoPlaceholder` text, square corners)
-// until biometrics are captured, then shows the persisted thumbnail; falls
-// back to the placeholder again if the thumbnail never made it (e.g.
-// generation failed). Never rendered on landing or /visa-issued — see that
-// page's <PageShell> call (no `showProgress`).
+// /visa-issued — "the same document, being filled in." Renders via the
+// shared components/VisaDocument.tsx (also used by the final /visa-issued
+// document itself, in its "full" size, so the two structures can't drift
+// apart — see that file's header comment). This component owns everything
+// stateful: hydration guarding, the one-time reveal-animation hooks (one per
+// field, called unconditionally so their count/order never changes — see
+// useRevealAnimation above), and reading live funnel state out of context;
+// VisaDocument itself just renders whatever field data it's handed.
+//
+// Field grid mirrors the sticker's own order exactly — NAME + PASSPORT,
+// VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED + VALID, CONDITIONS
+// full-width — via STICKER_LABELS, the single shared label source with the
+// canvas draw code on /visa-issued. By /biometric, every field except
+// REFERENCE № is filled: SERIAL № is set at visa selection, VALID/
+// CONDITIONS fill immediately on visa selection (from
+// APPROVED.validValue/conditionsValue, the same constants /visa-issued
+// renders), and ISSUED fills once the appointment slot is confirmed.
+// REFERENCE № is the one truly issuance-only value and stays a ruled blank
+// until /processing generates it. Below the grid, up to two addenda (not
+// sticker fields — the appointment slot, and whatever the chosen visa's
+// sub-step collected) render with their own dashed-divider treatment.
+// Never rendered on landing or /visa-issued — see PageShell's `showProgress`.
 export function DocumentProgress() {
   const { state, hydrated } = useApplication()
   // Called unconditionally (Rules of Hooks) — the `!hydrated` early return
   // below is fine since nothing else in this component calls a hook after it.
+  const nameAnimate = useRevealAnimation('name', Boolean(state.applicantName))
+  const passportAnimate = useRevealAnimation('passport', Boolean(state.instagramHandle))
+  const visaTypeAnimate = useRevealAnimation('visaType', Boolean(state.visaType))
+  const serialAnimate = useRevealAnimation('serial', Boolean(state.serial))
+  const referenceAnimate = useRevealAnimation('reference', Boolean(state.referenceCode))
+  const issuedAnimate = useRevealAnimation('issued', Boolean(state.issuedDate))
+  const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
+  const conditionsAnimate = useRevealAnimation('conditions', Boolean(state.visaType))
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
   const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
+  const subStepAddendum = getVisaAddendum(state)
+  const subStepAnimate = useRevealAnimation('subStepContent', Boolean(subStepAddendum))
 
   // Same hydration-safety rule as the rest of the funnel: nothing here may
   // read context state before the sessionStorage read completes, so render
@@ -105,72 +79,56 @@ export function DocumentProgress() {
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
+  const fields: VisaDocumentField[] = [
+    { key: 'name', label: STICKER_LABELS.name, value: state.applicantName || null, animate: nameAnimate },
+    {
+      key: 'passport',
+      label: STICKER_LABELS.passport,
+      value: state.instagramHandle ? `@${state.instagramHandle}` : null,
+      animate: passportAnimate,
+    },
+    { key: 'visaType', label: STICKER_LABELS.visaType, value: visa ? visa.name : null, animate: visaTypeAnimate },
+    { key: 'serial', label: STICKER_LABELS.serial, value: state.serial, animate: serialAnimate },
+    {
+      key: 'reference',
+      label: STICKER_LABELS.reference,
+      value: state.referenceCode,
+      span: true,
+      animate: referenceAnimate,
+    },
+    { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
+    { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
+    {
+      key: 'conditions',
+      label: STICKER_LABELS.conditions,
+      value: visa ? APPROVED.conditionsValue : null,
+      span: true,
+      animate: conditionsAnimate,
+    },
+  ]
+
+  const addenda: VisaDocumentAddendum[] = [
+    { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot, animate: appointmentAnimate },
+  ]
+  if (subStepAddendum) {
+    addenda.push({
+      key: 'subStep',
+      label: subStepAddendum.label,
+      value: subStepAddendum.value,
+      animate: subStepAnimate,
+    })
+  }
+
   return (
-    <div className="sticky top-0 z-20 mb-2 border-2 border-navy bg-paper p-1 shadow-[2px_2px_0_rgba(26,42,74,0.15)]">
-      <div className="border border-navy p-1.5">
-        <p className="text-center font-stamp text-[9px] uppercase tracking-[0.2em] text-navy">
-          {STICKER_LABELS.republicTitle}
-        </p>
-        {visa ? (
-          <p className="text-center text-[7px] uppercase tracking-[0.15em] text-navy">
-            {STICKER_LABELS.visaPrefix}
-            {visa.name}
-          </p>
-        ) : (
-          <div className="mt-0.5 flex justify-center">
-            <Blank wide />
-          </div>
-        )}
-
-        <div className="mt-1 flex items-start gap-1.5">
-          <div className="h-11 w-8 shrink-0 overflow-hidden border border-navy bg-[#cfc8b8]">
-            {state.selfieThumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={state.selfieThumbnailUrl}
-                alt=""
-                className={`h-full w-full object-cover ${photoAnimate ? 'animate-field-fill' : ''}`}
-              />
-            ) : (
-              <p className="flex h-full w-full items-center justify-center px-px text-center text-[3px] font-bold uppercase leading-[1.1] text-navy">
-                {STICKER_LABELS.photoPlaceholder}
-              </p>
-            )}
-          </div>
-
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-2 gap-y-0.5 text-[8px] uppercase tracking-wide">
-            <Row label={STICKER_LABELS.name} value={state.applicantName || null} animKey="name" />
-            <Row
-              label={STICKER_LABELS.passport}
-              value={state.instagramHandle ? `@${state.instagramHandle}` : null}
-              animKey="passport"
-            />
-            <Row label={STICKER_LABELS.visaType} value={visa ? visa.name : null} animKey="visaType" />
-            <Row label={STICKER_LABELS.serial} value={state.serial} animKey="serial" />
-            <Row label={STICKER_LABELS.reference} value={state.referenceCode} animKey="reference" span />
-            <Row label={STICKER_LABELS.issued} value={state.issuedDate} animKey="issued" />
-            <Row label={STICKER_LABELS.valid} value={visa ? APPROVED.validValue : null} animKey="valid" />
-            <Row label={STICKER_LABELS.conditions} value={visa ? APPROVED.conditionsValue : null} animKey="conditions" span />
-          </div>
-        </div>
-
-        {/* Appointment slot: real funnel data, but deliberately outside the
-            replicated sticker field grid above (it isn't one of the sticker's
-            own fields) — set off with its own dashed divider so it reads as
-            an addendum, not a stand-in for ISSUED. */}
-        <div className="mt-1 flex items-baseline justify-between gap-1.5 border-t border-dashed border-navy/40 pt-1 text-[8px] uppercase tracking-wide">
-          <span className="shrink-0 text-navy">{DOCUMENT_PROGRESS.appointmentLabel}</span>
-          {state.slot ? (
-            <span className={`truncate text-right font-bold text-navy ${appointmentAnimate ? 'animate-field-fill' : ''}`}>
-              {state.slot}
-            </span>
-          ) : (
-            <Blank />
-          )}
-        </div>
-
-        <div className="barcode-mini mt-1.5" aria-hidden />
-      </div>
+    <div className="sticky top-0 z-20 mb-2">
+      <VisaDocument
+        size="compact"
+        visaName={visa ? visa.name : null}
+        photoUrl={state.selfieThumbnailUrl}
+        photoAnimate={photoAnimate}
+        fields={fields}
+        addenda={addenda}
+      />
     </div>
   )
 }

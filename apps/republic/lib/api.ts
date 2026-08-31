@@ -1,8 +1,14 @@
-// Backend stubs. When NEXT_PUBLIC_SUPABASE_URL is set, these best-effort POST to
-// the (not-yet-created) `republic` Supabase schema described in SIDEQUEST_PLAN.md
-// — wrapped in try/catch so a missing table never breaks the funnel. When it's
-// absent (the default, today), everything falls back to localStorage so the
-// whole experience works with zero backend. No migrations, no credentials required.
+// Backend stubs. The `republic` Supabase schema now exists for real, but only for
+// one narrow purpose so far: the global applicant-number sequence/RPC (see
+// supabase/migrations/0001_applicant_number_sequence.sql and getApplicantNumber
+// below) — that path needs NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY
+// configured and fails closed to `null` without them. Everything else in this file
+// (recordApplication/recordAppointment/recordBribe) still targets the
+// `applications`/`appointments`/`bribes` tables described in SIDEQUEST_PLAN.md,
+// which have NOT been created yet — those best-effort POST to Supabase only if the
+// env vars are set, wrapped in try/catch so a missing table never breaks the
+// funnel, and otherwise fall back to localStorage so the whole experience works
+// with zero backend.
 
 import { computeSlots, type Slot } from './slots'
 import type { ApplicationState } from './applicationContext'
@@ -14,7 +20,9 @@ const SUPABASE_SCHEMA = 'republic'
 const LS_KEYS = {
   bribeCount: 'republic:bribe-count',
   applications: 'republic:applications-log',
-  applicantNumber: 'republic:applicant-number',
+  // Versioned key deliberately ignores the legacy random-number cache, so
+  // every browser receives a genuine global sequence value after this rollout.
+  applicantNumber: 'republic:applicant-number-v2',
 } as const
 
 function isBrowser() {
@@ -44,9 +52,11 @@ function writeLocal<T>(key: string, value: T) {
 // path plus a `Content-Profile` (write) / `Accept-Profile` (read) header naming
 // the schema — `rest/v1/republic.applications` (dot-qualified in the path) is
 // not a valid PostgREST route and would 404 silently forever. `response.ok` is
-// checked explicitly so a schema/table that doesn't exist yet (true today,
-// since no `republic` schema has been provisioned) is reported as a failure
-// rather than treated as a silent success.
+// checked explicitly so a table that doesn't exist yet (true today for
+// `applications`/`appointments`/`bribes` — the `republic` schema itself now
+// exists, per the applicant-number migration, but only the sequence/RPC were
+// ever created in it) is reported as a failure rather than treated as a silent
+// success.
 async function tryRest(table: string, body: Record<string, unknown>): Promise<boolean> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false
   try {
@@ -173,34 +183,130 @@ export function getBribeCount(): number {
   return readLocal<number>(LS_KEYS.bribeCount, 0)
 }
 
-// Applicant number — generated once per device and cached in localStorage, a
-// believable but entirely fake per-visitor number until a real backend
-// counter exists. Structured as its own function (like the rest of this
-// file) specifically so a real Supabase-backed sequence can replace the body
-// later without touching call sites (currently just app/page.tsx).
-const APPLICANT_NUMBER_MIN = 47
-const APPLICANT_NUMBER_MAX = 4999
+// Applicant number — a real global sequential count, shared by every
+// visitor, backed by the `republic.next_applicant_number()` Supabase RPC
+// (see apps/republic/supabase/migrations/0001_applicant_number_sequence.sql
+// — a Postgres sequence wrapped in a SECURITY DEFINER function, granted to
+// anon/authenticated so the browser can call it directly). Each browser/
+// device only ever calls the RPC ONCE — the very first time it resolves a
+// number, the result is cached in localStorage and every later call (this
+// session or any future one, same device) reads the cache instead, so
+// reloading the landing page never burns another number. There is
+// deliberately NO random/fake fallback: if the RPC is unreachable (no
+// Supabase env vars configured, network failure, missing/misconfigured
+// schema exposure — see SCHEMA_RULES.md's Data API exposure note) this
+// resolves to `null` and app/page.tsx just keeps showing
+// LANDING.applicantNumberPlaceholder until a later visit succeeds. Nothing
+// is ever fabricated locally.
+async function fetchNextApplicantNumber(): Promise<number | null> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null
+  try {
+    // RPC calls are POSTs, so — same as tryRest's table writes above — the
+    // schema is named via the `Content-Profile` header (not a dot-qualified
+    // path segment); `republic.next_applicant_number` is called as
+    // unqualified `next_applicant_number` at `rest/v1/rpc/...`.
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/next_applicant_number`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+      },
+      body: '{}',
+    })
+    if (!response.ok) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[republic] next_applicant_number RPC failed: ${response.status}`)
+      }
+      return null
+    }
+    // The function returns a bare scalar (bigint), not a row object — the
+    // response body is just the JSON-encoded number itself.
+    const raw: unknown = await response.json()
+    const parsed = typeof raw === 'number' ? raw : Number(raw)
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return null
+    return parsed
+  } catch {
+    // Best-effort only — same as every other network call in this file, a
+    // failure here must never break the funnel; the caller keeps the
+    // placeholder instead of inventing a number.
+    return null
+  }
+}
 
-export function getApplicantNumber(): number {
+// Same-tab in-flight dedup for the very first allocation: React StrictMode
+// (dev only) mounts effects twice — mount → cleanup → mount — synchronously
+// before either call's first `await` resolves, so without this, two
+// near-simultaneous calls to getApplicantNumber() would both see no cached
+// value yet and each fire their own fetchNextApplicantNumber(), burning two
+// sequence values for one visitor instead of one. This module-level promise
+// is set synchronously (before the first `await` inside getApplicantNumber)
+// so a second call arriving before the first resolves reuses the same
+// in-flight request instead of starting a new one; it's cleared once that
+// request settles (success or `null`) so a genuinely later call can retry.
+// This is purely a same-tab/same-module safeguard — it does nothing across
+// tabs/windows, which is what the localStorage cache (below) is for.
+let inFlightApplicantNumberRequest: Promise<number | null> | null = null
+
+/**
+ * Resolves this browser/device's applicant number: the cached value if one
+ * was already assigned, otherwise a fresh call to the global sequence RPC
+ * (cached immediately on success, deduped in-flight — see
+ * `inFlightApplicantNumberRequest` above). Returns `null` — never a
+ * fabricated number — if no cached value exists and the RPC call fails;
+ * callers should keep showing their placeholder in that case (see
+ * app/page.tsx).
+ */
+export async function getApplicantNumber(): Promise<number | null> {
   const cached = readLocal<number | null>(LS_KEYS.applicantNumber, null)
-  if (
-    cached !== null &&
-    Number.isInteger(cached) &&
-    cached >= APPLICANT_NUMBER_MIN &&
-    cached <= APPLICANT_NUMBER_MAX
-  ) {
+  if (cached !== null && Number.isInteger(cached) && cached > 0) {
     return cached
   }
-  const assigned = APPLICANT_NUMBER_MIN + Math.floor(Math.random() * (APPLICANT_NUMBER_MAX - APPLICANT_NUMBER_MIN + 1))
+  if (!inFlightApplicantNumberRequest) {
+    inFlightApplicantNumberRequest = fetchNextApplicantNumber().finally(() => {
+      inFlightApplicantNumberRequest = null
+    })
+  }
+  const assigned = await inFlightApplicantNumberRequest
+  if (assigned === null) return null
   writeLocal(LS_KEYS.applicantNumber, assigned)
   return assigned
 }
 
-// Appointment slots — hardcoded joke pool with deterministic weekly scarcity
-// today (lib/slots.ts); shaped as an async call so a real Google
-// Calendar-backed source can replace the body later without touching callers.
+// Appointment slots — SUPERSEDED for the live appointment flow by
+// getAvailableDates below (a real Google Calendar-backed source), but kept
+// as-is (not deleted) as a fallback/demo-mode reference — see the matching
+// comment in lib/content.ts above BASE_SLOT_LABELS. Nothing currently calls
+// this.
 export async function getAvailableSlots(visaType: ApplicationState['visaType']): Promise<Slot[]> {
   return computeSlots(visaType)
+}
+
+/**
+ * Free calendar dates for the appointment day-picker
+ * (app/appointment/page.tsx) — calls the server-only
+ * app/api/available-dates route (Google Calendar freeBusy under the hood,
+ * see lib/googleCalendar.ts; never called directly from the client, and no
+ * credentials ever reach the browser). Defensively validates the response
+ * shape before trusting it: a malformed body, a non-2xx response, or a
+ * network failure all resolve an empty array, exactly like a
+ * genuinely-fully-booked calendar — the appointment page can't tell the
+ * difference and shouldn't try to; it just shows "no appointments
+ * available" either way rather than ever inventing a bookable date.
+ */
+export async function getAvailableDates(): Promise<string[]> {
+  try {
+    const response = await fetch('/api/available-dates', { cache: 'no-store' })
+    if (!response.ok) return []
+    const body: unknown = await response.json()
+    if (typeof body !== 'object' || body === null) return []
+    const rawDates = (body as Record<string, unknown>).dates
+    if (!Array.isArray(rawDates)) return []
+    return rawDates.filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
+  } catch {
+    return []
+  }
 }
 
 // No Supabase Storage bucket exists yet — this always resolves to the local

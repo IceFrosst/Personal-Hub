@@ -1,4 +1,4 @@
-// Tracks which FORM 1G-NAS progress-card fields (components/DocumentProgress.tsx)
+// Tracks which progress-card fields (components/DocumentProgress.tsx)
 // have already played their one-time reveal animation this browser session,
 // so refreshing mid-funnel never replays the "stamp-in" for a field that was
 // already filled before the refresh. Session-scoped (not the funnel's own

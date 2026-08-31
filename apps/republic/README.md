@@ -17,12 +17,15 @@ ENTRY DECLARATION (no-scroll landing: "do you have something to declare?")
   NO  → ENTRY DENIED (stamp slam, rotating reason, "file an appeal" loops to /identity)
   YES → APPLICANT IDENTIFICATION (name + Instagram handle — skipped if already on file
         this session) → VISA SELECTION (5 visas)
-          → per-visa sub-step (1-field form / fiancé interview — sidequest has none) →
-            straight to CONSULATE APPOINTMENT, no confirmation screen in between
-          → CONSULATE APPOINTMENT (time-slot picker, real scarcity)
-          → BIOMETRIC VERIFICATION (selfie via file input, final step)
+          → per-visa sub-step (1-field form / fiancé interview, now a single
+            question — sidequest has none) → straight to CONSULATE APPOINTMENT,
+            no confirmation screen in between
+          → CONSULATE APPOINTMENT (pick a real free day from Ignas's Google
+            Calendar, then a time — picking a time advances immediately, no
+            confirmation screen)
+          → IDENTITY VERIFICATION (selfie via file input, final step; route stays /biometric)
           → PROCESSING (progress bar stutters at 99%)
-          → VISA ISSUED (canvas-composited visa sticker, download, DM handoff)
+          → VISA ISSUED (completed visa document, PNG download, DM handoff)
 ```
 
 Every screen also has its own route (`/identity`, `/denied`, `/visa`, `/visa/[type]`,
@@ -50,7 +53,10 @@ neither — only the HIGH RISK stamp):
 - 📎 **SPECIAL PURPOSE VISA** — Purpose of visit: other
 
 Selecting one (and completing its sub-step form, if it has one) goes straight to the
-appointment picker — there's no "continue" confirmation screen in between anymore.
+appointment picker — there's no "continue" confirmation screen in between anymore. The
+fiancé/DATE VISA "interview" is now a single question ("Purpose of visit?", two options)
+with no visible question counter — the old 3-question interview (red flags, favorite
+food) was cut per owner feedback.
 
 ## Identity / "the DM is the passport"
 
@@ -66,35 +72,78 @@ DM" on success, or the reference line shown inline in small text with a manual-c
 on failure. Ignas looks up the reference code to see what was submitted and
 confirms/declines by DM.
 
-## The progress card
+## The shared visa document design
 
-`components/DocumentProgress.tsx`, shown via `<PageShell showProgress>`. A compact mini
-visa card, same design language as the final `/visa-issued` sticker shrunk down: a navy
-double-line border on paper, a small "DICTATORSHIP OF IGNAS" header, an oval photo box
-(solid black/silhouette until biometrics are captured, then the persisted selfie
-thumbnail — falls back to black again if the thumbnail never made it) and a short
-barcode strip along the bottom. The data fields sit in a two-column grid next to the
-photo, paired NAME + PASSPORT № / VISA TYPE + APPOINTMENT / DECLARATION + BIOMETRICS,
-with the relevant sub-step's answer (truncated) and, once actually approved, STATUS each
-spanning both columns (`/visa-issued` — the only page where STATUS would matter — doesn't
-show this card at all). Unfilled fields render as a blank ruled line; a field (including
-the photo) animates once, the moment it's first filled, via a small "field-fill" pop —
-but only once ever per browser session (`lib/formProgress.ts` tracks which field keys
-have already played the animation in `sessionStorage`, separate from the funnel's own
-state, so refreshing mid-funnel never replays it for something that was already on the
-form). `prefers-reduced-motion` collapses the animation to a single instant frame via the
-same global rule every other animation in this app uses — no special-casing needed. The
-two-column layout keeps the card noticeably shorter than the old single-column
-passport-booklet design while staying readable at 390px.
+`components/VisaDocument.tsx` is the shared, presentational (no hooks/context) structural
+component for the navy double-border/paper visa document look — header + subtitle, a
+SQUARE photo box, a two-column field grid in the sticker's own order (NAME + PASSPORT №,
+VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED + VALID, CONDITIONS full-width), up
+to two addenda lines with a dashed-divider treatment, and a barcode strip. It has two
+sizes and two callers:
+
+- **`components/DocumentProgress.tsx`** (`size="compact"`) — the small sticky progress
+  card shown via `<PageShell showProgress>` on every page from `/identity` through
+  `/processing`. It owns hydration guarding and a one-time "field-fill" reveal animation
+  per field (`lib/formProgress.ts` tracks which field keys already played it in
+  `sessionStorage`, so a refresh mid-funnel never replays it), and renders blank ruled
+  lines for anything not filled in yet — SERIAL №/ISSUED/VALID/CONDITIONS as soon as a
+  visa is picked, REFERENCE № only once `/processing` generates it. Below the grid it
+  shows up to two addenda (not sticker fields): the confirmed APPOINTMENT slot, and —
+  once the chosen visa's sub-step actually collected something — the consultation
+  matter / business pitch / sworn statement / fiancé answer, whichever applies.
+- **`app/visa-issued/page.tsx`** (`size="full"`) — the final, on-screen document once a
+  visa is actually issued: larger and readable at ~390px, every field complete (no
+  blanks), the same appointment + visa-answer addenda, the applicant's photo, and an APPROVED stamp overlaid via
+  `StampSlam`. This is now real DOM, not a canvas render — crisp at any zoom/DPI, and
+  guaranteed to share the exact same structure as the progress card since both render
+  through `VisaDocument`.
+
+A separate off-screen `<canvas>` on `/visa-issued` exists ONLY to produce the downloadable
+PNG (`DOWNLOAD VISA`) — it's tall enough for the same appointment and visa-answer
+addenda and uses the same two-column field order as `VisaDocument` (previously a single
+vertical text list), so the downloaded image matches the on-screen design as closely as
+a canvas practically can; it is never itself visible on the page.
+`prefers-reduced-motion` collapses the progress card's reveal animation to a single
+instant frame via the same global rule every other animation in this app uses.
 
 ## Applicant number
 
-The landing page shows a distinct applicant number per device — generated once
-(`lib/api.ts#getApplicantNumber`, random in 47–4999, cached in `localStorage`,
-zero-padded to 4 digits) and stable across visits on the same device/browser. It starts
-as a placeholder and is only ever filled in from a client effect (hydration-safe, since
-this page is statically prerendered). It's structured as its own function specifically
-so a real backend counter can replace the body later without touching call sites.
+The landing page shows a real, globally sequential applicant number, shared by every
+visitor — not a per-device random number. `lib/api.ts#getApplicantNumber` calls the
+`republic.next_applicant_number()` Supabase RPC (a Postgres sequence wrapped in a
+SECURITY DEFINER function; see `supabase/migrations/0001_applicant_number_sequence.sql`)
+**at most once per browser/device**: the very first resolved value is cached in
+`localStorage` and zero-padded to 4 digits for display, and every later visit on the
+same device reads that cache instead of calling the RPC again. If the RPC call fails (no
+Supabase env vars configured, network error, or the schema isn't exposed to PostgREST
+yet), the app does **not** fabricate a number — it just keeps showing
+`LANDING.applicantNumberPlaceholder` until a later attempt succeeds. The value starts
+`null` and is only ever resolved from a client effect (hydration-safe, since this page
+is statically prerendered).
+
+## Consulate appointment availability (Google Calendar)
+
+`/appointment` shows real free days from the Google Calendar already connected through
+Lock In, then a fixed set of times once a day is picked. `app/api/available-dates/route.ts`
+(a server-only Route Handler) calls `lib/googleCalendar.ts`, which sends date boundaries
+to Lock In's authenticated server-to-server `/api/calendar/free-days` bridge. Lock In
+reuses its existing offline refresh token and Google OAuth credentials to query the
+connected account's primary Calendar through the **freeBusy** API. Only free date keys
+return to Republic—never tokens, busy intervals, event titles, or other details—and
+neither endpoint writes calendar events. Candidates begin tomorrow. The query spans every
+candidate's complete local day, and a day is only returned as “free” if it has zero busy
+time at all (any overlapping timed or all-day event blocks the whole day) within a
+bounded 30-day window; local-midnight boundaries remain correct across DST. The route
+caches its response for ~60s. Any missing env var,
+auth failure, or malformed response fails closed to an empty date list — the appointment
+page then shows "no appointments available," never a fabricated bookable day.
+
+No second Google consent or service account is needed. Republic only needs
+`LOCK_IN_CALENDAR_API_URL` (sourced from `apps/hub/config/apps.json`) and a shared
+server-only `REPUBLIC_CALENDAR_API_SECRET`; Lock In keeps its existing Google/Supabase
+credentials. `GOOGLE_CALENDAR_TIME_ZONE` is optional and defaults to `Europe/Vilnius`. Picking a time immediately
+stores an unambiguous `"<DATE> — <TIME>"` string in `state.slot` and navigates straight
+to `/biometric` — no confirmation screen, matching the rest of the funnel.
 
 ## Stack
 
@@ -110,8 +159,10 @@ so a real backend counter can replace the body later without touching call sites
   site is already inside a click/tap/change handler, which is what a browser's autoplay
   policy actually needs (one prior user gesture on the page); `lib/sound.ts` also
   best-effort `resume()`s the shared `AudioContext` if it started suspended
-- Client-side canvas compositing for the visa sticker (photo + APPROVED stamp + serial +
-  reference code) — no server round-trip
+- The final `/visa-issued` document (and the mid-funnel progress card) are real DOM,
+  rendered via the shared `components/VisaDocument.tsx` — see "The shared visa document
+  design" above. A separate off-screen `<canvas>` composites the downloadable PNG only
+  (photo + APPROVED stamp + serial + reference code) — no server round-trip
 - Custom checkbox (`components/Checkbox.tsx`): the real `<input type="checkbox">` stays
   functional but invisible (`opacity-0`); the box + check mark are drawn by sibling
   elements, so it never depends on native checkbox rendering or `accent-color` support.
@@ -119,12 +170,20 @@ so a real backend counter can replace the body later without touching call sites
   app's global `appearance: none` reset is exactly what made the sworn-statement
   checkbox on `/visa/special` invisible in production.
 - `lib/api.ts` — typed backend stubs (`recordApplication`, `recordAppointment`,
-  `recordBribe`, `getApplicantNumber`, `getAvailableSlots`, `uploadPhoto`) that always
-  work off localStorage and best-effort (try/catch-swallowed) POST to Supabase only if
-  `NEXT_PUBLIC_SUPABASE_URL` is set — no schema/migrations exist yet, so this is
-  forward-compatible scaffolding, not a live integration
+  `recordBribe`, `uploadPhoto`) that always work off localStorage and best-effort
+  (try/catch-swallowed) POST to Supabase only if `NEXT_PUBLIC_SUPABASE_URL` is set — no
+  `applications`/`appointments`/`bribes` tables exist yet, so this is forward-compatible
+  scaffolding, not a live integration. `getApplicantNumber`, specifically, is a real (if
+  narrow) integration already: it calls the `republic.next_applicant_number()` Supabase
+  RPC (see `supabase/migrations/`) to hand out a real global sequential number, at most
+  once per browser/device — see "Applicant number" above. `getAvailableDates`, also real,
+  fetches `/api/available-dates` — see "Consulate appointment availability" above. The
+  old joke `getAvailableSlots`/`lib/slots.ts` pool is unused now, kept only as a
+  fallback/demo-mode reference.
 - No bot defenses (no Turnstile, no honeypot) and no server persistence beyond the
-  best-effort stub above — this is a client-side joke funnel, not a form product
+  best-effort stub above (application/bribe records) — this is a client-side joke funnel,
+  not a form product. The Google Calendar integration (above) is the one exception: it's
+  a real, read-only, server-only API call, not a stub.
 
 ## Develop
 
@@ -150,9 +209,10 @@ in-app browser. Check the landing specifically at 390×660 (Instagram webview ch
 ## All copy lives in one place
 
 `lib/content.ts` — visa definitions, denial reasons, gag lines, interview questions,
-identity/passport-card labels, statistics placeholders (including the "one citizen"
-footnote), duty-free stock, terms paragraphs (including the paragraph 7 easter egg and
-the democracy clause), the DM handle/deep link, and the reference-line format. Edit copy
+identity/passport-card labels (including the progress card's per-visa sub-step addendum
+labels), statistics placeholders (including the "one citizen" footnote), duty-free
+stock, terms paragraphs (including the paragraph 6 screenshot easter egg and the
+democracy clause), the DM handle/deep link, and the reference-line format. Edit copy
 there, not scattered across components. A few sub-step gag lines (preliminary rulings,
 the sworn-statement replies, the fiancé "vibe check passed" message, the old tourist
 notice) are still defined there but currently unused — they used to power an

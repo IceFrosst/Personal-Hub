@@ -12,7 +12,7 @@ export default function TermsPage() {
 
         <ol className="mt-4 flex flex-col gap-3 text-[12px] leading-relaxed text-navy">
           {TERMS_PARAGRAPHS.map((paragraph, i) => (
-            <li key={paragraph} className={i === 6 ? 'border-2 border-stamp p-2 text-stamp' : ''}>
+            <li key={paragraph} className={i === 5 ? 'border-2 border-stamp p-2 text-stamp' : ''}>
               {paragraph}
             </li>
           ))}

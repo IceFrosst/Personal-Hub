@@ -89,8 +89,12 @@ export const CREST_ARIA_LABEL =
 
 export const LANDING = {
   title: 'DICTATORSHIP OF IGNAS',
+  // The header crest/title already carries "BORDER CONTROL" as its subtitle
+  // line below — this second line is the form-code line, and reads plainly
+  // as "ENTRY DECLARATION" (no "FORM 1G-NAS" prefix; that internal form-code
+  // string was cut per owner feedback, see CLAUDE.md).
   subtitle: 'BORDER CONTROL',
-  formCode: 'FORM 1G-NAS — ENTRY DECLARATION',
+  formCode: 'ENTRY DECLARATION',
   applicantNumberPrefix: 'APPLICANT №',
   // Shown until lib/api.ts#getApplicantNumber resolves inside a client effect
   // (never during render — see the hydration-safety Gotcha in CLAUDE.md).
@@ -99,10 +103,12 @@ export const LANDING = {
   yes: 'YES',
   no: 'NO',
   priorityStamp: 'PRIORITY',
-  passportStampsLabel: 'PASSPORT STAMPS ON FILE:',
 }
 
-/** Zero-padded to 4 digits — matches the 47–4999 range in lib/api.ts#getApplicantNumber. */
+/** Zero-padded to 4 digits. The underlying number is now a real global
+ *  sequential count from the `republic.next_applicant_number()` Supabase RPC
+ *  (see lib/api.ts#getApplicantNumber) — no fixed range to document here
+ *  anymore, it just keeps climbing. */
 export function formatApplicantNumber(n: number): string {
   return String(n).padStart(4, '0')
 }
@@ -195,25 +201,24 @@ export const PRELIMINARY_RULINGS = [
 // ---------------------------------------------------------------------------
 
 export const FIANCE_INTRO =
-  'ROUTINE QUESTIONS. ANSWER HONESTLY. DISHONESTY IS CUTE BUT ILLEGAL.'
+  'ROUTINE QUESTION. ANSWER HONESTLY. DISHONESTY IS CUTE BUT ILLEGAL.'
 
 export interface InterviewQuestion {
   question: string
   options: string[]
 }
 
+// Trimmed to a single question per owner feedback — the "red flags" and
+// "favorite food" follow-ups are cut outright (not hidden), and there is no
+// visible question counter anymore (see components/visa-steps/FianceStep.tsx
+// — formatFianceProgress was deleted, not just unused, since one question
+// needs no counter at all). Still an array (not a bare object) so
+// `fianceAnswers` in applicationContext stays the same array type — just one
+// element now instead of three.
 export const FIANCE_QUESTIONS: InterviewQuestion[] = [
   {
     question: 'Purpose of visit?',
-    options: ['Romance', 'Chaos, but the fun kind', 'Unclear, but I paid the fee', 'Diplomatic immunity via charm'],
-  },
-  {
-    question: 'Are you carrying any red flags?',
-    options: ['No', 'A couple, tastefully hidden', 'They are more of a collection', 'I AM the red flag'],
-  },
-  {
-    question: 'Favorite food — answer carefully, this is binding.',
-    options: ['Whatever he\'s having', 'Something expensive', 'Whatever\'s cheapest on the menu', 'Snacks, generally'],
+    options: ['Unclear, but I paid the declaration fee', 'Diplomatic immunity via charm'],
   },
 ]
 
@@ -222,10 +227,6 @@ export const FIANCE_HIGH_RISK = 'HIGH RISK'
 export const FIANCE_RESULT = {
   title: 'VIBE CHECK: PASSED',
   note: '(the outcome was never in doubt. the Ministry finds you delightful.)',
-}
-
-export function formatFianceProgress(current: number, total: number): string {
-  return `QUESTION ${current} OF ${total}`
 }
 
 // ---------------------------------------------------------------------------
@@ -258,25 +259,60 @@ export const SPECIAL_REPLIES = [
 ]
 
 // ---------------------------------------------------------------------------
-// Consulate appointment — the candidate slot *pools* live in lib/slots.ts
-// (deterministic weekly scarcity, seeded so it's stable but rotates), which is
-// what lib/api.ts#getAvailableSlots reads from. This file just keeps the
-// static appointment-screen copy.
+// Consulate appointment — day availability now comes from a real Google
+// Calendar (see lib/googleCalendar.ts + app/api/available-dates/route.ts,
+// server-only, freeBusy-based, read-only, never writes events). This file
+// just keeps the static appointment-screen copy and the fixed per-day time
+// choices — there's no more "APPOINTMENT CONFIRMED" screen or its "proceed"
+// button; picking a time immediately persists it and navigates on.
 // ---------------------------------------------------------------------------
 
 export const APPOINTMENT = {
   heading: 'CONSULATE APPOINTMENT',
-  sub: 'SELECT A TIME SLOT. THE CONSULATE THANKS YOU FOR YOUR PATIENCE, WHICH IS MANDATORY.',
-  loading: 'LOADING SLOTS…',
-  slotLabelPrefix: 'SLOT:',
-  confirmedTitle: 'APPOINTMENT CONFIRMED.',
-  confirmedLines: ['BRING: yourself, snacks.', 'DO NOT BRING: the vibe you had at entry.'],
-  continue: 'PROCEED TO BIOMETRICS',
+  daySub: 'SELECT AN AVAILABLE DAY. THE CONSULATE THANKS YOU FOR YOUR PATIENCE, WHICH IS MANDATORY.',
+  timeSub: 'SELECT A TIME. THE WHOLE DAY IS OPEN.',
+  loadingDays: 'CHECKING THE CONSULATE CALENDAR…',
+  unavailableHeading: 'NO APPOINTMENTS AVAILABLE.',
+  unavailableNote:
+    'THE CONSULATE CALENDAR IS FULLY BOOKED OR TEMPORARILY UNREACHABLE. TRY AGAIN LATER, OR MESSAGE THE MINISTRY DIRECTLY.',
+  changeDay: 'CHANGE DAY',
+}
+
+// Fixed time choices shown once a completely-free calendar day is picked. A
+// day only ever reaches this list when the WHOLE local day had zero busy
+// intervals (see lib/googleCalendar.ts), so every time below is offered as
+// available — deliberately no per-time unavailability logic, unlike the old
+// joke slot pool further down this file.
+export const APPOINTMENT_TIMES: string[] = ['09:00', '10:30', '12:00', '14:00', '15:30', '17:00']
+
+/** Uppercase display label for a 'YYYY-MM-DD' date string, e.g. "SAT, 14 JUN 2025". */
+export function formatSlotDateLabel(dateIso: string): string {
+  const [year, month, day] = dateIso.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date
+    .toLocaleDateString('en-GB', {
+      timeZone: 'UTC',
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+    .toUpperCase()
+}
+
+/** The single unambiguous string stored in ApplicationState#slot — date and time together, never just one or the other. */
+export function formatSlot(dateIso: string, time: string): string {
+  return `${formatSlotDateLabel(dateIso)} — ${time}`
 }
 
 // ---------------------------------------------------------------------------
-// Appointment slot label pool — the *selection logic* (deterministic weekly
-// scarcity) lives in lib/slots.ts; this is just the joke copy per slot.
+// Old joke slot-label pool — SUPERSEDED by the Google Calendar-backed
+// day/time flow above; app/appointment/page.tsx no longer imports any of
+// this or lib/slots.ts. Kept, not deleted, as a fallback/demo-mode reference
+// (same "kept as copy-bank content" convention this file already uses for
+// the unused sub-step gag lines above) — useful if the calendar integration
+// is ever swapped out, or a local demo without the four GOOGLE_* env vars
+// configured is wanted again.
 // ---------------------------------------------------------------------------
 
 export interface SlotLabelCandidate {
@@ -309,20 +345,25 @@ export const BUSINESS_SLOT_LABELS: SlotLabelCandidate[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// Biometric verification
+// Identity verification (selfie step) — user-facing copy renamed from
+// "BIOMETRIC VERIFICATION" to "IDENTITY VERIFICATION" per owner feedback.
+// The internal /biometric route, component name, and ApplicationState's
+// selfie* field names were deliberately left unchanged (an internal/route
+// detail, not user-facing prose) — only this copy and its import name
+// changed. The old purge-notice line ("unclaimed biometric data is
+// incinerated after 72 hours…") was cut entirely, not left as empty
+// spacing — see app/biometric/page.tsx.
 // ---------------------------------------------------------------------------
 
-export const BIOMETRIC = {
-  heading: 'BIOMETRIC VERIFICATION',
+export const IDENTITY_VERIFICATION = {
+  heading: 'IDENTITY VERIFICATION',
   instruction: 'LOOK DIRECTLY AT THE CAMERA. NO SMILING. THIS IS A GOVERNMENT DOCUMENT.',
   retake: 'RETAKE',
-  submit: 'SUBMIT BIOMETRICS',
-  submitting: 'SUBMITTING…',
+  submit: 'SUBMIT PHOTO',
+  submitting: 'SUBMITTING PHOTO…',
   noPhoto: 'NO PHOTO ON FILE',
   takePhoto: 'TAKE PHOTO',
   photoAlt: 'Applicant selfie preview',
-  purgeNotice:
-    'UNCLAIMED BIOMETRIC DATA IS INCINERATED AFTER 72 HOURS. THE MINISTRY DOES NOT KEEP SOUVENIRS.',
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +402,7 @@ export const APPROVED = {
 }
 
 // ---------------------------------------------------------------------------
-// Visa sticker (canvas composite) label copy
+// Shared visa document + downloadable canvas label copy
 // ---------------------------------------------------------------------------
 
 export const STICKER_LABELS = {
@@ -384,8 +425,8 @@ export const STICKER_LABELS = {
 
 // ---------------------------------------------------------------------------
 // Persistent document progress card (components/DocumentProgress.tsx) — shown
-// on every funnel page from /identity onward. It's a faithful DOM replica of
-// the final canvas-composited visa sticker (app/visa-issued/page.tsx), so it
+// on every funnel page from /identity onward. It shares VisaDocument's DOM
+// structure with the final document on app/visa-issued/page.tsx, so it
 // reuses STICKER_LABELS above as the single source for every field label the
 // two share — including NAME/PASSPORT №/VISA TYPE/SERIAL №/REFERENCE №/
 // ISSUED/VALID/CONDITIONS, the republic title, and the "VISA — " prefix.
@@ -402,10 +443,25 @@ export const STICKER_LABELS = {
 // rendered as its own separate line below the field grid, since the
 // appointment slot is real funnel data but has no equivalent row on the
 // sticker itself.
+//
+// A second, optional addendum line sits below the appointment line: whatever
+// typed/selected content the chosen visa's sub-step collected (consultation
+// matter, business pitch, special-purpose sworn statement, or the fiancé
+// interview answers) — tourist has no sub-step, so it never renders one.
+// Same pattern as APPOINTMENT: not a sticker field, shown once the relevant
+// context field is non-empty, one label per visa type below so a single
+// generic "ANSWER:" doesn't get confusingly reused across very different
+// content. Fiancé's answer is rendered in one compact line (see
+// components/DocumentProgress.tsx) and, like every other value in this card,
+// CSS-truncated if too long for one line — never discarded from state.
 // ---------------------------------------------------------------------------
 
 export const DOCUMENT_PROGRESS = {
   appointmentLabel: 'APPOINTMENT:',
+  matterLabel: 'MATTER:',
+  pitchLabel: 'PITCH:',
+  statementLabel: 'STATEMENT:',
+  interviewAnswersLabel: 'INTERVIEW:',
 }
 
 // ---------------------------------------------------------------------------
@@ -448,14 +504,6 @@ export function formatBribeStatus(count: number): string {
 // The peeking cash-emoji tab (components/HiddenBribe.tsx) — collapsed state
 // aria-label; the revealed state reuses BRIBE.button above.
 export const HIDDEN_BRIBE_ARIA_LABEL = 'Something is peeking out. Tap to investigate.'
-
-// ---------------------------------------------------------------------------
-// Passport / returning visitor
-// ---------------------------------------------------------------------------
-
-export const RETURNING_VISITOR = 'WELCOME BACK. YOUR FILE HAS BEEN FLAGGED.'
-export const LOYALTY_MESSAGE =
-  'FREQUENT APPLICANT STATUS GRANTED. PERKS: none. RECOGNITION: eternal.'
 
 // ---------------------------------------------------------------------------
 // Idle nudge
@@ -528,7 +576,9 @@ export const DUTY_FREE_ITEMS: { name: string; status: string }[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// Terms & Conditions (paragraph 7 easter egg)
+// Terms & Conditions (paragraph 6 easter egg — see app/terms/page.tsx's
+// hardcoded index for the screenshot-worthy paragraph; renumbered down from
+// 7 after paragraph 6, "unclaimed biometric data is incinerated…", was cut).
 // ---------------------------------------------------------------------------
 
 export const TERMS_HEADING = 'TERMS & CONDITIONS'
@@ -539,13 +589,12 @@ export const TERMS_PARAGRAPHS: string[] = [
   '2. All visas are issued at the sole discretion of the Ministry, which is one (1) person.',
   '3. The Ministry reserves the right to deny entry for reasons including but not limited to vibes.',
   '4. Bribes are accepted but change nothing. See Bribe Policy, which does not exist.',
-  '5. Biometric data (your selfie) is used only to composite your visa sticker and is not sold, because nobody is buying.',
-  '6. Unclaimed biometric data is incinerated after 72 hours. The Ministry does not keep souvenirs.',
-  '7. If you actually read this far: screenshot this paragraph and DM it to the Ministry for its eternal respect. No prize. Just respect.',
-  '8. This document is legally binding in no jurisdiction whatsoever.',
-  '9. The Ministry may change these terms at any time, for any reason, or no reason.',
-  '10. The Dictatorship of Ignas is a full democracy. Ignas has won every election since birth with 100% of the vote.',
-  '11. © Ministry of Interior, Dictatorship of Ignas. Unauthorized fun prohibited.',
+  '5. Identity verification data (your selfie) is used only to composite your visa sticker and is not sold, because nobody is buying.',
+  '6. If you actually read this far: screenshot this paragraph and DM it to the Ministry for its eternal respect. No prize. Just respect.',
+  '7. This document is legally binding in no jurisdiction whatsoever.',
+  '8. The Ministry may change these terms at any time, for any reason, or no reason.',
+  '9. The Dictatorship of Ignas is a full democracy. Ignas has won every election since birth with 100% of the vote.',
+  '10. © Ministry of Interior, Dictatorship of Ignas. Unauthorized fun prohibited.',
 ]
 
 // ---------------------------------------------------------------------------
