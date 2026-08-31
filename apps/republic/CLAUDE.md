@@ -67,10 +67,11 @@ the Dictatorship is also a full democracy.
   `getAvailableDates()` → the server-only `/api/available-dates` Route Handler → Google
   Calendar `freeBusy` via `lib/googleCalendar.ts`. Candidate dates begin tomorrow and
   each candidate's complete local day is queried/checked using timezone-aware midnight
-  boundaries (including DST); any timed/all-day overlap removes the whole day. It reuses
-  Ignas's existing Lock In refresh-token row plus Lock In's Google OAuth client; the
-  service-role/OAuth credentials stay server-only and no event details are returned. A
-  chosen day reveals fixed times on the same page; choosing a time immediately stores the dated
+  boundaries (including DST); any timed/all-day overlap removes the whole day. Republic
+  sends only those boundaries to Lock In's authenticated server-to-server free-days
+  bridge; Lock In reuses its existing durable Google connection and returns only date
+  keys, so no token, busy interval, or event detail crosses into Republic. A chosen day
+  reveals fixed times on the same page; choosing a time immediately stores the dated
   slot and navigates to `/biometric`, with no confirmation screen. The old seeded
   `lib/slots.ts`/`getAvailableSlots` code is unused fallback/demo reference only.
 - Reusable primitives: `PageShell` (mobile-first max-w-md container + paper-slide-in;
@@ -550,15 +551,15 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
-**Handoff:** Republic feedback pass is complete and validated. Calendar availability now
-reuses Lock In's existing durable Google connection; the shared server credentials were
-copied to Republic's Vercel environments. The applicant-number backend setup remains.
+**Handoff:** Calendar availability now reuses Lock In's durable Google connection through
+an authenticated server-to-server free-days bridge. Deploy both app changes and set the
+shared bridge secret/URL; the applicant-number backend setup also remains.
 
-- Calendar reuse depends on Ignas's existing `lock_in.calendar_connections` row and the
-  server-only `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, and
-  `GOOGLE_OAUTH_CLIENT_SECRET`; no second consent flow or service account is needed.
-  `GOOGLE_CALENDAR_ACCOUNT_EMAIL` selects the connection, and timezone defaults to
-  `Europe/Vilnius`.
+- Republic needs `LOCK_IN_CALENDAR_API_URL` (stable Lock In URL from
+  `apps/hub/config/apps.json` + `/api/calendar/free-days`) and the same server-only
+  `REPUBLIC_CALENDAR_API_SECRET` configured on both Vercel projects. Lock In retains all
+  Google refresh/OAuth/Supabase credentials; no second consent flow or service account is
+  needed. Timezone defaults to `Europe/Vilnius`.
 - **Existing applicant-number backend blocker:** apply
   `supabase/migrations/0001_applicant_number_sequence.sql`, expose the `republic` schema
   through the Data API/authenticator configuration, and reload PostgREST config/schema.

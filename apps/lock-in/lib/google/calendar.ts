@@ -71,10 +71,29 @@ export async function getBusyIntervals(
     throw new Error(`Google freeBusy failed (${res.status}): ${body}`)
   }
 
-  const json = (await res.json()) as {
-    calendars?: { primary?: { busy?: BusyInterval[] } }
-  }
-  return json.calendars?.primary?.busy ?? []
+  const json: unknown = await res.json()
+  if (typeof json !== 'object' || json === null) throw new Error('Google freeBusy returned invalid JSON')
+  const calendars = (json as Record<string, unknown>).calendars
+  if (typeof calendars !== 'object' || calendars === null) throw new Error('Google freeBusy returned no calendars')
+  const primary = (calendars as Record<string, unknown>).primary
+  if (typeof primary !== 'object' || primary === null) throw new Error('Google freeBusy returned no primary calendar')
+  const errors = (primary as Record<string, unknown>).errors
+  if (Array.isArray(errors) && errors.length > 0) throw new Error('Google freeBusy returned a calendar error')
+  const busy = (primary as Record<string, unknown>).busy
+  if (!Array.isArray(busy)) throw new Error('Google freeBusy returned no busy list')
+
+  return busy.map((interval) => {
+    if (typeof interval !== 'object' || interval === null) throw new Error('Google freeBusy returned an invalid interval')
+    const start = (interval as Record<string, unknown>).start
+    const end = (interval as Record<string, unknown>).end
+    if (typeof start !== 'string' || typeof end !== 'string') throw new Error('Google freeBusy returned an invalid interval')
+    const startMs = Date.parse(start)
+    const endMs = Date.parse(end)
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      throw new Error('Google freeBusy returned an invalid interval')
+    }
+    return { start, end }
+  })
 }
 
 export interface EventInput {
