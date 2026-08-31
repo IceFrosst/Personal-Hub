@@ -614,18 +614,19 @@ export function getOfficerMood(hour = new Date().getHours()): OfficerMood {
 // ---------------------------------------------------------------------------
 
 export const BRIBE = {
-  button: '💵 OFFER BRIBE',
-  response: 'BRIBE ACCEPTED. IT CHANGES NOTHING. THE MINISTRY THANKS YOU.',
+  button: 'OFFER BRIBE',
+  response: 'BRIBE ACCEPTED. ATTEMPTED CORRUPTION OF A STATE OFFICER LOGGED. APPLICATION DENIED.',
   countSuffix: 'attempted, this device',
 }
 
-export function formatBribeStatus(count: number): string {
-  return `${BRIBE.response} (${count} ${BRIBE.countSuffix})`
-}
+// Printed as the denial reason when /denied is reached via `?via=bribe`
+// (see components/BribeButton.tsx + app/denied/page.tsx).
+export const BRIBE_DENIAL_REASON =
+  'Attempted to bribe a state officer. The officer kept the cash. You keep the denial.'
 
-// The peeking cash-emoji tab (components/HiddenBribe.tsx) — collapsed state
-// aria-label; the revealed state reuses BRIBE.button above.
-export const HIDDEN_BRIBE_ARIA_LABEL = 'Something is peeking out. Tap to investigate.'
+// The drawn cash pile peeking from the screen edge (components/HiddenBribe.tsx)
+// — collapsed-state aria-label; the revealed state reuses BRIBE.button above.
+export const HIDDEN_BRIBE_ARIA_LABEL = 'Something is peeking out from behind the desk. Tap to investigate.'
 
 // ---------------------------------------------------------------------------
 // Idle nudge

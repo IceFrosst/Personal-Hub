@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { StampSlam } from '@/components/StampSlam'
 import { Footer } from '@/components/Footer'
-import { DENIAL, DENIAL_REASONS } from '@/lib/content'
+import { BRIBE_DENIAL_REASON, DENIAL, DENIAL_REASONS } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 
@@ -32,7 +32,13 @@ export default function DeniedPage() {
   const [date, setDate] = useState<string | null>(null)
 
   useEffect(() => {
-    setReason(DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)])
+    // Arriving here by offering a bribe (components/BribeButton.tsx pushes
+    // `/denied?via=bribe`) prints the bribe-specific reason instead of a
+    // random one. Read via window.location inside the effect — hydration-safe
+    // (this page is statically prerendered), and avoids the Suspense boundary
+    // useSearchParams would demand.
+    const viaBribe = new URLSearchParams(window.location.search).get('via') === 'bribe'
+    setReason(viaBribe ? BRIBE_DENIAL_REASON : DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)])
     setCaseNumber(randomCaseNumber())
     setDate(new Date().toLocaleDateString('en-GB'))
 
