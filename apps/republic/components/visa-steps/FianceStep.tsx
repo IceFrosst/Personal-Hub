@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { StepShell } from './StepShell'
 import { useApplication } from '@/lib/applicationContext'
-import { FIANCE_INTRO, FIANCE_QUESTIONS, FIANCE_HIGH_RISK, VISA_BY_SLUG, formatFianceProgress } from '@/lib/content'
+import { FIANCE_INTRO, FIANCE_QUESTIONS, FIANCE_HIGH_RISK, VISA_BY_SLUG } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep, playStampThunk } from '@/lib/sound'
 
@@ -13,9 +13,6 @@ const visa = VISA_BY_SLUG.fiance
 export function FianceStep() {
   const router = useRouter()
   const { update, selectVisa } = useApplication()
-  const [step, setStep] = useState(0)
-  const [answers, setAnswers] = useState<string[]>([])
-
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
     // this sub-step still establishes SERIAL № together with visaType — see
@@ -26,21 +23,15 @@ export function FianceStep() {
 
   function choose(option: string) {
     playBeep()
-    const next = [...answers, option]
-    setAnswers(next)
-    if (step + 1 >= FIANCE_QUESTIONS.length) {
-      update({ fianceAnswers: next })
-      addStamp('FIANC\u00c9 VISA INTERVIEW COMPLETE')
-      playStampThunk()
-      // Navigates straight to /appointment — no intermediate "vibe check
-      // passed" screen or confirmation button anymore (owner flow change).
-      router.push('/appointment')
-    } else {
-      setStep(step + 1)
-    }
+    update({ fianceAnswers: [option] })
+    addStamp('FIANC\u00c9 VISA INTERVIEW COMPLETE')
+    playStampThunk()
+    // This visa is exactly one question, so choosing either answer completes
+    // it and navigates immediately — no counter or intermediate confirmation.
+    router.push('/appointment')
   }
 
-  const question = FIANCE_QUESTIONS[step]
+  const question = FIANCE_QUESTIONS[0]
 
   return (
     <StepShell visa={visa}>
@@ -50,9 +41,6 @@ export function FianceStep() {
 
       <div>
         <p className="text-center text-[11px] uppercase tracking-wide text-navy/70">{FIANCE_INTRO}</p>
-        <p className="mt-1 text-center text-[10px] uppercase text-navy/40">
-          {formatFianceProgress(step + 1, FIANCE_QUESTIONS.length)}
-        </p>
         <p className="mt-4 text-center font-stamp text-base uppercase tracking-wide text-navy">
           {question.question}
         </p>

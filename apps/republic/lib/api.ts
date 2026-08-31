@@ -274,11 +274,39 @@ export async function getApplicantNumber(): Promise<number | null> {
   return assigned
 }
 
-// Appointment slots — hardcoded joke pool with deterministic weekly scarcity
-// today (lib/slots.ts); shaped as an async call so a real Google
-// Calendar-backed source can replace the body later without touching callers.
+// Appointment slots — SUPERSEDED for the live appointment flow by
+// getAvailableDates below (a real Google Calendar-backed source), but kept
+// as-is (not deleted) as a fallback/demo-mode reference — see the matching
+// comment in lib/content.ts above BASE_SLOT_LABELS. Nothing currently calls
+// this.
 export async function getAvailableSlots(visaType: ApplicationState['visaType']): Promise<Slot[]> {
   return computeSlots(visaType)
+}
+
+/**
+ * Free calendar dates for the appointment day-picker
+ * (app/appointment/page.tsx) — calls the server-only
+ * app/api/available-dates route (Google Calendar freeBusy under the hood,
+ * see lib/googleCalendar.ts; never called directly from the client, and no
+ * credentials ever reach the browser). Defensively validates the response
+ * shape before trusting it: a malformed body, a non-2xx response, or a
+ * network failure all resolve an empty array, exactly like a
+ * genuinely-fully-booked calendar — the appointment page can't tell the
+ * difference and shouldn't try to; it just shows "no appointments
+ * available" either way rather than ever inventing a bookable date.
+ */
+export async function getAvailableDates(): Promise<string[]> {
+  try {
+    const response = await fetch('/api/available-dates', { cache: 'no-store' })
+    if (!response.ok) return []
+    const body: unknown = await response.json()
+    if (typeof body !== 'object' || body === null) return []
+    const rawDates = (body as Record<string, unknown>).dates
+    if (!Array.isArray(rawDates)) return []
+    return rawDates.filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
+  } catch {
+    return []
+  }
 }
 
 // No Supabase Storage bucket exists yet — this always resolves to the local

@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { StampSlam } from '@/components/StampSlam'
+import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
 import { useApplication } from '@/lib/applicationContext'
 import {
   APPROVED,
+  DOCUMENT_PROGRESS,
   STICKER_LABELS,
   CONSULATE_DM_URL,
   COPY_INSTRUCTION,
@@ -17,9 +19,20 @@ import {
 } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
+import { getVisaAddendum } from '@/lib/visaAddendum'
 
+// The downloadable PNG is composited on an off-screen canvas at a fixed
+// resolution — kept entirely for the DOWNLOAD VISA button (canvas.toDataURL);
+// the on-screen document itself is the DOM <VisaDocument size="full"> below,
+// not this canvas, so it renders crisp at any zoom/DPI and shares its exact
+// structure with the progress card (see components/VisaDocument.tsx). The
+// canvas's own field layout mirrors the same two-column grid order (NAME +
+// PASSPORT, VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED + VALID,
+// CONDITIONS full-width) instead of the old single vertical list, so the
+// downloaded image matches the on-screen design as closely as a canvas
+// practically can.
 const CANVAS_W = 900
-const CANVAS_H = 560
+const CANVAS_H = 680
 
 type CopyStatus = 'idle' | 'pending' | 'copied' | 'failed'
 
@@ -34,14 +47,15 @@ export default function VisaIssuedPage() {
   // SERIAL № and ISSUED are both generated earlier in the funnel (visa
   // selection and appointment confirmation respectively — see
   // applicationContext.tsx) and stored in context, so they're read straight
-  // from state here rather than recomputed, guaranteeing this sticker shows
+  // from state here rather than recomputed, guaranteeing this document shows
   // the exact same values the progress card already displayed. Deliberately
   // no fallback/recompute for either — the guards below require both
   // `state.serial` and `state.issuedDate` before this page renders at all,
   // so a session missing either is bounced back to /visa instead of ever
-  // reaching a canvas that would have to synthesize an unpersisted value.
+  // reaching a document that would have to synthesize an unpersisted value.
   const serial = state.serial ?? ''
   const issueDate = state.issuedDate ?? ''
+  const visaAddendum = useMemo(() => getVisaAddendum(state), [state])
   const referenceLine = useMemo(
     () =>
       visa && state.referenceCode && state.slot
@@ -74,6 +88,9 @@ export default function VisaIssuedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated])
 
+  // Draws the DOWNLOADABLE image onto an off-screen canvas (see the file
+  // header comment) — this effect has no effect on what's visibly on
+  // screen, only on what DOWNLOAD VISA saves.
   useEffect(() => {
     if (!visa || !state.referenceCode) return
     const canvas = canvasRef.current
@@ -104,20 +121,72 @@ export default function VisaIssuedPage() {
     }
     img.src = photoSrc
 
+    function fitText(context: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+      if (context.measureText(text).width <= maxWidth) return text
+      let truncated = text
+      while (truncated.length > 1 && context.measureText(`${truncated}…`).width > maxWidth) {
+        truncated = truncated.slice(0, -1)
+      }
+      return `${truncated}…`
+    }
+
     function draw(context: CanvasRenderingContext2D, photo: HTMLImageElement | null) {
       const NAVY = '#1a2a4a'
       const PAPER = '#f4f0e8'
       const GREEN = '#2e7d32'
+      const addendumValues = [
+        { label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot ?? '' },
+        ...(visaAddendum ? [visaAddendum] : []),
+      ]
 
-      context.clearRect(0, 0, CANVAS_W, CANVAS_H)
+      const wrapText = (text: string, maxWidth: number): string[] => {
+        const lines: string[] = []
+        let line = ''
+        for (const word of text.split(/\s+/).filter(Boolean)) {
+          const candidate = line ? `${line} ${word}` : word
+          if (context.measureText(candidate).width <= maxWidth) {
+            line = candidate
+            continue
+          }
+          if (line) lines.push(line)
+          if (context.measureText(word).width <= maxWidth) {
+            line = word
+            continue
+          }
+          // Preserve even an unbroken user-entered token rather than
+          // ellipsizing it: split it at the last character that fits.
+          let chunk = ''
+          for (const char of word) {
+            if (chunk && context.measureText(chunk + char).width > maxWidth) {
+              lines.push(chunk)
+              chunk = char
+            } else {
+              chunk += char
+            }
+          }
+          line = chunk
+        }
+        if (line || lines.length === 0) lines.push(line)
+        return lines
+      }
+
+      context.font = '15px "Courier New", monospace'
+      const wrappedAddenda = addendumValues.map((item) => ({
+        ...item,
+        lines: wrapText(item.value, CANVAS_W - 120),
+      }))
+      const documentHeight = Math.max(CANVAS_H, 535 + wrappedAddenda.reduce((height, item) => height + 37 + item.lines.length * 20, 0))
+      if (context.canvas.height !== documentHeight) context.canvas.height = documentHeight
+
+      context.clearRect(0, 0, CANVAS_W, documentHeight)
       context.fillStyle = PAPER
-      context.fillRect(0, 0, CANVAS_W, CANVAS_H)
+      context.fillRect(0, 0, CANVAS_W, documentHeight)
 
       context.strokeStyle = NAVY
       context.lineWidth = 6
-      context.strokeRect(10, 10, CANVAS_W - 20, CANVAS_H - 20)
+      context.strokeRect(10, 10, CANVAS_W - 20, documentHeight - 20)
       context.lineWidth = 1.5
-      context.strokeRect(22, 22, CANVAS_W - 44, CANVAS_H - 44)
+      context.strokeRect(22, 22, CANVAS_W - 44, documentHeight - 44)
 
       context.fillStyle = NAVY
       context.textAlign = 'center'
@@ -132,7 +201,7 @@ export default function VisaIssuedPage() {
       const photoX = 60
       const photoY = 130
       const photoW = 220
-      const photoH = 280
+      const photoH = 220
       context.save()
       context.beginPath()
       context.rect(photoX, photoY, photoW, photoH)
@@ -163,31 +232,67 @@ export default function VisaIssuedPage() {
       context.lineWidth = 3
       context.strokeRect(photoX, photoY, photoW, photoH)
 
-      // text block
-      const textX = photoX + photoW + 36
-      let ty = 140
-      const line = (label: string, value: string, size = 15, gap = 27) => {
-        context.font = `bold ${size}px "Courier New", monospace`
+      // Two-column field grid, same order as the DOM VisaDocument/progress
+      // card — NAME + PASSPORT, VISA TYPE + SERIAL, REFERENCE (full width),
+      // ISSUED + VALID, CONDITIONS (full width).
+      const gridX = photoX + photoW + 36
+      const gridRight = CANVAS_W - 40
+      const colGap = 24
+      const colWidth = (gridRight - gridX - colGap) / 2
+      const colAx = gridX
+      const colBx = gridX + colWidth + colGap
+      const fullWidth = gridRight - gridX
+      const rowGap = 58
+      let rowY = 150
+
+      const cell = (label: string, value: string, x: number, width: number) => {
+        context.font = 'bold 12px "Courier New", monospace'
         context.fillStyle = NAVY
-        context.fillText(label, textX, ty)
-        ty += 19
-        context.font = `${size}px "Courier New", monospace`
-        context.fillText(value, textX, ty)
-        ty += gap
+        context.fillText(label, x, rowY)
+        context.font = '15px "Courier New", monospace'
+        context.fillText(fitText(context, value, width), x, rowY + 20)
       }
-      line(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName)
-      line(STICKER_LABELS.passport, `@${state.instagramHandle}`)
-      line(STICKER_LABELS.visaType, visa!.name)
-      line(STICKER_LABELS.serial, serial)
-      line(STICKER_LABELS.reference, state.referenceCode ?? '')
-      line(STICKER_LABELS.issued, issueDate)
-      line(STICKER_LABELS.valid, APPROVED.validValue)
-      line(STICKER_LABELS.conditions, APPROVED.conditionsValue, 15, 0)
+
+      cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, colWidth)
+      cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, colWidth)
+      rowY += rowGap
+      cell(STICKER_LABELS.visaType, visa!.name, colAx, colWidth)
+      cell(STICKER_LABELS.serial, serial, colBx, colWidth)
+      rowY += rowGap
+      cell(STICKER_LABELS.reference, state.referenceCode ?? '', colAx, fullWidth)
+      rowY += rowGap
+      cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
+      cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
+      rowY += rowGap
+      cell(STICKER_LABELS.conditions, APPROVED.conditionsValue, colAx, fullWidth)
+
+      // Appointment + visa-specific answer addenda. These are outside the
+      // sticker field grid, with the same dashed-divider treatment as the DOM
+      // document, and are included in the PNG rather than being screen-only.
+      let addendumY = rowY + 54
+      const addendum = (label: string, lines: string[]) => {
+        context.save()
+        context.setLineDash([7, 5])
+        context.strokeStyle = NAVY
+        context.globalAlpha = 0.45
+        context.beginPath()
+        context.moveTo(60, addendumY - 17)
+        context.lineTo(CANVAS_W - 60, addendumY - 17)
+        context.stroke()
+        context.restore()
+        context.fillStyle = NAVY
+        context.font = 'bold 12px "Courier New", monospace'
+        context.fillText(label, 60, addendumY)
+        context.font = '15px "Courier New", monospace'
+        lines.forEach((line, index) => context.fillText(line, 60, addendumY + 20 + index * 20))
+        addendumY += 37 + lines.length * 20
+      }
+      wrappedAddenda.forEach((item) => addendum(item.label, item.lines))
 
       // barcode
       context.save()
       let bx = 60
-      const by = CANVAS_H - 70
+      const by = documentHeight - 70
       while (bx < CANVAS_W - 60) {
         const w = 1 + Math.floor(Math.random() * 3)
         context.fillStyle = NAVY
@@ -219,6 +324,8 @@ export default function VisaIssuedPage() {
     state.instagramHandle,
     serial,
     issueDate,
+    state.slot,
+    visaAddendum,
   ])
 
   function handleDownload() {
@@ -263,9 +370,31 @@ export default function VisaIssuedPage() {
   )
     return null
 
+  // Same 8 sticker fields, same order, as components/DocumentProgress.tsx —
+  // every one of them is guaranteed complete by the guard above, so nothing
+  // here ever renders a blank/ruled row (unlike the mid-funnel progress
+  // card, which shows blanks for fields not filled in yet).
+  const fields: VisaDocumentField[] = [
+    { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
+    { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
+    { key: 'visaType', label: STICKER_LABELS.visaType, value: visa.name },
+    { key: 'serial', label: STICKER_LABELS.serial, value: serial },
+    { key: 'reference', label: STICKER_LABELS.reference, value: state.referenceCode, span: true },
+    { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
+    { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
+    { key: 'conditions', label: STICKER_LABELS.conditions, value: APPROVED.conditionsValue, span: true },
+  ]
+  const addenda: VisaDocumentAddendum[] = [
+    { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot },
+  ]
+  if (visaAddendum) {
+    addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
+  }
+
   return (
-    // Deliberately no `showProgress` here — the big visa sticker is the payoff
-    // and should stand alone, not share the screen with the passport card.
+    // Deliberately no `showProgress` here — the final document is the payoff
+    // and should stand alone, not share the screen with the (now-redundant)
+    // mid-funnel progress card.
     <PageShell>
       <div className="paper-card p-5 text-center">
         <div>
@@ -275,15 +404,22 @@ export default function VisaIssuedPage() {
           </p>
         </div>
 
-        <div className="relative mt-4 overflow-hidden border-2 border-navy">
-          <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} className="block w-full" />
-          {!ready && <p className="p-6 text-[11px] uppercase text-navy/50">{APPROVED.rendering}</p>}
-          {ready && (
-            <div className="pointer-events-none absolute right-3 top-3">
-              <StampSlam text={APPROVED.stamp} color="approve" rotate={10} className="!border-[4px] !px-3 !py-1 !text-base" />
-            </div>
-          )}
+        <div className="relative mt-4">
+          <VisaDocument
+            size="full"
+            visaName={visa.name}
+            photoUrl={state.selfieDataUrl ?? state.selfieThumbnailUrl}
+            fields={fields}
+            addenda={addenda}
+          />
+          <div className="pointer-events-none absolute -right-2 -top-2">
+            <StampSlam text={APPROVED.stamp} color="approve" rotate={10} className="!border-[4px] !px-3 !py-1 !text-base" />
+          </div>
         </div>
+
+        {/* Off-screen — used only to produce the DOWNLOAD VISA PNG, see the
+            file header comment. Not part of the on-screen document. */}
+        <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} className="hidden" aria-hidden />
 
         <div className="mt-5 flex flex-col gap-3">
           <button

@@ -201,25 +201,24 @@ export const PRELIMINARY_RULINGS = [
 // ---------------------------------------------------------------------------
 
 export const FIANCE_INTRO =
-  'ROUTINE QUESTIONS. ANSWER HONESTLY. DISHONESTY IS CUTE BUT ILLEGAL.'
+  'ROUTINE QUESTION. ANSWER HONESTLY. DISHONESTY IS CUTE BUT ILLEGAL.'
 
 export interface InterviewQuestion {
   question: string
   options: string[]
 }
 
+// Trimmed to a single question per owner feedback — the "red flags" and
+// "favorite food" follow-ups are cut outright (not hidden), and there is no
+// visible question counter anymore (see components/visa-steps/FianceStep.tsx
+// — formatFianceProgress was deleted, not just unused, since one question
+// needs no counter at all). Still an array (not a bare object) so
+// `fianceAnswers` in applicationContext stays the same array type — just one
+// element now instead of three.
 export const FIANCE_QUESTIONS: InterviewQuestion[] = [
   {
     question: 'Purpose of visit?',
-    options: ['Romance', 'Chaos, but the fun kind', 'Unclear, but I paid the fee', 'Diplomatic immunity via charm'],
-  },
-  {
-    question: 'Are you carrying any red flags?',
-    options: ['No', 'A couple, tastefully hidden', 'They are more of a collection', 'I AM the red flag'],
-  },
-  {
-    question: 'Favorite food — answer carefully, this is binding.',
-    options: ['Whatever he\'s having', 'Something expensive', 'Whatever\'s cheapest on the menu', 'Snacks, generally'],
+    options: ['Unclear, but I paid the declaration fee', 'Diplomatic immunity via charm'],
   },
 ]
 
@@ -228,10 +227,6 @@ export const FIANCE_HIGH_RISK = 'HIGH RISK'
 export const FIANCE_RESULT = {
   title: 'VIBE CHECK: PASSED',
   note: '(the outcome was never in doubt. the Ministry finds you delightful.)',
-}
-
-export function formatFianceProgress(current: number, total: number): string {
-  return `QUESTION ${current} OF ${total}`
 }
 
 // ---------------------------------------------------------------------------
@@ -264,25 +259,60 @@ export const SPECIAL_REPLIES = [
 ]
 
 // ---------------------------------------------------------------------------
-// Consulate appointment — the candidate slot *pools* live in lib/slots.ts
-// (deterministic weekly scarcity, seeded so it's stable but rotates), which is
-// what lib/api.ts#getAvailableSlots reads from. This file just keeps the
-// static appointment-screen copy.
+// Consulate appointment — day availability now comes from a real Google
+// Calendar (see lib/googleCalendar.ts + app/api/available-dates/route.ts,
+// server-only, freeBusy-based, read-only, never writes events). This file
+// just keeps the static appointment-screen copy and the fixed per-day time
+// choices — there's no more "APPOINTMENT CONFIRMED" screen or its "proceed"
+// button; picking a time immediately persists it and navigates on.
 // ---------------------------------------------------------------------------
 
 export const APPOINTMENT = {
   heading: 'CONSULATE APPOINTMENT',
-  sub: 'SELECT A TIME SLOT. THE CONSULATE THANKS YOU FOR YOUR PATIENCE, WHICH IS MANDATORY.',
-  loading: 'LOADING SLOTS…',
-  slotLabelPrefix: 'SLOT:',
-  confirmedTitle: 'APPOINTMENT CONFIRMED.',
-  confirmedLines: ['BRING: yourself, snacks.', 'DO NOT BRING: the vibe you had at entry.'],
-  continue: 'PROCEED TO IDENTITY VERIFICATION',
+  daySub: 'SELECT AN AVAILABLE DAY. THE CONSULATE THANKS YOU FOR YOUR PATIENCE, WHICH IS MANDATORY.',
+  timeSub: 'SELECT A TIME. THE WHOLE DAY IS OPEN.',
+  loadingDays: 'CHECKING THE CONSULATE CALENDAR…',
+  unavailableHeading: 'NO APPOINTMENTS AVAILABLE.',
+  unavailableNote:
+    'THE CONSULATE CALENDAR IS FULLY BOOKED OR TEMPORARILY UNREACHABLE. TRY AGAIN LATER, OR MESSAGE THE MINISTRY DIRECTLY.',
+  changeDay: 'CHANGE DAY',
+}
+
+// Fixed time choices shown once a completely-free calendar day is picked. A
+// day only ever reaches this list when the WHOLE local day had zero busy
+// intervals (see lib/googleCalendar.ts), so every time below is offered as
+// available — deliberately no per-time unavailability logic, unlike the old
+// joke slot pool further down this file.
+export const APPOINTMENT_TIMES: string[] = ['09:00', '10:30', '12:00', '14:00', '15:30', '17:00']
+
+/** Uppercase display label for a 'YYYY-MM-DD' date string, e.g. "SAT, 14 JUN 2025". */
+export function formatSlotDateLabel(dateIso: string): string {
+  const [year, month, day] = dateIso.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date
+    .toLocaleDateString('en-GB', {
+      timeZone: 'UTC',
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+    .toUpperCase()
+}
+
+/** The single unambiguous string stored in ApplicationState#slot — date and time together, never just one or the other. */
+export function formatSlot(dateIso: string, time: string): string {
+  return `${formatSlotDateLabel(dateIso)} — ${time}`
 }
 
 // ---------------------------------------------------------------------------
-// Appointment slot label pool — the *selection logic* (deterministic weekly
-// scarcity) lives in lib/slots.ts; this is just the joke copy per slot.
+// Old joke slot-label pool — SUPERSEDED by the Google Calendar-backed
+// day/time flow above; app/appointment/page.tsx no longer imports any of
+// this or lib/slots.ts. Kept, not deleted, as a fallback/demo-mode reference
+// (same "kept as copy-bank content" convention this file already uses for
+// the unused sub-step gag lines above) — useful if the calendar integration
+// is ever swapped out, or a local demo without the four GOOGLE_* env vars
+// configured is wanted again.
 // ---------------------------------------------------------------------------
 
 export interface SlotLabelCandidate {
@@ -372,7 +402,7 @@ export const APPROVED = {
 }
 
 // ---------------------------------------------------------------------------
-// Visa sticker (canvas composite) label copy
+// Shared visa document + downloadable canvas label copy
 // ---------------------------------------------------------------------------
 
 export const STICKER_LABELS = {
@@ -395,8 +425,8 @@ export const STICKER_LABELS = {
 
 // ---------------------------------------------------------------------------
 // Persistent document progress card (components/DocumentProgress.tsx) — shown
-// on every funnel page from /identity onward. It's a faithful DOM replica of
-// the final canvas-composited visa sticker (app/visa-issued/page.tsx), so it
+// on every funnel page from /identity onward. It shares VisaDocument's DOM
+// structure with the final document on app/visa-issued/page.tsx, so it
 // reuses STICKER_LABELS above as the single source for every field label the
 // two share — including NAME/PASSPORT №/VISA TYPE/SERIAL №/REFERENCE №/
 // ISSUED/VALID/CONDITIONS, the republic title, and the "VISA — " prefix.
@@ -421,7 +451,7 @@ export const STICKER_LABELS = {
 // Same pattern as APPOINTMENT: not a sticker field, shown once the relevant
 // context field is non-empty, one label per visa type below so a single
 // generic "ANSWER:" doesn't get confusingly reused across very different
-// content. Fiancé's three answers are joined into one compact line (see
+// content. Fiancé's answer is rendered in one compact line (see
 // components/DocumentProgress.tsx) and, like every other value in this card,
 // CSS-truncated if too long for one line — never discarded from state.
 // ---------------------------------------------------------------------------
