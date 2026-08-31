@@ -159,7 +159,7 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
                   <img
                     src={item.imageSrc}
                     alt={item.imageAlt ?? ''}
-                    className={`shrink-0 border border-navy bg-white object-contain ${size === 'full' ? 'h-10 w-10' : 'h-5 w-5'}`}
+                    className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-10 w-10' : 'h-5 w-5'}`}
                   />
                 )}
                 <span className={size === 'full' ? 'break-words' : 'truncate'}>{item.value}</span>

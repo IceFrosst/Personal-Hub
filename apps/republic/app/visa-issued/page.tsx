@@ -281,8 +281,8 @@ export default function VisaIssuedPage() {
       rowY += rowGap
       cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
-      rowY += rowGap
-      cell(STICKER_LABELS.conditions, APPROVED.conditionsValue, colAx, fullWidth)
+      // CONDITIONS row removed from the passport per owner feedback — the
+      // "bring snacks" gag survives only in the /visa-issued page subtitle.
 
       // Appointment + visa-specific answer addenda. These are outside the
       // sticker field grid, with the same dashed-divider treatment as the DOM
@@ -309,7 +309,7 @@ export default function VisaIssuedPage() {
           const size = 52
           const sx = CANVAS_W - 60 - size
           const sy = addendumY - 8
-          context.fillStyle = '#ffffff'
+          context.fillStyle = PAPER
           context.fillRect(sx, sy, size, size)
           const scale = Math.min(size / stamp.width, size / stamp.height)
           const dw = stamp.width * scale
@@ -422,7 +422,6 @@ export default function VisaIssuedPage() {
     { key: 'reference', label: STICKER_LABELS.reference, value: state.referenceCode, span: true },
     { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
-    { key: 'conditions', label: STICKER_LABELS.conditions, value: APPROVED.conditionsValue, span: true },
   ]
   const addenda: VisaDocumentAddendum[] = [
     { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot },

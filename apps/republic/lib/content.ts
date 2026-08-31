@@ -467,9 +467,9 @@ export interface IqFace {
 }
 
 export function iqFaceFor(iq: number): IqFace {
-  if (iq < 85) return { src: '/iq-face-low.png', alt: 'Blissful low-IQ wojak', caption: 'BLISSFUL. NO NOTES.' }
-  if (iq <= 115) return { src: '/iq-face-mid.png', alt: 'Crying midwit wojak', caption: 'MIDWIT. CONDOLENCES.' }
-  return { src: '/iq-face-high.png', alt: 'Hooded enlightened wojak', caption: 'ENLIGHTENED. ALLEGEDLY.' }
+  if (iq < 85) return { src: '/iq-face-low.jpg', alt: 'Blissful low-IQ wojak', caption: 'BLISSFUL. NO NOTES.' }
+  if (iq <= 115) return { src: '/iq-face-mid.jpg', alt: 'Crying midwit wojak', caption: 'MIDWIT. CONDOLENCES.' }
+  return { src: '/iq-face-high.jpg', alt: 'Hooded enlightened wojak', caption: 'ENLIGHTENED. ALLEGEDLY.' }
 }
 
 export const PROCESSING_HEADING = 'PROCESSING APPLICATION'
