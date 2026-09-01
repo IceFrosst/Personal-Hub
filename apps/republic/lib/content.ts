@@ -38,7 +38,7 @@ export const VISAS: VisaDefinition[] = [
   },
   {
     slug: 'fiance',
-    icon: '💍',
+    icon: '💌',
     name: 'DATE VISA',
     tagline: '',
     // Got its flavor line back per owner feedback — it was the only card
@@ -218,7 +218,7 @@ export const SIDEQUEST = {
 // ---------------------------------------------------------------------------
 
 export const FIANCE_INTRO =
-  'ROUTINE QUESTION. ANSWER HONESTLY. DISHONESTY IS CUTE BUT ILLEGAL.'
+  'LYING TO A BORDER OFFICER IS A CRIME. FLIRTING WITH ONE IS WORSE.'
 
 export interface InterviewQuestion {
   question: string
@@ -696,6 +696,9 @@ export const DUTY_FREE_ITEMS: { name: string; status: string }[] = [
   { name: "Ignas's attention — 15 min", status: 'SOLD OUT' },
   { name: 'One (1) good morning text', status: 'restocked weekly' },
   { name: 'Unsolicited life advice', status: 'always in stock, ask no one' },
+  { name: 'One (1) inside joke, lifetime license', status: "issued at officer's discretion" },
+  { name: 'Ignas laughing at your joke', status: 'availability not guaranteed' },
+  { name: 'Reply within 5 minutes', status: 'DISCONTINUED' },
   { name: 'Priority boarding on future sidequests', status: 'SOLD OUT' },
 ]
 
