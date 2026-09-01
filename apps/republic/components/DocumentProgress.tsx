@@ -51,8 +51,8 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
 // VisaDocument itself just renders whatever field data it's handed.
 //
 // Field layout mirrors the sticker exactly — NAME + PASSPORT, unbolded VISA:
-// + bold short name and VALID, compact appointment DATE full-width beside the
-// photo, then SEX + optional `IQ: number [face]`. The right column gets more
+// + bold short name and VALID, SEX + optional `IQ: number [face]`, then the
+// compact appointment DATE full-width below them. The right column gets more
 // width than the left. Today's issue date lives inside the orange pending
 // stamp (final page/canvas), not as a field. REFERENCE № and SERIAL № remain
 // internal only. Visa-answer/screening/duty-free content stays below as
@@ -80,8 +80,8 @@ export function DocumentProgress() {
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
   // NAME + PASSPORT, VISA (unbolded) + selected name (bold), VALID, compact
-  // appointment DATE (full width), then SEX + IQ number/image. Today's issue
-  // date moved into the pending stamp and is not a field anymore.
+  // SEX + IQ number/image, then appointment DATE full-width below them.
+  // Today's issue date moved into the pending stamp and is not a field.
   const fields: VisaDocumentField[] = [
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName || null, animate: nameAnimate },
     {
@@ -97,13 +97,6 @@ export function DocumentProgress() {
       animate: visaTypeAnimate,
     },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
-    {
-      key: 'appointment',
-      label: DOCUMENT_PROGRESS.appointmentLabel,
-      value: state.slot ? formatPassportDate(state.slot) : null,
-      span: true,
-      animate: appointmentAnimate,
-    },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
     ...(state.declaredIq !== null
       ? [{
@@ -114,6 +107,13 @@ export function DocumentProgress() {
           imageAlt: iqFaceFor(state.declaredIq).alt,
         }]
       : []),
+    {
+      key: 'appointment',
+      label: DOCUMENT_PROGRESS.appointmentLabel,
+      value: state.slot ? formatPassportDate(state.slot) : null,
+      span: true,
+      animate: appointmentAnimate,
+    },
   ]
 
   const addenda: VisaDocumentAddendum[] = []

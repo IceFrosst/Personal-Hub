@@ -282,8 +282,6 @@ export default function VisaIssuedPage() {
       cell('VISA:', formatPassportVisaName(visa!.name), colAx, leftColWidth)
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, rightColWidth)
       rowY += rowGap
-      cell(DOCUMENT_PROGRESS.appointmentLabel, formatPassportDate(state.slot ?? ''), colAx, fullWidth)
-      rowY += rowGap
       cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, leftColWidth)
       if (state.declaredIq !== null) {
         const size = 24
@@ -301,6 +299,8 @@ export default function VisaIssuedPage() {
           context.drawImage(face, imageX, sy, size, size)
         }
       }
+      rowY += rowGap
+      cell(DOCUMENT_PROGRESS.appointmentLabel, formatPassportDate(state.slot ?? ''), colAx, fullWidth)
       // CONDITIONS row and its "bring snacks" gag were removed entirely.
 
       // Appointment + visa-specific answer addenda. These are outside the
@@ -442,12 +442,6 @@ export default function VisaIssuedPage() {
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
     { key: 'visaType', label: 'VISA:', value: formatPassportVisaName(visa.name) },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
-    {
-      key: 'appointment',
-      label: DOCUMENT_PROGRESS.appointmentLabel,
-      value: formatPassportDate(state.slot),
-      span: true,
-    },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
     ...(state.declaredIq !== null
       ? [{
@@ -458,6 +452,12 @@ export default function VisaIssuedPage() {
           imageAlt: iqFaceFor(state.declaredIq).alt,
         }]
       : []),
+    {
+      key: 'appointment',
+      label: DOCUMENT_PROGRESS.appointmentLabel,
+      value: formatPassportDate(state.slot),
+      span: true,
+    },
   ]
   const addenda: VisaDocumentAddendum[] = []
   if (visaAddendum) {

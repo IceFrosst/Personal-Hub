@@ -367,8 +367,8 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
   `color="pending"` + optional `subtext`, and final page passes `issueDate`. PNG draws
   the matching orange top-right stamp with the date. To avoid contradictory copy,
   final heading/status are now APPLICATION SUBMITTED / STATUS: PENDING APPROVAL.
-- **Appointment date moved up beside the photo**, out of the dashed addenda, as a
-  full-width grid row labelled DATE. `formatPassportDate` display-formats the stored
+- **Appointment date moved into the main grid below the SEX/IQ row**, out of the dashed
+  addenda, as a full-width row labelled DATE. `formatPassportDate` display-formats the stored
   `SUN, 13 SEPT 2026 — AFTERNOON` as `13 Sept, Sun, Afternoon` without changing the
   stored record/DM value.
 - **Right field column widened** (`grid-cols-[0.78fr_1.22fr]`; PNG uses the same 39/61
