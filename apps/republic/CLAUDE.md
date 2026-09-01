@@ -796,19 +796,18 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
-- **V1 backend blocker — applicant № is still a placeholder on production:** apply
-  `supabase/migrations/0001_applicant_number_sequence.sql`, expose the `republic` schema
-  through the Data API/authenticator configuration, and reload PostgREST config/schema.
-  Re-verified anonymously on `ignas.wtf`: `APPLICANT № ————` remains after the RPC wait.
-- **V1 backend blocker — apply migration 0002 + expose the schema.** The submission
-  tables (`supabase/migrations/0002_submission_tables.sql`, write-only RLS) are written
-  and the client already sends every field (idea/supplies/pitch/statement/otherness/
-  interview/screening/IQ/gender/duty-free), but the migration is NOT applied to the
-  remote project and the `republic` schema is NOT yet in the Data API's exposed
-  schemas. Both this and the applicant-number item above need a
-  `SUPABASE_ACCESS_TOKEN` (Management API) — not present in the local pi environment;
-  requested from the owner. After applying: verify one anonymous insert lands and the
-  landing shows a real applicant №.
+- **✅ Backend is LIVE (both former blockers resolved).** Migrations 0001 + 0002 are
+  applied to the remote project; the `republic` schema is exposed (Management API PATCH
+  → persisted, then `ALTER ROLE authenticator SET pgrst.db_schemas` +
+  `NOTIFY pgrst reload config/schema` to reach the running PostgREST — the PATCH alone
+  never propagated). Verified end-to-end: the RPC allocates real numbers (production
+  landing shows `APPLICANT № 0002`; № 1 was burned by setup verification), anonymous
+  INSERTs land in `applications`/`bribes`, anonymous SELECT is correctly denied
+  (write-only), and test rows were deleted afterwards. Submissions are now retrievable:
+  look up an applicant's full record by reference code in the Supabase dashboard
+  (`republic.applications`). Supabase credentials (access token + ref + anon pair) are
+  now global for every pi session on this machine — see `~/.pi/agent/AGENTS.md`
+  "Supabase access" and `~/.bashrc`.
 - **V1 mobile regression pass:** rerun every visa path at Pixel 8 / Instagram in-app
   viewport and iPhone SE after the rapid passport-layout iterations; verify progress +
   final DOM + downloaded PNG, camera tap-only behavior, date-path IQ skip, duty-free
