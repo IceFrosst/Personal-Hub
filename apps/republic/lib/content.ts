@@ -248,9 +248,9 @@ export interface InterviewQuestion {
   options: string[]
 }
 
-// Asked in order, no visible counter. The unread-messages question also
-// lives in the landing's random rotation (owner wants it in both — a 1-in-5
-// session sees it twice, which reads as the Ministry double-checking).
+// Asked in order, no visible counter. The unread-messages question is
+// EXCLUSIVE to the date path — it was removed from the landing's random
+// rotation so it can never be asked twice in one session (owner request).
 // Answers accumulate into `fianceAnswers` and print joined on the passport.
 export const FIANCE_QUESTIONS: InterviewQuestion[] = [
   {
@@ -484,10 +484,6 @@ export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
   {
     question: 'A PIGEON HAS BEEN FOLLOWING YOU FOR THREE BLOCKS. WHAT DO YOU DO?',
     options: ['NOTHING. IT HAS CLEARANCE.', 'FOLLOW IT BACK.', 'FILE A COMPLAINT WITH THE PIGEON.'],
-  },
-  {
-    question: 'HOW MANY UNREAD MESSAGES ARE YOU CURRENTLY IGNORING?',
-    options: ['A NORMAL AMOUNT.', 'THE NUMBER IS CLASSIFIED.', 'I AM THE UNREAD MESSAGE.'],
   },
   {
     question: 'YOU ARE SCARED OF SPIDERS. A SPIDERMAN APPEARS IN YOUR ROOM. WHAT DO YOU DO?',
