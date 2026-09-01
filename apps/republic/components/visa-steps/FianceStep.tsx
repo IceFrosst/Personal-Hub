@@ -24,6 +24,10 @@ export function FianceStep() {
   // ("OPTION REMOVED. YOUR INTEREST WAS LOGGED.") — the applicant still has
   // to pick A or B. Pure UI; nothing is stored.
   const [secretWithdrawn, setSecretWithdrawn] = useState(false)
+  // Sequential interview — answers accumulate locally and land in context
+  // together once the last question is answered.
+  const [questionIndex, setQuestionIndex] = useState(0)
+  const [answers, setAnswers] = useState<string[]>([])
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
     // this sub-step still establishes SERIAL № together with visaType — see
@@ -34,15 +38,21 @@ export function FianceStep() {
 
   function choose(option: string) {
     playBeep()
-    update({ fianceAnswers: [option] })
+    const nextAnswers = [...answers, option]
+    if (questionIndex < FIANCE_QUESTIONS.length - 1) {
+      setAnswers(nextAnswers)
+      setQuestionIndex(questionIndex + 1)
+      return
+    }
+    update({ fianceAnswers: nextAnswers })
     addStamp('FIANC\u00c9 VISA INTERVIEW COMPLETE')
     playStampThunk()
-    // This visa is exactly one question, so choosing either answer completes
-    // it and navigates immediately — no counter or intermediate confirmation.
+    // Answering the final question completes the interview and navigates
+    // immediately — no counter or intermediate confirmation.
     router.push('/appointment')
   }
 
-  const question = FIANCE_QUESTIONS[0]
+  const question = FIANCE_QUESTIONS[questionIndex]
 
   return (
     <StepShell visa={visa}>
@@ -50,7 +60,7 @@ export function FianceStep() {
         {FIANCE_HIGH_RISK}
       </span>
 
-      <div>
+      <div key={questionIndex} className={questionIndex > 0 ? 'animate-fade-in' : undefined}>
         <p className="text-center text-[11px] uppercase tracking-wide text-navy/70">{FIANCE_INTRO}</p>
         <p className="mt-4 text-center font-stamp text-base uppercase tracking-wide text-navy">
           {question.question}
@@ -66,7 +76,8 @@ export function FianceStep() {
               {option}
             </button>
           ))}
-          {!secretWithdrawn ? (
+          {/* The phantom option belongs to the FIRST question only. */}
+          {questionIndex === 0 && !secretWithdrawn ? (
             <button
               type="button"
               onClick={() => {
@@ -77,11 +88,11 @@ export function FianceStep() {
             >
               {FIANCE_SECRET_OPTION}
             </button>
-          ) : (
+          ) : questionIndex === 0 && secretWithdrawn ? (
             <p className="animate-fade-in px-1 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-stamp">
               {FIANCE_SECRET_REMOVED}
             </p>
-          )}
+          ) : null}
         </div>
       </div>
     </StepShell>

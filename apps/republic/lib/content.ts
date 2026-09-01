@@ -248,17 +248,18 @@ export interface InterviewQuestion {
   options: string[]
 }
 
-// Trimmed to a single question per owner feedback — the "red flags" and
-// "favorite food" follow-ups are cut outright (not hidden), and there is no
-// visible question counter anymore (see components/visa-steps/FianceStep.tsx
-// — formatFianceProgress was deleted, not just unused, since one question
-// needs no counter at all). Still an array (not a bare object) so
-// `fianceAnswers` in applicationContext stays the same array type — just one
-// element now instead of three.
+// Asked in order, no visible counter. The unread-messages question also
+// lives in the landing's random rotation (owner wants it in both — a 1-in-5
+// session sees it twice, which reads as the Ministry double-checking).
+// Answers accumulate into `fianceAnswers` and print joined on the passport.
 export const FIANCE_QUESTIONS: InterviewQuestion[] = [
   {
     question: 'Purpose of visit?',
     options: ['Unclear, but I paid the declaration fee', 'Diplomatic immunity via charm'],
+  },
+  {
+    question: 'How many unread messages are you currently ignoring?',
+    options: ['A normal amount', 'The number is classified', 'I am the unread message'],
   },
 ]
 
