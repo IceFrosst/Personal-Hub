@@ -755,17 +755,22 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
-- **Calendar integration ready:** Google Calendar API enabled; dedicated service account
-  shared with the primary calendar using “See only free/busy (hide details)”; production
-  and preview Vercel environments contain `GOOGLE_CALENDAR_ID`,
-  `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, and timezone.
-  A live freeBusy request succeeded without exposing event details.
-- **Existing applicant-number backend blocker:** apply
+- **V1 backend blocker — applicant № is still a placeholder on production:** apply
   `supabase/migrations/0001_applicant_number_sequence.sql`, expose the `republic` schema
   through the Data API/authenticator configuration, and reload PostgREST config/schema.
-  Until then the applicant number correctly remains a placeholder.
-- A Vercel project (`republic-of-ignas`) exists but the app is not registered in
-  `apps/hub/config/apps.json`; confirm its production URL and final hub copy first.
-- Provision the remaining additive-only `republic` application/appointment/bribe tables
-  before replacing the current best-effort localStorage stubs.
-- Consider per-route OG images (`/denied`, `/visa/fiance`) if this becomes the IG bio link.
+  Re-verified anonymously on `ignas.wtf`: `APPLICANT № ————` remains after the RPC wait.
+- **V1 product decision — are submissions DM-only or retrievable?** Today application,
+  appointment and bribe records are localStorage-first best-effort stubs; the real
+  `republic` tables do not exist. REPORT TO THE AUTHORITIES opens Instagram and copies
+  only the reference line (visa name + reference + slot), so Ignas cannot look up the
+  person's typed idea/pitch/statement/interview/screening answers by reference code on a
+  different device. If lookup is part of v1, provision the additive-only tables + RLS
+  and replace the stubs before launch; if not, document DM-only as the deliberate v1.
+- **V1 mobile regression pass:** rerun every visa path at Pixel 8 / Instagram in-app
+  viewport and iPhone SE after the rapid passport-layout iterations; verify progress +
+  final DOM + downloaded PNG, camera tap-only behavior, date-path IQ skip, duty-free
+  selections, denial traps, Calendar fail-closed behavior, and DM handoff.
+- **Portfolio decision:** app is live at `ignas.wtf` but still absent from
+  `apps/hub/config/apps.json`; add it only if it should also appear in the portfolio hub,
+  after choosing final tile copy/icon.
+- **Post-v1 optional:** per-route OG images (`/denied`, `/visa/fiance`).
