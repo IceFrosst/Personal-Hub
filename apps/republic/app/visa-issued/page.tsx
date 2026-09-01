@@ -283,7 +283,7 @@ export default function VisaIssuedPage() {
       }
 
       cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, leftColWidth)
-      cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, rightColWidth)
+      cell(STICKER_LABELS.passport, state.instagramHandle, colBx, rightColWidth)
       rowY += rowGap
       cell('VISA:', formatPassportVisaName(visa!.name), colAx, leftColWidth)
       cell(STICKER_LABELS.other, passportPhotoNote(visa!.slug), colBx, rightColWidth)
@@ -385,7 +385,7 @@ export default function VisaIssuedPage() {
       context.rotate(-0.16)
       context.globalAlpha = 0.9
       context.strokeStyle = ORANGE
-      context.lineWidth = 9
+      context.lineWidth = 6
       context.strokeRect(-217, -51, 435, 102)
       context.fillStyle = ORANGE
       context.font = 'bold 34px "Courier New", monospace'
@@ -465,7 +465,8 @@ export default function VisaIssuedPage() {
   // card, which shows blanks for fields not filled in yet).
   const fields: VisaDocumentField[] = [
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
-    { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
+    // Label is "IG @:" so the value is the bare handle — no doubled @.
+    { key: 'passport', label: STICKER_LABELS.passport, value: state.instagramHandle },
     { key: 'visaType', label: 'VISA:', value: formatPassportVisaName(visa.name) },
     { key: 'other', label: STICKER_LABELS.other, value: passportPhotoNote(visa.slug) },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
@@ -519,9 +520,10 @@ export default function VisaIssuedPage() {
     // mid-funnel progress card.
     <PageShell>
       {/* No outer paper-card outline here — the VisaDocument already has its
-          own double border. A light px-3 inset makes the passport slightly
-          wider than before without running edge-to-edge across the screen. */}
-      <div className="px-3 text-center">
+          own double border. px-1 (on top of PageShell's px-4) keeps ~20px of
+          screen-edge gap per side — 30% less than the previous ~28px, per
+          owner request, giving the passport more width. */}
+      <div className="px-1 text-center">
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
           <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
@@ -540,13 +542,15 @@ export default function VisaIssuedPage() {
             }
           />
           <div className="pointer-events-none absolute -right-2 -top-2">
-            {/* 50% larger than the previous !text-sm/!px-3 version (owner request). */}
+            {/* 50% larger text than the old !text-sm version; border thinned
+                30% and the ghost strike removed (owner requests). */}
             <StampSlam
               text={APPROVED.stamp}
               subtext={issueDate}
               color="pending"
               rotate={10}
-              className="!border-[6px] !px-[18px] !py-1.5 !text-[21px]"
+              ghost={false}
+              className="!border-[4px] !px-[18px] !py-1.5 !text-[21px]"
             />
           </div>
         </div>

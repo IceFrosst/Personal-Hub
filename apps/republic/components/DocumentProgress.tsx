@@ -90,7 +90,8 @@ export function DocumentProgress() {
     {
       key: 'passport',
       label: STICKER_LABELS.passport,
-      value: state.instagramHandle ? `@${state.instagramHandle}` : null,
+      // Label is "IG @:" so the value is the bare handle — no doubled @.
+      value: state.instagramHandle || null,
       animate: passportAnimate,
     },
     {

@@ -572,7 +572,8 @@ export const APPROVED = {
 export const STICKER_LABELS = {
   republicTitle: 'DICTATORSHIP OF IGNAS',
   name: 'NAME:',
-  passport: 'IG HANDLE:',
+  // "IG @:" — the value renders as the bare handle (no doubled @).
+  passport: 'IG @:',
   sex: 'SEX:',
   other: 'OTHER:',
   // VISA TYPE and SERIAL № labels were removed per owner request. The bare

@@ -6,6 +6,7 @@ export function StampSlam({
   rotate = -8,
   className = '',
   subtext,
+  ghost = true,
 }: {
   text: string
   color?: 'stamp' | 'approve' | 'pending'
@@ -13,6 +14,8 @@ export function StampSlam({
   className?: string
   /** Optional smaller line inside the stamp (e.g. today's issue date). */
   subtext?: string
+  /** The faint offset second strike — disable where it reads as clutter. */
+  ghost?: boolean
 }) {
   const colorClass =
     color === 'stamp'
@@ -32,13 +35,15 @@ export function StampSlam({
           just a child), so no separate animation or reduced-motion handling
           is needed here. aria-hidden + duplicate text so screen readers only
           ever hear the stamp once. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 select-none opacity-25"
-        style={{ transform: 'translate(-46%, -54%)' }}
-      >
-        {text}
-      </span>
+      {ghost && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 select-none opacity-25"
+          style={{ transform: 'translate(-46%, -54%)' }}
+        >
+          {text}
+        </span>
+      )}
       <span className="flex flex-col items-center leading-none">
         <span>{text}</span>
         {subtext && <span className="mt-1 text-[0.58em] tracking-[0.15em]">{subtext}</span>}
