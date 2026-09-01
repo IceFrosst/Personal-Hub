@@ -29,7 +29,7 @@ import { useApplicationStatus } from '@/lib/useApplicationStatus'
 
 export default function EntryDeclarationPage() {
   const router = useRouter()
-  const { state, update, recordIntel, reset, hydrated } = useApplication()
+  const { state, update, recordIntel, restoreSubmittedApplication, reset, hydrated } = useApplication()
   // The applicant number is fetched from a Supabase RPC (or read from a
   // localStorage cache if this browser already has one) — never read/set
   // synchronously during render, since this page is statically prerendered
@@ -245,9 +245,20 @@ export default function EntryDeclarationPage() {
               type="button"
               onClick={() => {
                 playStampThunk()
+                restoreSubmittedApplication(pendingApp)
+                router.push('/visa-issued')
+              }}
+              className="mt-3 min-h-11 w-full border-2 border-approve bg-approve py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
+            >
+              {PENDING_LANDING.viewFinalApplication}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playStampThunk()
                 beginNewApplication()
               }}
-              className="mt-3 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
+              className="mt-2 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
             >
               {PENDING_LANDING.submitAnother}
             </button>

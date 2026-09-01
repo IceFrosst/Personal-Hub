@@ -4,7 +4,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { VisaType } from './content'
 import type { VisitorIntel } from './intel'
 import { generateSerial } from './referenceCode'
-import { claimProviderHydration, EMPTY_STATE, type ApplicationState } from './applicationState'
+import {
+  claimProviderHydration,
+  EMPTY_STATE,
+  mapSubmittedApplication,
+  resolveRestoredThumbnail,
+  type ApplicationState,
+} from './applicationState'
+import type { ApplicationRecord } from './api'
 import {
   isCurrentDraft,
   newDraftId,
@@ -20,6 +27,16 @@ import {
 export type { ApplicationState }
 
 const STORAGE_KEY = 'republic:application'
+
+function hasSubmittedApplicationOnDevice(): boolean {
+  try {
+    const raw = window.localStorage.getItem('republic:applications-log')
+    const parsed: unknown = raw ? JSON.parse(raw) : null
+    return Array.isArray(parsed) && parsed.length > 0
+  } catch {
+    return false
+  }
+}
 
 interface ApplicationContextValue {
   state: ApplicationState
@@ -39,6 +56,8 @@ interface ApplicationContextValue {
   selectVisa: (visaType: VisaType) => void
   /** Records intel only when the caller's captured draft is still current. */
   recordIntel: (intel: VisitorIntel, expectedDraftId: string) => void
+  /** Restores a completed local record without creating/auditing a draft. */
+  restoreSubmittedApplication: (record: ApplicationRecord) => void
   reset: () => string | null
   hydrated: boolean
 }
@@ -60,9 +79,10 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
       const raw = window.sessionStorage.getItem(STORAGE_KEY)
       let parsed: ApplicationState = EMPTY_STATE
       if (raw) parsed = { ...EMPTY_STATE, ...(JSON.parse(raw) as Partial<ApplicationState>) }
-      // Every browser funnel, including a fresh deep link with empty storage,
-      // gets a new identity. This runs after mount, never during render.
-      if (!parsed.draftId) {
+      // A returning applicant is restored from localStorage by the landing
+      // page. Do not mint/audit a throwaway draft before that restore happens.
+      // All other fresh browsers get a new identity after mount.
+      if (!parsed.draftId && !hasSubmittedApplicationOnDevice()) {
         const draftId = newDraftId()
         parsed = { ...parsed, draftId }
         if (draftId) recordDraftStarted(draftId)
@@ -70,7 +90,8 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
       stateRef.current = parsed
       setState(parsed)
     } catch {
-      const draftId = newDraftId()
+      const hasSubmittedApplication = hasSubmittedApplicationOnDevice()
+      const draftId = hasSubmittedApplication ? null : newDraftId()
       const parsed = { ...EMPTY_STATE, draftId }
       stateRef.current = parsed
       setState(parsed)
@@ -142,6 +163,24 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
     setState(next)
   }, [])
 
+  const restoreSubmittedApplication = useCallback((record: ApplicationRecord) => {
+    const restored = mapSubmittedApplication(record)
+    // A thumbnail is safe session state and may survive alongside an expired
+    // full-resolution capture, but only for the exact same application this
+    // tab already had open — see resolveRestoredThumbnail. Any mismatch or
+    // missing reference code drops the thumbnail entirely so /visa-issued
+    // falls back to its "PHOTO ON FILE" placeholder rather than ever risking
+    // showing the wrong photo. The local completed log intentionally has no
+    // raw/private photo to fetch or restore.
+    restored.selfieThumbnailUrl = resolveRestoredThumbnail(
+      stateRef.current.referenceCode,
+      stateRef.current.selfieThumbnailUrl,
+      record.referenceCode
+    )
+    stateRef.current = restored
+    setState(restored)
+  }, [])
+
   const reset = useCallback(() => {
     const draftId = newDraftId()
     const next = { ...EMPTY_STATE, draftId }
@@ -157,8 +196,8 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
   }, [])
 
   const value = useMemo(
-    () => ({ state, update, selectVisa, recordIntel, reset, hydrated }),
-    [state, update, selectVisa, recordIntel, reset, hydrated]
+    () => ({ state, update, selectVisa, recordIntel, restoreSubmittedApplication, reset, hydrated }),
+    [state, update, selectVisa, recordIntel, restoreSubmittedApplication, reset, hydrated]
   )
 
   return <ApplicationContext.Provider value={value}>{children}</ApplicationContext.Provider>

@@ -9,7 +9,7 @@
 // funnel — the whole experience works with zero backend.
 
 import { computeSlots, type Slot } from './slots'
-import type { ApplicationState } from './applicationContext'
+import type { ApplicationState, SubmittedApplicationRecord } from './applicationState'
 import { normalizeInstagramHandle, parseApplicationStatus, type ApplicationStatus } from './applicationStatus'
 export { normalizeInstagramHandle, parseApplicationStatus, type ApplicationStatus } from './applicationStatus'
 
@@ -127,7 +127,7 @@ export async function getApplicationStatus(
   }
 }
 
-export interface ApplicationRecord {
+export interface ApplicationRecord extends SubmittedApplicationRecord {
   applicantName: string
   instagramHandle: string
   visaType: string
@@ -178,9 +178,12 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
     visaType: state.visaType ?? 'tourist',
     slot: state.slot ?? '',
     referenceCode,
+    serial: state.serial ?? undefined,
+    issuedDate: state.issuedDate ?? undefined,
     draftId: state.draftId ?? undefined,
     selfieCaptured: state.selfieCaptured,
-    selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : undefined,
+    selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : state.selfieSizeBytes ?? undefined,
+    selfiePath: state.selfiePath ?? undefined,
     submittedAt: new Date().toISOString(),
   }
   // `matter` (the removed SEEK ADVICE PERMIT's sub-step field) stays in the

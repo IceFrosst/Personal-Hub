@@ -756,6 +756,7 @@ export const PENDING_LANDING = {
   referenceLabel: 'REFERENCE №:',
   visaLabel: 'VISA:',
   statusLine: 'STATUS: PENDING APPROVAL.',
+  viewFinalApplication: 'VIEW FINAL APPLICATION',
   submitAnother: 'SUBMIT ANOTHER APPLICATION',
 }
 

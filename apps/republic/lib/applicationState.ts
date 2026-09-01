@@ -7,6 +7,34 @@
 import type { VisaType } from './content'
 import type { VisitorIntel } from './intel'
 
+/** Applicant-facing fields retained in the device's completed-application log.
+ * Optional fields intentionally cover records written by older app versions. */
+export interface SubmittedApplicationRecord {
+  applicantName?: string
+  instagramHandle?: string
+  visaType?: string
+  slot?: string
+  issuedDate?: string
+  serial?: string
+  referenceCode?: string
+  idea?: string
+  supplies?: string[]
+  pitch?: string
+  statement?: string
+  otherness?: string
+  interviewAnswers?: string[]
+  screeningQuestion?: string
+  screeningAnswer?: string
+  declaredIq?: number
+  declaredConfidence?: number
+  decisionSeconds?: number
+  gender?: string
+  dutyFreeItems?: string[]
+  selfieCaptured?: boolean
+  selfieSizeBytes?: number
+  selfiePath?: string
+}
+
 export interface ApplicationState {
   applicantName: string
   instagramHandle: string
@@ -26,6 +54,8 @@ export interface ApplicationState {
   /** Set when the otherness selection is submitted. */
   specialOthernessSubmitted: boolean
   fianceAnswers: string[]
+  /** Set once the DATE VISA interview is complete; protects restored records. */
+  fianceInterviewSubmitted: boolean
   businessPitch: string
   /** Set only when the business pitch is submitted; text alone may be partial. */
   businessPitchSubmitted: boolean
@@ -44,6 +74,9 @@ export interface ApplicationState {
   /** Persisted small (~200px JPEG) fallback so the visa sticker can still be
    *  reconstructed after a refresh loses the full-resolution capture. */
   selfieThumbnailUrl: string | null
+  /** Completed-record metadata only; never used to fetch a private photo. */
+  selfieSizeBytes: number | null
+  selfiePath: string | null
   /** Secondary-screening absurd question drawn for this session — persisted
    *  so a refresh mid-screening doesn't re-roll the rotation (see
    *  app/screening/page.tsx and lib/content.ts#SCREENING_QUESTIONS). */
@@ -92,6 +125,7 @@ export const EMPTY_STATE: ApplicationState = {
   specialOtherness: '',
   specialOthernessSubmitted: false,
   fianceAnswers: [],
+  fianceInterviewSubmitted: false,
   businessPitch: '',
   businessPitchSubmitted: false,
   specialStatement: '',
@@ -102,6 +136,8 @@ export const EMPTY_STATE: ApplicationState = {
   selfieDataUrl: null,
   selfieCaptured: false,
   selfieThumbnailUrl: null,
+  selfieSizeBytes: null,
+  selfiePath: null,
   screeningQuestion: null,
   screeningAnswer: null,
   declaredIq: null,
@@ -115,6 +151,102 @@ export const EMPTY_STATE: ApplicationState = {
   referenceCode: null,
   serial: null,
   issuedDate: null,
+}
+
+function isVisaType(value: string | undefined): value is VisaType {
+  return value === 'tourist' || value === 'fiance' || value === 'business' || value === 'special'
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function nullableString(value: unknown): string | null {
+  const result = stringValue(value)
+  return result || null
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/**
+ * Rehydrates a completed local-log row without starting a new draft. A
+ * completed record is inherently forward-locked: markers are set for its
+ * selected path, while officer intel/draft identity remain empty because the
+ * local log strips them before writing.
+ */
+export function mapSubmittedApplication(record: SubmittedApplicationRecord): ApplicationState {
+  const applicantName = stringValue(record.applicantName)
+  const instagramHandle = stringValue(record.instagramHandle)
+  const visaType = isVisaType(record.visaType) ? record.visaType : null
+  return {
+    ...EMPTY_STATE,
+    applicantName,
+    instagramHandle,
+    visaType,
+    sidequestIdea: stringValue(record.idea),
+    sidequestIdeaSubmitted: visaType === 'tourist',
+    sidequestSupplies: stringArray(record.supplies),
+    sidequestSuppliesDeclared: visaType === 'tourist',
+    specialOtherness: stringValue(record.otherness),
+    specialOthernessSubmitted: visaType === 'special',
+    fianceAnswers: stringArray(record.interviewAnswers),
+    fianceInterviewSubmitted: visaType === 'fiance',
+    businessPitch: stringValue(record.pitch),
+    businessPitchSubmitted: visaType === 'business',
+    specialStatement: stringValue(record.statement),
+    specialStatementSubmitted: visaType === 'special',
+    identitySubmitted: Boolean(applicantName),
+    handleSubmitted: Boolean(instagramHandle),
+    slot: nullableString(record.slot),
+    selfieDataUrl: null,
+    selfieCaptured: record.selfieCaptured === true,
+    selfieThumbnailUrl: null,
+    selfieSizeBytes: finiteNumber(record.selfieSizeBytes),
+    selfiePath: nullableString(record.selfiePath),
+    screeningQuestion: nullableString(record.screeningQuestion),
+    screeningAnswer: nullableString(record.screeningAnswer),
+    declaredIq: finiteNumber(record.declaredIq),
+    declaredConfidence: finiteNumber(record.declaredConfidence),
+    dateDecisionSeconds: finiteNumber(record.decisionSeconds),
+    // These are intentionally not restored from localStorage.
+    draftId: null,
+    intel: null,
+    selfieRetakes: 0,
+    dutyFreeItems: stringArray(record.dutyFreeItems),
+    gender: nullableString(record.gender),
+    referenceCode: nullableString(record.referenceCode),
+    serial: nullableString(record.serial),
+    issuedDate: nullableString(record.issuedDate),
+  }
+}
+
+/**
+ * Decides whether a previously captured selfie thumbnail may carry over into
+ * a restored application state. A thumbnail is safe *session* state — it may
+ * legitimately survive alongside an expired full-resolution capture for the
+ * exact same application this tab already had open (e.g. reopening
+ * /visa-issued for the record that's still live in `state`). It must never
+ * leak across applications: if the current session's `referenceCode` is
+ * missing, the record's `referenceCode` is missing, or the two don't match
+ * exactly, the restore gets no thumbnail and /visa-issued falls back to its
+ * "PHOTO ON FILE" placeholder instead of ever risking showing a stranger's
+ * (or a stale prior application's) photo. Pure so it can be unit-tested
+ * directly, and shared by `applicationContext.tsx#restoreSubmittedApplication`.
+ */
+export function resolveRestoredThumbnail(
+  currentReferenceCode: string | null,
+  currentThumbnailUrl: string | null,
+  recordReferenceCode: string | null | undefined
+): string | null {
+  if (!currentReferenceCode || !recordReferenceCode) return null
+  if (currentReferenceCode !== recordReferenceCode) return null
+  return currentThumbnailUrl
 }
 
 /**

@@ -48,15 +48,18 @@ export function FianceStep() {
   // Forward-lock: a completed interview cannot be retaken (owner rule).
   useEffect(() => {
     if (!hydrated) return
-    if (state.fianceAnswers.length >= FIANCE_QUESTIONS.length) router.replace('/appointment')
-  }, [hydrated, state.fianceAnswers.length, router])
+    if (state.fianceInterviewSubmitted || state.fianceAnswers.length >= FIANCE_QUESTIONS.length) router.replace('/appointment')
+  }, [hydrated, state.fianceInterviewSubmitted, state.fianceAnswers.length, router])
 
   function choose(option: string) {
     playBeep()
     const nextAnswers = [...answers, option]
     // Persist each answer so refreshes and abandoned-draft history retain the
     // complete sequence rather than only the final submission.
-    update({ fianceAnswers: nextAnswers })
+    update({
+      fianceAnswers: nextAnswers,
+      fianceInterviewSubmitted: questionIndex >= FIANCE_QUESTIONS.length - 1,
+    })
     if (questionIndex < FIANCE_QUESTIONS.length - 1) {
       setAnswers(nextAnswers)
       setQuestionIndex(questionIndex + 1)
@@ -71,7 +74,7 @@ export function FianceStep() {
 
   const question = FIANCE_QUESTIONS[questionIndex]
 
-  if (!hydrated || !restored || state.fianceAnswers.length >= FIANCE_QUESTIONS.length) return null
+  if (!hydrated || !restored || state.fianceInterviewSubmitted || state.fianceAnswers.length >= FIANCE_QUESTIONS.length) return null
 
   return (
     <StepShell visa={visa}>
