@@ -41,7 +41,9 @@ export const VISAS: VisaDefinition[] = [
     icon: '💍',
     name: 'DATE VISA',
     tagline: '',
-    lines: [],
+    // Got its flavor line back per owner feedback — it was the only card
+    // without one (it used to carry nothing but the HIGH RISK stamp).
+    lines: ['Purpose: romance, allegedly'],
   },
   {
     slug: 'special',
@@ -486,15 +488,16 @@ export const PROCESSING_TAIL_NOTE = '(this is normal. this is always normal.)'
 // Approval / visa issued
 // ---------------------------------------------------------------------------
 
+// The old CONDITIONS "bring snacks" gag is fully retired per owner request
+// (`conditions`/`conditionsValue` deleted — it had already been dropped from
+// the documents, and now from the /visa-issued subtitle too).
 export const APPROVED = {
   stamp: 'APPROVED',
   granted: 'VISA GRANTED.',
   validValue: 'until further notice',
-  conditionsValue: 'bring snacks',
   valid: 'VALID: until further notice.',
-  conditions: 'CONDITIONS: bring snacks.',
   download: 'DOWNLOAD VISA',
-  proceed: 'REPORT TO THE MINISTRY',
+  proceed: 'REPORT TO THE AUTHORITIES',
   rendering: 'RENDERING VISA…',
   filePrefix: 'visa-',
   fallbackFileSlug: 'dictatorship-of-ignas',
@@ -517,7 +520,6 @@ export const STICKER_LABELS = {
   // passport anymore.
   issued: 'ISSUED:',
   valid: 'VALID:',
-  conditions: 'CONDITIONS:',
   unknownName: 'APPLICANT UNKNOWN',
   // Shown in the square photo frame when neither the full-resolution capture
   // nor its persisted thumbnail survived a refresh (see

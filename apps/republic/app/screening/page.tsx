@@ -34,10 +34,18 @@ export default function ScreeningPage() {
     // this page sits directly after it in the funnel.
     if (!state.visaType || !state.serial || !state.slot || !state.issuedDate || !state.selfieCaptured) {
       router.replace('/visa')
+      return
+    }
+    // DATE VISA skips the IQ self-assessment entirely (owner request) —
+    // /biometric routes fiancé applicants straight to /processing, so anyone
+    // landing here with that visa type is deep-linking/back-navigating and
+    // gets forwarded the same way.
+    if (state.visaType === 'fiance') {
+      router.replace('/processing')
     }
   }, [hydrated, state, router])
 
-  if (!hydrated || !state.visaType || !state.selfieCaptured) return null
+  if (!hydrated || !state.visaType || state.visaType === 'fiance' || !state.selfieCaptured) return null
 
   const fillPercent = Math.round(((iq - SCREENING.iqMin) / (SCREENING.iqMax - SCREENING.iqMin)) * 100)
 

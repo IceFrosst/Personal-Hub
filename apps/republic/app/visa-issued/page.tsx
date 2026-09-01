@@ -453,9 +453,7 @@ export default function VisaIssuedPage() {
       <div className="paper-card p-5 text-center">
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
-          <p className="mt-1 text-[11px] uppercase text-navy/60">
-            {APPROVED.valid} {APPROVED.conditions}
-          </p>
+          <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
         </div>
 
         <div className="relative mt-4">

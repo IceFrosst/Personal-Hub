@@ -356,7 +356,19 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — passport trims, natural photo ratio, guaranteed sex question, CLASSIFIED trap:**
+**Latest pass — date-path IQ skip, DATE VISA flavor line, final-page copy trims:**
+- **DATE VISA (fiance) skips the IQ self-assessment**: `/biometric` routes fiancé
+  applicants straight to `/processing`, and `/screening` itself forwards any fiancé
+  session (deep link / back-navigation) the same way. No IQ addendum ever prints for
+  them (`declaredIq` stays null).
+- **DATE VISA got a flavor line back** — 'Purpose: romance, allegedly' — it was the only
+  card without one (previously deliberate: HIGH RISK stamp only; owner reversed that).
+- **/visa-issued copy trims**: the CONDITIONS "bring snacks" gag is fully retired
+  (subtitle now shows only VALID; `APPROVED.conditions`/`conditionsValue` and the unused
+  `STICKER_LABELS.conditions` deleted), and the DM button reads "REPORT TO THE
+  AUTHORITIES" instead of "REPORT TO THE MINISTRY".
+
+**Previous pass — passport trims, natural photo ratio, guaranteed sex question, CLASSIFIED trap:**
 - **REFERENCE № removed from both documents** (progress card, final DOM document, and the
   downloadable PNG canvas) — the code itself still exists and still drives the DM
   reference line + records; it's just not printed on the passport anymore.

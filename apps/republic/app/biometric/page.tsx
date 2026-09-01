@@ -66,7 +66,10 @@ export default function BiometricPage() {
     const thumbnail = await createThumbnail(finalDataUrl)
     update({ selfieDataUrl: finalDataUrl, selfieCaptured: true, selfieThumbnailUrl: thumbnail })
     addStamp('BIOMETRICS SUBMITTED')
-    router.push('/screening')
+    // DATE VISA applicants skip the IQ self-assessment (owner request — the
+    // Ministry does not test what it already suspects) and go straight to
+    // processing; everyone else gets secondary screening.
+    router.push(state.visaType === 'fiance' ? '/processing' : '/screening')
   }
 
   if (!hydrated || !state.visaType || !state.serial || !state.slot || !state.issuedDate) return null
