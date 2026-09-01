@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toPng } from 'html-to-image'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { StampSlam } from '@/components/StampSlam'
@@ -31,16 +32,14 @@ import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 
-// The downloadable PNG is composited on an off-screen canvas at a fixed
-// resolution — kept entirely for the DOWNLOAD VISA button (canvas.toDataURL);
-// the on-screen document itself is the DOM <VisaDocument size="full"> below,
-// not this canvas, so it renders crisp at any zoom/DPI and shares its exact
-// structure with the progress card (see components/VisaDocument.tsx). The
-// canvas mirrors the same layout: larger photo; NAME + PASSPORT, unbolded
-// VISA: + bold short name and VALID, compact appointment DATE, SEX + smaller
-// borderless IQ number/image; orange pending stamp with today's date. No
-// SERIAL, ISSUED or REFERENCE №. The downloaded image matches the on-screen design as closely as a canvas
-// practically can.
+// DOWNLOAD VISA captures the REAL on-screen document (the DOM node, stamp
+// overlay and all) via html-to-image at 3× pixel ratio — so the saved PNG is
+// the same passport the applicant sees, by construction, and can never
+// drift from it again (the old hand-drawn canvas mirror drifted repeatedly;
+// owner complaint). The off-screen canvas below is kept ONLY as a
+// best-effort fallback if DOM capture throws (some webviews are flaky with
+// font/image embedding) — it approximates the design but is no longer the
+// primary path, so don't spend effort keeping it pixel-perfect.
 const CANVAS_W = 900
 const CANVAS_H = 680
 
@@ -50,6 +49,8 @@ export default function VisaIssuedPage() {
   const router = useRouter()
   const { state, hydrated } = useApplication()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // The visible passport (document + stamp overlay) — what DOWNLOAD captures.
+  const documentRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
 
@@ -433,11 +434,32 @@ export default function VisaIssuedPage() {
     state.dateDecisionSeconds,
   ])
 
-  function handleDownload() {
+  async function handleDownload() {
+    const filename = `${APPROVED.filePrefix}${state.referenceCode ?? APPROVED.fallbackFileSlug}.png`
+    // Primary: capture the exact document being displayed (with the stamp
+    // overlay). Fallback: the legacy canvas approximation.
+    try {
+      const node = documentRef.current
+      if (!node) throw new Error('document node missing')
+      const dataUrl = await toPng(node, {
+        pixelRatio: 3,
+        backgroundColor: '#f4f0e8',
+        // Skip the browser's font shorthand quirks by letting the library
+        // embed the same webfonts the page already loaded.
+        cacheBust: true,
+      })
+      const link = document.createElement('a')
+      link.download = filename
+      link.href = dataUrl
+      link.click()
+      return
+    } catch {
+      // fall through to canvas
+    }
     const canvas = canvasRef.current
     if (!canvas) return
     const link = document.createElement('a')
-    link.download = `${APPROVED.filePrefix}${state.referenceCode ?? APPROVED.fallbackFileSlug}.png`
+    link.download = filename
     link.href = canvas.toDataURL('image/png')
     link.click()
   }
@@ -558,7 +580,9 @@ export default function VisaIssuedPage() {
           <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
         </div>
 
-        <div className="relative mt-4">
+        {/* pt-5/pr-1 keep the overhanging stamp inside this node's bounds so
+            the DOM-capture download never clips it. */}
+        <div ref={documentRef} className="relative mt-4 pt-5 pr-1">
           <VisaDocument
             size="full"
             photoUrl={state.selfieDataUrl ?? state.selfieThumbnailUrl}
@@ -570,7 +594,7 @@ export default function VisaIssuedPage() {
                 : undefined
             }
           />
-          <div className="pointer-events-none absolute -right-2 -top-2">
+          <div className="pointer-events-none absolute right-0 top-0">
             {/* 50% larger text than the old !text-sm version; border thinned
                 30% and the ghost strike removed (owner requests). */}
             <StampSlam

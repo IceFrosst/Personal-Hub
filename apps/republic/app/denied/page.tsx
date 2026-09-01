@@ -33,6 +33,8 @@ export default function DeniedPage() {
   // STATUS line for its own. Both start at SSR-safe defaults and are only
   // set inside the effect, same as everything else here.
   const [showReason, setShowReason] = useState(true)
+  // Bribe denials show the reason but NO status line (owner request).
+  const [showStatus, setShowStatus] = useState(true)
   const [status, setStatus] = useState(DENIAL.status)
   const [caseNumber, setCaseNumber] = useState<string | null>(null)
   const [date, setDate] = useState<string | null>(null)
@@ -53,6 +55,7 @@ export default function DeniedPage() {
       setStatus(DENIAL.statusClassified)
     } else if (via === 'bribe') {
       setReason(BRIBE_DENIAL_REASON)
+      setShowStatus(false)
     } else {
       setReason(DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)])
     }
@@ -82,7 +85,7 @@ export default function DeniedPage() {
               {DENIAL.reasonPrefix} {reason ?? DENIAL.pendingPlaceholder}
             </p>
           )}
-          <p>{status}</p>
+          {showStatus && <p>{status}</p>}
           <p className="mt-3 text-[11px] text-navy/60">
             {DENIAL.caseLabel} {caseNumber ?? DENIAL.pendingPlaceholder}
           </p>

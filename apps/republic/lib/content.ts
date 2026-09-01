@@ -527,7 +527,7 @@ export function adjustedConfidence(declared: number): number {
 // screen before choosing. Printed on the passport ONLY for the DATE path.
 export const DECISION_TIME_LABEL = 'DECISION TIME:'
 export function formatDecisionTime(seconds: number): string {
-  if (seconds < 3) return 'SUSPICIOUSLY FAST.'
+  if (seconds < 2) return 'SUSPICIOUSLY FAST.'
   return `${Math.round(seconds)} SECONDS. NOTED.`
 }
 
