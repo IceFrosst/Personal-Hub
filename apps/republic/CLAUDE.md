@@ -348,6 +348,13 @@ addendum, and the selected/typed visa addendum. Its off-screen downloadable canv
 the matching two-column order, includes both addenda, and has extra height. Processing
 and DM handoff behavior remain idempotent/non-blocking as documented above.
 
+**Hotfix — /identity ↔ /visa redirect loop:** the appointment-redesign pass (PR #78)
+moved the Instagram handle from `/identity` to its own `/handle` page (after
+`/appointment`, before `/biometric`) but left `RequireIdentity` demanding name **and**
+handle — making `/visa` permanently unreachable (entering a name just bounced
+`/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
+`RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
+
 **Latest pass — spottable cash pile + bribe-means-denial + legible officer mood:**
 - **The hidden bribe is no longer a 💵 emoji tab.** `components/HiddenBribe.tsx` now
   draws an SVG pile of banknotes (fanned bills + currency strap, muted greens) peeking
