@@ -221,6 +221,7 @@ export const SIDEQUEST = {
   // earns the FULLY EQUIPPED stamp on the passport documents.
   suppliesHeading: 'DECLARE EXPEDITION SUPPLIES:',
   supplies: ['Snacks', 'Playlist', 'Questionable plan', 'Bail money'],
+  suppliesSubmit: 'DECLARE SUPPLIES',
 }
 
 // Stamped on the passport (progress + final + PNG) when a sidequest
@@ -556,7 +557,6 @@ export const PROCESSING_TAIL_NOTE = '(this is normal. this is always normal.)'
 export const APPROVED = {
   stamp: 'PENDING APPROVAL',
   granted: 'APPLICATION SUBMITTED.',
-  validValue: 'until further notice',
   valid: 'STATUS: PENDING APPROVAL.',
   download: 'DOWNLOAD VISA',
   proceed: 'REPORT TO THE AUTHORITIES',
@@ -572,8 +572,9 @@ export const APPROVED = {
 export const STICKER_LABELS = {
   republicTitle: 'DICTATORSHIP OF IGNAS',
   name: 'NAME:',
-  passport: 'PASSPORT №:',
+  passport: 'IG HANDLE:',
   sex: 'SEX:',
+  other: 'OTHER:',
   // VISA TYPE and SERIAL № labels were removed per owner request. The bare
   // selected visa name stays in the old visa-type field position.
   // ISSUED label removed per owner request; the bare issue date is printed
@@ -581,7 +582,8 @@ export const STICKER_LABELS = {
   // REFERENCE № was removed from both documents per owner request — the code
   // still exists (DM reference line, records), it's just not printed on the
   // passport anymore.
-  valid: 'VALID:',
+  // VALID was removed per owner request — its grid slot now shows OTHER:
+  // with the officer's photo observation (see passportPhotoNote below).
   unknownName: 'APPLICANT UNKNOWN',
   // Shown in the square photo frame when neither the full-resolution capture
   // nor its persisted thumbnail survived a refresh (see
@@ -645,7 +647,14 @@ export const BIOMETRIC_NOTES: Record<VisaType, string> = {
   fiance: 'ELEVATED PULSE DETECTED. NOTED.',
   tourist: 'SUSPECT IS DEHYDRATED. NOTED.',
   business: 'POSTURE COULD BE BETTER. NOTED.',
-  special: 'SUBJECT APPEARS NERVOUS. FILED UNDER: CORRECT.',
+  special: 'SUBJECT APPEARS NERVOUS.',
+}
+
+/** The passport's OTHER: field — the same photo observation, compacted for a
+ * grid cell (trailing "NOTED." and final period stripped). Fills only once a
+ * photo exists, since it is nominally an observation OF the photo. */
+export function passportPhotoNote(visaType: VisaType): string {
+  return BIOMETRIC_NOTES[visaType].replace(/\s*NOTED\.$/, '').replace(/[.\s]+$/, '')
 }
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ import {
   formatPassportVisaName,
   iqFaceFor,
   isFullyEquipped,
+  passportPhotoNote,
 } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
@@ -285,7 +286,7 @@ export default function VisaIssuedPage() {
       cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, rightColWidth)
       rowY += rowGap
       cell('VISA:', formatPassportVisaName(visa!.name), colAx, leftColWidth)
-      cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, rightColWidth)
+      cell(STICKER_LABELS.other, passportPhotoNote(visa!.slug), colBx, rightColWidth)
       rowY += rowGap
       cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, leftColWidth)
       if (state.declaredIq !== null) {
@@ -377,20 +378,21 @@ export default function VisaIssuedPage() {
       context.restore()
 
       // Orange PENDING APPROVAL stamp in the top-right, with today's issue
-      // date inside it (matching the DOM stamp).
+      // date inside it (matching the DOM stamp) — scaled 1.5× per owner
+      // request and re-centered so it stays inside the document border.
       context.save()
-      context.translate(CANVAS_W - 175, 82)
+      context.translate(CANVAS_W - 255, 96)
       context.rotate(-0.16)
       context.globalAlpha = 0.9
       context.strokeStyle = ORANGE
-      context.lineWidth = 6
-      context.strokeRect(-145, -34, 290, 68)
+      context.lineWidth = 9
+      context.strokeRect(-217, -51, 435, 102)
       context.fillStyle = ORANGE
-      context.font = 'bold 23px "Courier New", monospace'
+      context.font = 'bold 34px "Courier New", monospace'
       context.textAlign = 'center'
-      context.fillText(APPROVED.stamp, 0, 3)
-      context.font = 'bold 12px "Courier New", monospace'
-      context.fillText(issueDate, 0, 22)
+      context.fillText(APPROVED.stamp, 0, 5)
+      context.font = 'bold 18px "Courier New", monospace'
+      context.fillText(issueDate, 0, 33)
       context.restore()
     }
 
@@ -465,7 +467,7 @@ export default function VisaIssuedPage() {
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
     { key: 'visaType', label: 'VISA:', value: formatPassportVisaName(visa.name) },
-    { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
+    { key: 'other', label: STICKER_LABELS.other, value: passportPhotoNote(visa.slug) },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
     ...(state.declaredIq !== null
       ? [{
@@ -538,12 +540,13 @@ export default function VisaIssuedPage() {
             }
           />
           <div className="pointer-events-none absolute -right-2 -top-2">
+            {/* 50% larger than the previous !text-sm/!px-3 version (owner request). */}
             <StampSlam
               text={APPROVED.stamp}
               subtext={issueDate}
               color="pending"
               rotate={10}
-              className="!border-[4px] !px-3 !py-1 !text-sm"
+              className="!border-[6px] !px-[18px] !py-1.5 !text-[21px]"
             />
           </div>
         </div>

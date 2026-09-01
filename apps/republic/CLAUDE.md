@@ -357,7 +357,26 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — path gags + Supabase submission tables:**
+**Latest pass — passport OTHER field, bigger pending stamp, split sub-step screens:**
+- **Passport field changes**: `PASSPORT №:` label → `IG HANDLE:`; the VALID field is
+  gone — its grid slot now shows `OTHER:` with the officer's photo observation
+  (`passportPhotoNote`, the per-path BIOMETRIC_NOTE with "NOTED."/trailing period
+  stripped, filled only once `selfieCaptured`). `APPROVED.validValue` and
+  `STICKER_LABELS.valid` deleted; the special note itself lost its
+  "FILED UNDER: CORRECT." tail (now just "SUBJECT APPEARS NERVOUS.").
+- **PENDING APPROVAL stamp is 50% bigger** on /visa-issued (DOM `!text-[21px]` etc.;
+  PNG scaled 1.5× and re-centered to stay inside the border).
+- **Sidequest and Special sub-steps are each TWO screens now** (owner request):
+  idea → supply declaration (`SIDEQUEST.suppliesSubmit`), and otherness question
+  (selection auto-advances) → sworn statement (+ redaction gag). Refresh/back
+  resume rules: persisted otherness skips its screen; supplies/statement re-seed
+  post-hydration as before.
+- **Testing gotcha (local browser-tools Chrome)**: the persistent profile's default
+  zoom is 200%, so `setViewport({width:390})` really lays out at ~195px — emulate
+  phones with width 780 (→ 390 CSS px). Verified this pass at true 390: passport,
+  stamp, both new screens, and funnel advance all correct.
+
+**Previous pass — path gags + Supabase submission tables:**
 - **Per-path biometric observation** (`BIOMETRIC_NOTES` in content.ts, rendered on
   `/biometric` only once a photo exists): fiance "ELEVATED PULSE DETECTED. NOTED.",
   tourist "SUSPECT IS DEHYDRATED. NOTED.", business "POSTURE COULD BE BETTER. NOTED.",

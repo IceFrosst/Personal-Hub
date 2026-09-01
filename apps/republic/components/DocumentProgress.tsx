@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import {
-  APPROVED,
   DOCUMENT_PROGRESS,
   FULLY_EQUIPPED_STAMP,
   STICKER_LABELS,
@@ -13,6 +12,7 @@ import {
   formatPassportVisaName,
   iqFaceFor,
   isFullyEquipped,
+  passportPhotoNote,
 } from '@/lib/content'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
 import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
@@ -67,7 +67,8 @@ export function DocumentProgress() {
   const nameAnimate = useRevealAnimation('name', Boolean(state.applicantName))
   const passportAnimate = useRevealAnimation('passport', Boolean(state.instagramHandle))
   const visaTypeAnimate = useRevealAnimation('visaType', Boolean(state.visaType))
-  const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
+  // OTHER: is the officer's photo observation — fills once a selfie exists.
+  const otherAnimate = useRevealAnimation('other', Boolean(state.selfieCaptured && state.visaType))
   const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
   const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
@@ -98,7 +99,12 @@ export function DocumentProgress() {
       value: visa ? formatPassportVisaName(visa.name) : null,
       animate: visaTypeAnimate,
     },
-    { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
+    {
+      key: 'other',
+      label: STICKER_LABELS.other,
+      value: state.selfieCaptured && state.visaType ? passportPhotoNote(state.visaType) : null,
+      animate: otherAnimate,
+    },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
     ...(state.declaredIq !== null
       ? [{

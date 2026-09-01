@@ -11,10 +11,12 @@ import { playBeep, playStampThunk } from '@/lib/sound'
 
 const visa = VISA_BY_SLUG.special
 
-// After submission the statement is briefly shown with random words blacked
-// out ("STATEMENT REDACTED FOR YOUR PROTECTION.") before auto-advancing to
-// /appointment — auto-advance, not a button, per the standing no-intermediate-
-// confirmation rule. The un-redacted statement still prints on the passport.
+// TWO screens (owner request): first the "HOW OTHER IS YOUR PURPOSE?"
+// question alone, then the sworn statement. After submission the statement
+// is briefly shown with random words blacked out ("STATEMENT REDACTED FOR
+// YOUR PROTECTION.") before auto-advancing to /appointment — auto-advance,
+// not a button, per the standing no-intermediate-confirmation rule. The
+// un-redacted statement still prints on the passport.
 const REDACTION_DISPLAY_MS = 2600
 
 export function SpecialStep() {
@@ -26,6 +28,7 @@ export function SpecialStep() {
   const [statement, setStatement] = useState('')
   const [otherness, setOtherness] = useState('')
   const [sworn, setSworn] = useState(false)
+  const [stage, setStage] = useState<'otherness' | 'statement'>('otherness')
   const seededRef = useRef(false)
   // null = form phase; an array = redaction phase (indexes of blacked words).
   // Randomness is computed in the submit handler, never during render, so
@@ -39,6 +42,9 @@ export function SpecialStep() {
     // `prev ||` so anything entered before hydration finished wins.
     setStatement((prev) => prev || state.specialStatement)
     setOtherness((prev) => prev || state.specialOtherness)
+    // Already answered this session (refresh/back-navigation) — don't ask
+    // the otherness question again, resume at the statement screen.
+    if (state.specialOtherness) setStage('statement')
   }, [hydrated, state.specialStatement, state.specialOtherness])
 
   useEffect(() => {
@@ -53,6 +59,14 @@ export function SpecialStep() {
   }, [])
 
   const complete = Boolean(statement.trim() && otherness && sworn)
+
+  function chooseOtherness(option: string) {
+    playBeep()
+    setOtherness(option)
+    update({ specialOtherness: option })
+    addStamp('OTHERNESS ASSESSED')
+    setStage('statement')
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -97,32 +111,35 @@ export function SpecialStep() {
     )
   }
 
+  // Screen 1: the otherness assessment alone. Selecting an option advances
+  // immediately (selection IS the answer — no separate continue button).
+  if (stage === 'otherness') {
+    return (
+      <StepShell visa={visa}>
+        <div className="flex flex-col gap-3">
+          <p className="text-[11px] uppercase tracking-wide text-navy">{SPECIAL.othernessPrompt}</p>
+          <div className="flex flex-col gap-2">
+            {SPECIAL.othernessOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => chooseOtherness(option)}
+                className="min-h-11 border-2 border-navy/40 px-3 py-2 text-left text-[12px] uppercase tracking-wide text-navy transition-all hover:border-approve hover:bg-approve hover:text-paper active:scale-[0.97]"
+              >
+                <span className="font-stamp">{option}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </StepShell>
+    )
+  }
+
+  // Screen 2: the sworn statement.
   return (
     <StepShell visa={visa}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        {/* Otherness assessment — required before the sworn statement. */}
-        <p className="text-[11px] uppercase tracking-wide text-navy">{SPECIAL.othernessPrompt}</p>
-        <div className="flex flex-col gap-2">
-          {SPECIAL.othernessOptions.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                playBeep()
-                setOtherness(option)
-              }}
-              className={`min-h-11 border-2 px-3 py-2 text-left text-[12px] uppercase tracking-wide transition-all active:scale-[0.97] ${
-                otherness === option
-                  ? 'border-approve bg-approve text-paper'
-                  : 'border-navy/40 text-navy hover:border-approve'
-              }`}
-            >
-              <span className="font-stamp">{option}</span>
-            </button>
-          ))}
-        </div>
-
-        <label htmlFor="statement" className="mt-2 text-[11px] uppercase tracking-wide text-navy">
+      <form onSubmit={handleSubmit} className="animate-fade-in flex flex-col gap-3">
+        <label htmlFor="statement" className="text-[11px] uppercase tracking-wide text-navy">
           {SPECIAL.prompt}
         </label>
         <textarea
