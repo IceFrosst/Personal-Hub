@@ -81,12 +81,14 @@ export const SITE_METADATA = {
 }
 
 // ---------------------------------------------------------------------------
-// Coat of arms — components/Crest.tsx (the aria-label is read aloud by screen
-// readers, so it counts as user-facing copy same as any visible label).
+// Emblem — components/Crest.tsx and public/favicon.svg (the aria-label is read
+// aloud by screen readers, so it counts as user-facing copy same as any visible
+// label). Must describe the actual mark: a round border-control stamp seal
+// enclosing a checkpoint boom gate with a red-and-white striped barrier arm.
 // ---------------------------------------------------------------------------
 
 export const CREST_ARIA_LABEL =
-  'Coat of arms of the Dictatorship of Ignas: a shield bearing a phone, a fork, and a heart'
+  'Emblem of the Dictatorship of Ignas Border Control: a round stamp seal enclosing a checkpoint barrier with a red-and-white striped arm, half raised'
 
 // ---------------------------------------------------------------------------
 // Entry declaration

@@ -335,7 +335,33 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — fixed the legacy-record restore bug (VIEW FINAL APPLICATION bouncing to /appointment instead of /visa-issued) + same-device thumbnail rescue:**
+**Latest pass — new emblem (Border Control seal + boom gate), replacing the generic shield crest:**
+- **Concept:** a round rubber-stamp seal (double navy ring) enclosing a checkpoint boom
+  gate — post, hinge, counterweight, red-and-paper striped barrier arm — on a solid navy
+  ground line. The arm hangs at 22°, neither open nor closed: the border is permanently
+  "being processed". Owner rejected the old heraldic shield + phone/fork/heart collage as
+  a weird, generic logo; this is one deadpan government artifact instead. No shield,
+  eagle, laurel, crown, star, or text. Palette is strictly paper `#f4f0e8` / navy
+  `#1a2a4a` / stamp red `#c0392b`, flat, no gradients.
+- **`components/Crest.tsx` and `public/favicon.svg` carry byte-equivalent geometry**
+  (same `viewBox="0 0 100 100"`, same 11 shape elements in identical order — only the
+  favicon adds a twelfth, background-only opaque paper `<rect>` behind them for
+  tab/PWA-icon use). Keep them in lockstep when editing either; a rationale/geometry
+  comment lives in `Crest.tsx`.
+  Component name and `className` prop API are unchanged (`Crest` is still the export;
+  the landing renders it at `h-10 w-10`). Every stroke is ≥2.5 viewBox units (≥1px at
+  40px) and stripes are 10 units wide, so nothing vanishes at the landing size; verified
+  by rasterizing at 256/40/32/16px (favicon at 16px reads as a light seal with a striped
+  bar — inherently lossy, acceptable). `public/manifest.json` already points at
+  `/favicon.svg` with `sizes: any`, so no manifest change was needed.
+- **`CREST_ARIA_LABEL` value/comment updated** in `lib/content.ts` to describe the new
+  mark ("Emblem of the Dictatorship of Ignas Border Control: a round stamp seal enclosing
+  a checkpoint barrier with a red-and-white striped arm, half raised"). The constant name
+  was deliberately kept (only two usages; it still matches the `Crest` component name).
+- No tests were added — the mark is pure static SVG with no logic; parity was checked by
+  a one-off normalize-and-diff of the shape elements in both files.
+
+**Previous pass — fixed the legacy-record restore bug (VIEW FINAL APPLICATION bouncing to /appointment instead of /visa-issued) + same-device thumbnail rescue:**
 - **Root cause:** an older on-device `ApplicationRecord` (written before `serial`/`issuedDate` existed in the local log) restored through `mapSubmittedApplication` with `serial: null`/`issuedDate: null`. `/visa-issued`'s completeness guard (`!state.serial || ... || !state.issuedDate`) then bounced it to `/visa`, whose own forward-lock (`state.visaType` already set) immediately forwarded to `/visa/[type]`, whose sub-step forward-lock (`sidequestIdeaSubmitted`/`fianceInterviewSubmitted`/etc. already `true`, since `mapSubmittedApplication` derives those from `visaType`) immediately forwarded again to `/appointment` — so a genuinely finished old application looked, from the applicant's side, like clicking VIEW FINAL APPLICATION just "redirects to the calendar."
 - **Fix — legacy-safe completion in `mapSubmittedApplication`:** an existing `serial`/`issuedDate` on the record is always preserved untouched (never regenerated). Only when BOTH are absent AND the record is otherwise genuinely complete (`visaType`, `slot`, `referenceCode`, and `selfieCaptured === true` all present — the same fields `/visa-issued`'s guard checks) are they synthesized, deterministically, from data already on that record: `serial` becomes a stable `SN-LEGACY-######` derived from the record's own `referenceCode` (an internal hash — SERIAL № isn't rendered on the passport anymore, only guard-checked, so there's no user-facing accuracy at stake), and `issuedDate` becomes a UTC-getter `DD/MM/YYYY` rendering of `record.submittedAt`, so equivalent instants cannot shift with browser timezone. Missing or invalid `submittedAt` uses the truthful `DATE ON FILE` guard/display value, never an epoch/1970 date. Both are pure functions of the record's own already-on-file data, so re-viewing the exact same record always reproduces the exact same value — nothing is ever randomized per view. An incomplete record (missing slot/referenceCode/selfie) is deliberately NOT synthesized; it correctly stays incomplete.
 - **`SubmittedApplicationRecord` gained `submittedAt` and `selfieThumbnailUrl`** (both optional; see their doc comments in `lib/applicationState.ts`). `lib/api.ts#buildApplicationRecord` carries `state.selfieThumbnailUrl` (the existing ~200px persisted preview) into THIS DEVICE'S OWN application log for future restores — `recordApplication`'s local write keeps it (only `intel`/`draftId` are stripped before that write). The thumbnail is excluded from the `republic.applications` table JSON payload, `draft_events`, and `intel`; the processing path intentionally may send it to private Storage as the review image when the full-resolution source is unavailable.
@@ -871,7 +897,7 @@ per-route OG images, real Supabase persistence for applications/appointments/bri
 (still stubbed to localStorage) — the applicant-number counter is the one narrow
 exception, backed by a real migration/RPC; see the dedicated Gotcha above.
 
-Verified: `npm test` (22 tests — calendar boundary/overlap/fail-closed coverage, draft-audit
+Verified: `npm test` (43 tests — calendar boundary/overlap/fail-closed coverage, draft-audit
 whitelist/size/cap/batch-budget and all-data-URI behavior, migration SQL guard coverage,
 provider hydration-claim and `isFreshApplicationState` classification, and status
 normalization/parser coverage), `npm run typecheck`, `npm run build`, and `npm run lint`
@@ -880,7 +906,7 @@ all pass clean from this folder (one pre-existing, unrelated
 
 ## Next
 
-- **Handoff:** same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
+- **Handoff:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Not committed. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal. Earlier in-flight item still stands: same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
 - **Applicant-facing status synchronization is now built:** the landing card and `/visa-issued` call the narrow lookup by exact reference code + normalized handle, poll every 7 seconds, recheck after focus/visibility, and stop after a terminal decision. No public application SELECT was added.
 - **Owner must smoke-test /ministry sign-in on production** (Google OAuth redirect —
   can't be automated headlessly).
