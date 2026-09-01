@@ -291,10 +291,7 @@ export const SPECIAL = {
   submit: 'SWEAR & SUBMIT',
   othernessPrompt: 'HOW OTHER IS YOUR PURPOSE?',
   othernessOptions: ['Mildly other', 'Substantially other', 'The form has no box for this'],
-  // Shown for a beat after submission, over the randomly blacked-out
-  // statement, before auto-advancing to /appointment. The full statement
-  // still prints un-redacted on the passport.
-  redactedNotice: 'STATEMENT REDACTED FOR YOUR PROTECTION.',
+  // (The post-submit redaction gag was removed per owner request.)
 }
 
 export const SPECIAL_REPLIES = [

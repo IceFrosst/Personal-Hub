@@ -52,10 +52,11 @@ export interface VisaDocumentProps {
   cornerStamp?: string
 }
 
+// Single border now — the old thin inner outline was removed (owner request)
+// so the fields get its padding + border back as usable text width.
 const SIZE = {
   compact: {
-    wrap: 'p-1',
-    inner: 'p-1.5',
+    wrap: 'p-2',
     title: 'text-[9px]',
     photo: 'h-14',
     photoBlank: 'w-11',
@@ -74,14 +75,13 @@ const SIZE = {
   // vertically into something that no longer resembled the card the visitor
   // watched fill in all funnel long; owner asked for them to match.
   full: {
-    wrap: 'p-1.5',
-    inner: 'p-3',
+    wrap: 'p-3',
     title: 'text-base',
     photo: 'h-24',
     photoBlank: 'w-20',
     photoText: 'text-[8px] px-1',
     photoGap: 'gap-3',
-    grid: 'text-[11px] gap-x-3 gap-y-1.5',
+    grid: 'text-[11px] gap-x-2 gap-y-1.5',
     addendum: 'text-[11px]',
     barcodeClass: 'barcode',
     barcodeGap: 'mt-3',
@@ -109,7 +109,7 @@ export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda, co
           {cornerStamp}
         </span>
       )}
-      <div className={`border border-navy ${s.inner}`}>
+      <div>
         <p className={`text-center font-stamp uppercase tracking-[0.2em] text-navy ${s.title}`}>
           {STICKER_LABELS.republicTitle}
         </p>

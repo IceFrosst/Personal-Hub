@@ -7,18 +7,14 @@ import { Checkbox } from '@/components/Checkbox'
 import { useApplication } from '@/lib/applicationContext'
 import { SPECIAL, VISA_BY_SLUG } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
-import { playBeep, playStampThunk } from '@/lib/sound'
+import { playBeep } from '@/lib/sound'
 
 const visa = VISA_BY_SLUG.special
 
-// TWO screens (owner request): first the "HOW OTHER IS YOUR PURPOSE?"
-// question alone, then the sworn statement. After submission the statement
-// is briefly shown with random words blacked out ("STATEMENT REDACTED FOR
-// YOUR PROTECTION.") before auto-advancing to /appointment — auto-advance,
-// not a button, per the standing no-intermediate-confirmation rule. The
-// un-redacted statement still prints on the passport.
-const REDACTION_DISPLAY_MS = 2600
-
+// TWO screens: first the "HOW OTHER IS YOUR PURPOSE?" question alone
+// (selection auto-advances), then the sworn statement, which submits
+// straight to /appointment. (A post-submit redaction gag briefly lived
+// between the two — removed per owner request.)
 export function SpecialStep() {
   const router = useRouter()
   const { state, update, selectVisa, hydrated } = useApplication()
@@ -30,11 +26,6 @@ export function SpecialStep() {
   const [sworn, setSworn] = useState(false)
   const [stage, setStage] = useState<'otherness' | 'statement'>('otherness')
   const seededRef = useRef(false)
-  // null = form phase; an array = redaction phase (indexes of blacked words).
-  // Randomness is computed in the submit handler, never during render, so
-  // static prerender/hydration never see it (hydration-safety rule).
-  const [redactedIndexes, setRedactedIndexes] = useState<number[] | null>(null)
-  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!hydrated || seededRef.current) return
@@ -52,9 +43,6 @@ export function SpecialStep() {
     // this sub-step still establishes SERIAL № together with visaType — see
     // lib/applicationContext.tsx#selectVisa.
     selectVisa('special')
-    return () => {
-      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -70,45 +58,13 @@ export function SpecialStep() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!complete || redactedIndexes !== null) return
+    if (!complete) return
     playBeep()
     update({ specialStatement: statement.trim(), specialOtherness: otherness })
     addStamp('SWORN STATEMENT FILED')
-    // Black out roughly 40% of words (always at least one), then advance.
-    const words = statement.trim().split(/\s+/)
-    const indexes = words
-      .map((_, i) => i)
-      .filter(() => Math.random() < 0.4)
-    if (indexes.length === 0) indexes.push(Math.floor(Math.random() * words.length))
-    setRedactedIndexes(indexes)
-    playStampThunk()
-    advanceTimerRef.current = setTimeout(() => router.push('/appointment'), REDACTION_DISPLAY_MS)
-  }
-
-  if (redactedIndexes !== null) {
-    const words = statement.trim().split(/\s+/)
-    return (
-      <StepShell visa={visa}>
-        <div className="animate-fade-in">
-          <p className="text-center font-stamp text-sm uppercase tracking-wide text-stamp">
-            {SPECIAL.redactedNotice}
-          </p>
-          <p className="mt-3 border-2 border-navy/30 bg-paper p-3 text-[13px] leading-relaxed text-navy">
-            {words.map((word, i) => (
-              <span key={i}>
-                {redactedIndexes.includes(i) ? (
-                  <span className="select-none bg-navy text-transparent" aria-hidden>
-                    {word}
-                  </span>
-                ) : (
-                  word
-                )}{' '}
-              </span>
-            ))}
-          </p>
-        </div>
-      </StepShell>
-    )
+    // Navigates straight to /appointment — no intermediate screen, per the
+    // standing flow rule.
+    router.push('/appointment')
   }
 
   // Screen 1: the otherness assessment alone. Selecting an option advances

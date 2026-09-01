@@ -206,11 +206,10 @@ export default function VisaIssuedPage() {
       context.fillStyle = PAPER
       context.fillRect(0, 0, CANVAS_W, documentHeight)
 
+      // Single border — the thin inner outline was removed (owner request).
       context.strokeStyle = NAVY
       context.lineWidth = 6
       context.strokeRect(10, 10, CANVAS_W - 20, documentHeight - 20)
-      context.lineWidth = 1.5
-      context.strokeRect(22, 22, CANVAS_W - 44, documentHeight - 44)
 
       context.fillStyle = NAVY
       context.textAlign = 'center'
@@ -519,11 +518,10 @@ export default function VisaIssuedPage() {
     // and should stand alone, not share the screen with the (now-redundant)
     // mid-funnel progress card.
     <PageShell>
-      {/* No outer paper-card outline here — the VisaDocument already has its
-          own double border. px-1 (on top of PageShell's px-4) keeps ~20px of
-          screen-edge gap per side — 30% less than the previous ~28px, per
-          owner request, giving the passport more width. */}
-      <div className="px-1 text-center">
+      {/* No outer paper-card outline here. -mx-0.5 pulls the passport 2px
+          into PageShell's px-4, leaving ~14px of screen-edge gap per side —
+          another 30% narrower than the previous ~20px (owner request). */}
+      <div className="-mx-0.5 text-center">
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
           <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
