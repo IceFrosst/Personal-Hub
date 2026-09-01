@@ -75,12 +75,14 @@ const SIZE = {
   // vertically into something that no longer resembled the card the visitor
   // watched fill in all funnel long; owner asked for them to match.
   full: {
-    wrap: 'p-3',
+    // p-2.5 + gap-1.5: fields sit closer to the photo and everything shifts
+    // left, buying the right column enough room (owner request).
+    wrap: 'p-2.5',
     title: 'text-base',
     photo: 'h-24',
     photoBlank: 'w-20',
     photoText: 'text-[8px] px-1',
-    photoGap: 'gap-3',
+    photoGap: 'gap-1.5',
     grid: 'text-[11px] gap-x-2 gap-y-1.5',
     addendum: 'text-[11px]',
     barcodeClass: 'barcode',
@@ -149,10 +151,14 @@ export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda, co
                 {field.label && <span className="shrink-0 text-navy">{field.label}</span>}
                 {field.value ? (
                   <span
-                    className={`flex min-w-0 items-center justify-end gap-1 truncate text-right font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
+                    className={`flex min-w-0 items-center justify-end gap-1 text-right font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
                     title={field.value}
                   >
-                    <span className="truncate">{field.value}</span>
+                    {/* Full size WRAPS long values instead of shortening them
+                        (owner request); the compact card still truncates. */}
+                    <span className={size === 'full' ? 'min-w-0 break-words leading-snug' : 'truncate'}>
+                      {field.value}
+                    </span>
                     {field.imageSrc && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -189,7 +195,10 @@ export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda, co
                     className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-6 w-6' : 'h-5 w-5'}`}
                   />
                 )}
-                <span className="truncate">{item.value}</span>
+                {/* Same rule as fields: full size wraps, compact truncates. */}
+                <span className={size === 'full' ? 'min-w-0 break-words text-right leading-snug' : 'truncate'}>
+                  {item.value}
+                </span>
               </span>
             ) : (
               <Blank size={size} />

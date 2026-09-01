@@ -268,7 +268,7 @@ export const FIANCE_HIGH_RISK = 'HIGH RISK'
 // The withdrawn option — a phantom third answer on the interview. Tapping it
 // removes it and logs nothing anywhere except the applicant's dignity.
 export const FIANCE_SECRET_OPTION = 'A secret third thing'
-export const FIANCE_SECRET_REMOVED = 'OPTION REMOVED. YOUR INTEREST WAS LOGGED.'
+export const FIANCE_SECRET_REMOVED = 'OPTION REMOVED.'
 
 export const FIANCE_RESULT = {
   title: 'VIBE CHECK: PASSED',
@@ -513,9 +513,9 @@ export const CONFIDENCE = {
   max: 100,
   default: 50,
   passportLabel: 'CONFIDENCE:',
-  // Short enough to never truncate in the grid cell at 390px — the officer
-  // is implied; the cut number is the joke.
-  adjustedSuffix: '% (ADJUSTED)',
+  // No "(adjusted)" note — the number is silently 15% lower than declared,
+  // which is funnier for anyone who remembers what they set.
+  adjustedSuffix: '%',
 }
 
 /** The officer's correction: floor(declared × 0.85). */
