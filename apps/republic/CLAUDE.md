@@ -357,7 +357,14 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — clickable duty-free + final-passport layout correction:**
+**Latest pass — camera permission reverted to tap-only:** `/biometric` no longer calls
+`getUserMedia` or starts a live camera on page load. The previous auto-front-camera pass
+caused an immediate browser permission prompt; owner rejected that. The page is back to
+`<input type="file" accept="image/*" capture="user">`: no prompt on entry, and the
+phone's front/selfie camera opens only after the applicant presses TAKE PHOTO. DATE VISA
+still skips IQ after submission.
+
+**Previous pass — clickable duty-free + final-passport layout correction:**
 - **Two duty-free items are now green, available buttons**: Unsolicited life advice and
   Priority boarding on future sidequests. Clicking stores the name in new persisted
   `ApplicationState.dutyFreeItems`, changes the item to "ADDED TO PASSPORT", and prints
@@ -380,9 +387,9 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
   container gives the passport ~20px more usable width than before without going
   edge-to-edge. Browser-checked locally with a completed fake DATE VISA and both
   duty-free selections.
-- **Camera permission note**: the browser prompt on entering `/biometric` is new and
-  expected from the previous pass's auto-starting live `getUserMedia` front camera.
-  Before that, permission/OS camera UI only appeared after tapping TAKE PHOTO.
+- **Historical/superseded camera permission note**: this pass's auto-starting live
+  `getUserMedia` front camera caused a browser prompt on entering `/biometric`; the owner
+  rejected it immediately. See the latest pass above — tap-only capture is current.
 
 **Previous pass — big v1 feedback batch:**
 - **Landing**: applicant № moved to the card's top-LEFT corner (its old centered spot
