@@ -357,7 +357,22 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — passport top metadata + IQ layout:**
+**Latest pass — annotated passport cleanup:**
+- Applied the owner's marked-up screenshot literally: **SERIAL № removed from the
+  passport**, separate visa subtitle removed, and `VISA TYPE:` label removed. The bare
+  selected name (`BUSINESS VISA`, etc.) remains in the old visa-type field position.
+  Internal `state.serial` is intentionally retained as a funnel/application invariant,
+  just no longer printed; `STICKER_LABELS.serial`/`.visaType` deleted.
+- Passport top row now has an intentionally blank left corner and the bare bold issue
+  date alone at top-right. `VisaDocument` no longer needs a `visaName` prop.
+- **IQ order is `IQ: 124 [face]`** beside SEX (number before image); PNG matches.
+- **Photo enlarged again** while keeping natural ratio: compact `h-14` (was h-11), full
+  `h-24` (was h-20), PNG 260px tall (was 220). Canvas addenda start below the larger of
+  the field area/photo bottom, preventing overlap.
+- Browser-checked locally against the provided BUSINESS VISA screenshot layout (issue
+  date 01/09/2026, IQ 124).
+
+**Previous pass — passport top metadata + IQ layout:**
 - **ISSUED label removed entirely** (`STICKER_LABELS.issued` deleted). Passport metadata
   is now SERIAL № at the true top-left and the bare issue date at the true top-right;
   date uses smaller bold text (`7px` compact / `9px` full; PNG `10px` bold). All three

@@ -27,11 +27,9 @@ import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 // the on-screen document itself is the DOM <VisaDocument size="full"> below,
 // not this canvas, so it renders crisp at any zoom/DPI and shares its exact
 // structure with the progress card (see components/VisaDocument.tsx). The
-// canvas's own field layout mirrors the same two-column grid order (NAME +
-// PASSPORT, VISA TYPE + SERIAL №, ISSUED + VALID, SEX — no REFERENCE №,
-// removed from both documents per owner request) instead of the old single
-// vertical list, so the
-// downloaded image matches the on-screen design as closely as a canvas
+// canvas mirrors the same layout: bare issue date top-right; larger photo;
+// NAME + PASSPORT, bare visa name + VALID, SEX + IQ number/image; no SERIAL,
+// ISSUED/VISA TYPE labels, or REFERENCE №. The downloaded image matches the on-screen design as closely as a canvas
 // practically can.
 const CANVAS_W = 900
 const CANVAS_H = 680
@@ -46,16 +44,10 @@ export default function VisaIssuedPage() {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
-  // SERIAL № and ISSUED are both generated earlier in the funnel (visa
-  // selection and appointment confirmation respectively — see
-  // applicationContext.tsx) and stored in context, so they're read straight
-  // from state here rather than recomputed, guaranteeing this document shows
-  // the exact same values the progress card already displayed. Deliberately
-  // no fallback/recompute for either — the guards below require both
-  // `state.serial` and `state.issuedDate` before this page renders at all,
-  // so a session missing either is bounced back to /visa instead of ever
-  // reaching a document that would have to synthesize an unpersisted value.
-  const serial = state.serial ?? ''
+  // The issue date is generated earlier at appointment confirmation and
+  // stored in context, so it is read straight from state rather than
+  // recomputed. SERIAL still exists as an internal application invariant
+  // (guards require it) but is no longer printed anywhere on the passport.
   const issueDate = state.issuedDate ?? ''
   const visaAddendum = useMemo(() => getVisaAddendum(state), [state])
   const screeningAddenda = useMemo(() => getScreeningAddenda(state), [state])
@@ -216,18 +208,11 @@ export default function VisaIssuedPage() {
       context.textAlign = 'center'
       context.font = 'bold 34px "Courier New", monospace'
       context.fillText(STICKER_LABELS.republicTitle, CANVAS_W / 2, 66)
-      context.font = '18px "Courier New", monospace'
-      // Visa names already include VISA where appropriate — no duplicated
-      // "VISA — DATE VISA" prefix on the downloaded document.
-      context.fillText(visa!.name, CANVAS_W / 2, 92)
-
-      // SERIAL № top-left; bare issue date top-right, smaller but bold.
-      context.font = 'bold 12px "Courier New", monospace'
-      context.textAlign = 'left'
-      context.fillText(`${STICKER_LABELS.serial} ${serial}`, 60, 122)
+      // No visa subtitle and no SERIAL №. Bare issue date only, at the true
+      // top-right in smaller bold text.
       context.font = 'bold 10px "Courier New", monospace'
       context.textAlign = 'right'
-      context.fillText(issueDate, CANVAS_W - 60, 122)
+      context.fillText(issueDate, CANVAS_W - 60, 96)
       context.textAlign = 'left'
 
       // photo frame — rectangular clip at the capture's ORIGINAL aspect
@@ -235,8 +220,8 @@ export default function VisaIssuedPage() {
       // width from the image's own ratio, clamped so an extreme capture
       // can't crowd the field grid. Placeholder box stays portrait-ish.
       const photoX = 60
-      const photoY = 145
-      const photoH = 220
+      const photoY = 115
+      const photoH = 260
       const photoW = photo
         ? Math.max(150, Math.min(300, Math.round(photoH * (photo.width / photo.height))))
         : 170
@@ -270,9 +255,9 @@ export default function VisaIssuedPage() {
       context.lineWidth = 3
       context.strokeRect(photoX, photoY, photoW, photoH)
 
-      // Two-column field grid, same order as the DOM VisaDocument/progress
-      // card — ISSUED + SERIAL (top corners, owner request), NAME + PASSPORT,
-      // VISA TYPE + VALID, SEX. (No REFERENCE № — removed per owner request.)
+      // Two-column field grid, same as the DOM/progress card: NAME +
+      // PASSPORT, bare visa name + VALID, SEX + IQ number/image. Bare issue
+      // date is already top-right; SERIAL/VISA TYPE/REFERENCE labels are gone.
       const gridX = photoX + photoW + 36
       const gridRight = CANVAS_W - 40
       const colGap = 24
@@ -280,7 +265,7 @@ export default function VisaIssuedPage() {
       const colAx = gridX
       const colBx = gridX + colWidth + colGap
       const rowGap = 58
-      let rowY = 165
+      let rowY = 135
 
       const cell = (label: string, value: string, x: number, width: number) => {
         context.font = 'bold 12px "Courier New", monospace'
@@ -293,7 +278,7 @@ export default function VisaIssuedPage() {
       cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, colWidth)
       cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, colWidth)
       rowY += rowGap
-      cell(STICKER_LABELS.visaType, visa!.name, colAx, colWidth)
+      cell('', visa!.name, colAx, colWidth)
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
       rowY += rowGap
       cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, colWidth)
@@ -301,23 +286,28 @@ export default function VisaIssuedPage() {
         const size = 34
         const sx = colBx
         const sy = rowY - 13
+        context.fillStyle = NAVY
+        context.font = 'bold 12px "Courier New", monospace'
+        context.fillText('IQ:', sx, rowY + 10)
+        context.font = 'bold 15px "Courier New", monospace'
+        context.fillText(String(state.declaredIq), sx + 28, rowY + 10)
         if (face) {
-          context.drawImage(face, sx, sy, size, size)
+          // Re-draw after the number so the order is IQ: number image.
+          const imageX = sx + 64
+          context.fillStyle = PAPER
+          context.fillRect(imageX, sy, size, size)
+          context.drawImage(face, imageX, sy, size, size)
           context.strokeStyle = NAVY
           context.lineWidth = 1
-          context.strokeRect(sx, sy, size, size)
+          context.strokeRect(imageX, sy, size, size)
         }
-        context.fillStyle = NAVY
-        context.font = 'bold 15px "Courier New", monospace'
-        context.fillText(String(state.declaredIq), sx + size + 10, rowY + 10)
       }
-      // CONDITIONS row removed from the passport per owner feedback — the
-      // "bring snacks" gag survives only in the /visa-issued page subtitle.
+      // CONDITIONS row and its "bring snacks" gag were removed entirely.
 
       // Appointment + visa-specific answer addenda. These are outside the
       // sticker field grid, with the same dashed-divider treatment as the DOM
       // document, and are included in the PNG rather than being screen-only.
-      let addendumY = rowY + 54
+      let addendumY = Math.max(rowY + 54, photoY + photoH + 25)
       const addendum = (label: string, lines: string[], stamp?: HTMLImageElement | null) => {
         context.save()
         context.setLineDash([7, 5])
@@ -391,7 +381,6 @@ export default function VisaIssuedPage() {
     state.referenceCode,
     state.applicantName,
     state.instagramHandle,
-    serial,
     issueDate,
     state.slot,
     state.gender,
@@ -447,17 +436,17 @@ export default function VisaIssuedPage() {
   // here ever renders a blank/ruled row (unlike the mid-funnel progress
   // card, which shows blanks for fields not filled in yet).
   const fields: VisaDocumentField[] = [
-    { key: 'serial', label: STICKER_LABELS.serial, value: serial },
+    { key: 'top-left-blank', label: '', value: null },
     { key: 'issued', label: '', value: issueDate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
-    { key: 'visaType', label: STICKER_LABELS.visaType, value: visa.name },
+    { key: 'visaType', label: '', value: visa.name },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
     ...(state.declaredIq !== null
       ? [{
           key: 'iq',
-          label: '',
+          label: 'IQ:',
           value: String(state.declaredIq),
           imageSrc: iqFaceFor(state.declaredIq).src,
           imageAlt: iqFaceFor(state.declaredIq).alt,
@@ -504,7 +493,6 @@ export default function VisaIssuedPage() {
         <div className="relative mt-4">
           <VisaDocument
             size="full"
-            visaName={visa.name}
             photoUrl={state.selfieDataUrl ?? state.selfieThumbnailUrl}
             fields={fields}
             addenda={addenda}

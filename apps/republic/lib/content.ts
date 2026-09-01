@@ -529,9 +529,9 @@ export const STICKER_LABELS = {
   republicTitle: 'DICTATORSHIP OF IGNAS',
   name: 'NAME:',
   passport: 'PASSPORT №:',
-  visaType: 'VISA TYPE:',
   sex: 'SEX:',
-  serial: 'SERIAL №:',
+  // VISA TYPE and SERIAL № labels were removed per owner request. The bare
+  // selected visa name stays in the old visa-type field position.
   // ISSUED label removed per owner request; the bare issue date is printed
   // in smaller bold type at the passport's top-right corner.
   // REFERENCE № was removed from both documents per owner request — the code

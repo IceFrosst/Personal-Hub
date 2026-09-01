@@ -42,7 +42,6 @@ export interface VisaDocumentAddendum {
 
 export interface VisaDocumentProps {
   size: 'compact' | 'full'
-  visaName: string | null
   photoUrl?: string | null
   photoAnimate?: boolean
   /** In the sticker's own order — see the two-column layout note above each caller. */
@@ -56,9 +55,8 @@ const SIZE = {
     wrap: 'p-1',
     inner: 'p-1.5',
     title: 'text-[9px]',
-    subtitle: 'text-[7px]',
-    photo: 'h-11',
-    photoBlank: 'w-9',
+    photo: 'h-14',
+    photoBlank: 'w-11',
     photoText: 'text-[3px]',
     photoGap: 'gap-1.5',
     grid: 'text-[8px] gap-x-2 gap-y-0.5',
@@ -77,9 +75,8 @@ const SIZE = {
     wrap: 'p-1.5',
     inner: 'p-3',
     title: 'text-base',
-    subtitle: 'text-[10px]',
-    photo: 'h-20',
-    photoBlank: 'w-16',
+    photo: 'h-24',
+    photoBlank: 'w-20',
     photoText: 'text-[8px] px-1',
     photoGap: 'gap-3',
     grid: 'text-[11px] gap-x-3 gap-y-1.5',
@@ -96,7 +93,7 @@ function Blank({ wide, size }: { wide?: boolean; size: 'compact' | 'full' }) {
   return <span className={`inline-block h-2 border-b border-navy/30 ${wide ? s.blankWide : s.blankNarrow}`} aria-hidden />
 }
 
-export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, addenda }: VisaDocumentProps) {
+export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda }: VisaDocumentProps) {
   const s = SIZE[size]
 
   return (
@@ -105,22 +102,9 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
         <p className={`text-center font-stamp uppercase tracking-[0.2em] text-navy ${s.title}`}>
           {STICKER_LABELS.republicTitle}
         </p>
-        {/* Visa names already include VISA where appropriate; print the
-            actual name once (not the old "VISA — DATE VISA"). */}
-        {visaName ? (
-          <p className={`text-center uppercase tracking-[0.15em] text-navy ${s.subtitle}`}>
-            {visaName}
-          </p>
-        ) : (
-          <div className="mt-0.5 flex justify-center">
-            <Blank wide size={size} />
-          </div>
-        )}
-
-        {/* SERIAL № in the passport's actual top-left; bare issue date in
-            the actual top-right (no ISSUED label, owner request). These are
-            the first two fields supplied by both callers; the remaining
-            fields stay beside the photo below. */}
+        {/* No separate visa-name subtitle and no SERIAL №. The selected visa
+            name lives as a bare field beside the photo (no VISA TYPE label),
+            while the bare issue date stays at the true top-right. */}
         <div className={`mt-1 grid grid-cols-2 uppercase tracking-wide ${s.grid}`}>
           {fields.slice(0, 2).map((field, index) => (
             <div
@@ -137,9 +121,9 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
                 >
                   {field.value}
                 </span>
-              ) : (
+              ) : field.label ? (
                 <Blank size={size} />
-              )}
+              ) : null}
             </div>
           ))}
         </div>
@@ -179,15 +163,15 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
                     className={`flex min-w-0 items-center justify-end gap-1 truncate text-right font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
                     title={field.value}
                   >
+                    <span className="truncate">{field.value}</span>
                     {field.imageSrc && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={field.imageSrc}
                         alt={field.imageAlt ?? ''}
-                        className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-7 w-7' : 'h-5 w-5'}`}
+                        className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-8 w-8' : 'h-5 w-5'}`}
                       />
                     )}
-                    <span className="truncate">{field.value}</span>
                   </span>
                 ) : (
                   <Blank wide={field.span} size={size} />

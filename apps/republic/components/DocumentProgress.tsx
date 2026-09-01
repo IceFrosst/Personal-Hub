@@ -42,10 +42,9 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
 // useRevealAnimation above), and reading live funnel state out of context;
 // VisaDocument itself just renders whatever field data it's handed.
 //
-// Field layout mirrors the sticker exactly — ISSUED + SERIAL № in a dedicated
-// top-corner row, then NAME + PASSPORT, VISA TYPE + VALID, SEX beside the
-// photo — via STICKER_LABELS, the single shared label source with the canvas
-// draw code on /visa-issued.
+// Field layout mirrors the sticker exactly — bare issue date top-right (empty
+// top-left), then NAME + PASSPORT, bare visa name + VALID, SEX + optional IQ
+// number/image beside the larger photo — shared with /visa-issued's canvas.
 // (REFERENCE № was removed from both documents per owner request — the code
 // still exists for the DM reference line, it's just not printed.) SERIAL №
 // is set at visa selection, VALID fills immediately on visa selection (from
@@ -61,7 +60,6 @@ export function DocumentProgress() {
   const nameAnimate = useRevealAnimation('name', Boolean(state.applicantName))
   const passportAnimate = useRevealAnimation('passport', Boolean(state.instagramHandle))
   const visaTypeAnimate = useRevealAnimation('visaType', Boolean(state.visaType))
-  const serialAnimate = useRevealAnimation('serial', Boolean(state.serial))
   const issuedAnimate = useRevealAnimation('issued', Boolean(state.issuedDate))
   const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
   const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
@@ -77,12 +75,11 @@ export function DocumentProgress() {
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
-  // Field order (owner request): SERIAL № top-left, bare issue date top-right,
-  // then NAME + PASSPORT, VISA TYPE + VALID, SEX + IQ face/number. VisaDocument
-  // lifts the first two into a dedicated corner row. Mirrored by
-  // /visa-issued's DOM document and PNG canvas — keep all three in sync.
+  // First entry is intentionally blank (no SERIAL №); bare issue date occupies
+  // the true top-right. Then NAME + PASSPORT, bare visa name + VALID, SEX +
+  // IQ number/image. Mirrored by /visa-issued's DOM + PNG — keep in sync.
   const fields: VisaDocumentField[] = [
-    { key: 'serial', label: STICKER_LABELS.serial, value: state.serial, animate: serialAnimate },
+    { key: 'top-left-blank', label: '', value: null },
     { key: 'issued', label: '', value: state.issuedDate, animate: issuedAnimate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName || null, animate: nameAnimate },
     {
@@ -91,13 +88,13 @@ export function DocumentProgress() {
       value: state.instagramHandle ? `@${state.instagramHandle}` : null,
       animate: passportAnimate,
     },
-    { key: 'visaType', label: STICKER_LABELS.visaType, value: visa ? visa.name : null, animate: visaTypeAnimate },
+    { key: 'visaType', label: '', value: visa ? visa.name : null, animate: visaTypeAnimate },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
     ...(state.declaredIq !== null
       ? [{
           key: 'iq',
-          label: '',
+          label: 'IQ:',
           value: String(state.declaredIq),
           imageSrc: iqFaceFor(state.declaredIq).src,
           imageAlt: iqFaceFor(state.declaredIq).alt,
@@ -137,7 +134,6 @@ export function DocumentProgress() {
     <div className="sticky top-0 z-20 mb-2">
       <VisaDocument
         size="compact"
-        visaName={visa ? visa.name : null}
         photoUrl={state.selfieThumbnailUrl}
         photoAnimate={photoAnimate}
         fields={fields}
