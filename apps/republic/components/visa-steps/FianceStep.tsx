@@ -1,10 +1,17 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StepShell } from './StepShell'
 import { useApplication } from '@/lib/applicationContext'
-import { FIANCE_INTRO, FIANCE_QUESTIONS, FIANCE_HIGH_RISK, VISA_BY_SLUG } from '@/lib/content'
+import {
+  FIANCE_INTRO,
+  FIANCE_QUESTIONS,
+  FIANCE_HIGH_RISK,
+  FIANCE_SECRET_OPTION,
+  FIANCE_SECRET_REMOVED,
+  VISA_BY_SLUG,
+} from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep, playStampThunk } from '@/lib/sound'
 
@@ -13,6 +20,10 @@ const visa = VISA_BY_SLUG.fiance
 export function FianceStep() {
   const router = useRouter()
   const { update, selectVisa } = useApplication()
+  // The withdrawn option: a phantom third answer that disappears when tapped
+  // ("OPTION REMOVED. YOUR INTEREST WAS LOGGED.") — the applicant still has
+  // to pick A or B. Pure UI; nothing is stored.
+  const [secretWithdrawn, setSecretWithdrawn] = useState(false)
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
     // this sub-step still establishes SERIAL № together with visaType — see
@@ -55,6 +66,22 @@ export function FianceStep() {
               {option}
             </button>
           ))}
+          {!secretWithdrawn ? (
+            <button
+              type="button"
+              onClick={() => {
+                playBeep()
+                setSecretWithdrawn(true)
+              }}
+              className="min-h-11 border-2 border-navy bg-paper px-3 py-2 text-left text-[12px] uppercase tracking-wide text-navy transition-colors hover:bg-navy hover:text-paper"
+            >
+              {FIANCE_SECRET_OPTION}
+            </button>
+          ) : (
+            <p className="animate-fade-in px-1 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-stamp">
+              {FIANCE_SECRET_REMOVED}
+            </p>
+          )}
         </div>
       </div>
     </StepShell>

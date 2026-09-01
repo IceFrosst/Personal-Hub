@@ -104,6 +104,8 @@ export interface ApplicationRecord {
   screeningQuestion?: string
   screeningAnswer?: string
   declaredIq?: number
+  declaredConfidence?: number
+  decisionSeconds?: number
   gender?: string
   dutyFreeItems?: string[]
   selfieCaptured: boolean
@@ -144,6 +146,9 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
   if (state.screeningQuestion) record.screeningQuestion = state.screeningQuestion
   if (state.screeningAnswer) record.screeningAnswer = state.screeningAnswer
   if (state.declaredIq !== null) record.declaredIq = state.declaredIq
+  if (state.declaredConfidence !== null) record.declaredConfidence = state.declaredConfidence
+  if (state.visaType === 'fiance' && state.dateDecisionSeconds !== null)
+    record.decisionSeconds = state.dateDecisionSeconds
   if (state.gender) record.gender = state.gender
   return record
 }
@@ -176,6 +181,8 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     screening_question: record.screeningQuestion ?? null,
     screening_answer: record.screeningAnswer ?? null,
     declared_iq: record.declaredIq ?? null,
+    declared_confidence: record.declaredConfidence ?? null,
+    decision_seconds: record.decisionSeconds ?? null,
     gender: record.gender ?? null,
     selfie_captured: record.selfieCaptured,
     selfie_size_bytes: record.selfieSizeBytes ?? null,

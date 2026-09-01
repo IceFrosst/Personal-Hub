@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import {
+  CONFIDENCE,
+  DECISION_TIME_LABEL,
   DOCUMENT_PROGRESS,
+  adjustedConfidence,
+  formatDecisionTime,
   FULLY_EQUIPPED_STAMP,
   STICKER_LABELS,
   VISA_BY_SLUG,
@@ -70,6 +74,11 @@ export function DocumentProgress() {
   // OTHER: is the officer's photo observation — fills once a selfie exists.
   const otherAnimate = useRevealAnimation('other', Boolean(state.selfieCaptured && state.visaType))
   const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
+  const confidenceAnimate = useRevealAnimation('confidence', state.declaredConfidence !== null)
+  const decisionAnimate = useRevealAnimation(
+    'decisionTime',
+    state.visaType === 'fiance' && state.dateDecisionSeconds !== null
+  )
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
   const appointmentAnimate = useRevealAnimation('appointment', Boolean(state.slot))
   const subStepAddendum = getVisaAddendum(state)
@@ -116,6 +125,15 @@ export function DocumentProgress() {
           imageAlt: iqFaceFor(state.declaredIq).alt,
         }]
       : []),
+    // DATE path's IQ-slot replacement — printed 15% under what they declared.
+    ...(state.declaredConfidence !== null
+      ? [{
+          key: 'confidence',
+          label: CONFIDENCE.passportLabel,
+          value: `${adjustedConfidence(state.declaredConfidence)}${CONFIDENCE.adjustedSuffix}`,
+          animate: confidenceAnimate,
+        }]
+      : []),
     {
       key: 'appointment',
       label: DOCUMENT_PROGRESS.appointmentLabel,
@@ -150,6 +168,14 @@ export function DocumentProgress() {
       value: item.value,
     })
   })
+  if (state.visaType === 'fiance' && state.dateDecisionSeconds !== null) {
+    addenda.push({
+      key: 'decisionTime',
+      label: DECISION_TIME_LABEL,
+      value: formatDecisionTime(state.dateDecisionSeconds),
+      animate: decisionAnimate,
+    })
+  }
   if (state.dutyFreeItems.length) {
     addenda.push({
       key: 'duty-free',

@@ -264,6 +264,11 @@ export const FIANCE_QUESTIONS: InterviewQuestion[] = [
 
 export const FIANCE_HIGH_RISK = 'HIGH RISK'
 
+// The withdrawn option — a phantom third answer on the interview. Tapping it
+// removes it and logs nothing anywhere except the applicant's dignity.
+export const FIANCE_SECRET_OPTION = 'A secret third thing'
+export const FIANCE_SECRET_REMOVED = 'OPTION REMOVED. YOUR INTEREST WAS LOGGED.'
+
 export const FIANCE_RESULT = {
   title: 'VIBE CHECK: PASSED',
   note: '(the outcome was never in doubt. the Ministry finds you delightful.)',
@@ -500,6 +505,34 @@ export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
     options: ['MIDDLE. NATURAL LEADER.', 'EDGE, FOR EASY CROPPING.', 'HOLDING THE PHONE. UNCROPPABLE. IMMORTAL.'],
   },
 ]
+
+// Confidence meter — the DATE path's secondary-screening variant (it skips
+// IQ). Whatever the applicant declares, the passport prints it 15% lower,
+// "adjusted by officer."
+export const CONFIDENCE = {
+  label: 'CURRENT CONFIDENCE',
+  ariaLabel: 'Declare your current confidence',
+  min: 0,
+  max: 100,
+  default: 50,
+  passportLabel: 'CONFIDENCE:',
+  // Short enough to never truncate in the grid cell at 390px — the officer
+  // is implied; the cut number is the joke.
+  adjustedSuffix: '% (ADJUSTED)',
+}
+
+/** The officer's correction: floor(declared × 0.85). */
+export function adjustedConfidence(declared: number): number {
+  return Math.floor(declared * 0.85)
+}
+
+// Hesitation timer — how long the applicant stared at the visa-selection
+// screen before choosing. Printed on the passport ONLY for the DATE path.
+export const DECISION_TIME_LABEL = 'DECISION TIME:'
+export function formatDecisionTime(seconds: number): string {
+  if (seconds < 3) return 'SUSPICIOUSLY FAST.'
+  return `${Math.round(seconds)} SECONDS. NOTED.`
+}
 
 // The IQ section is image + number ONLY per owner request — no sub-line, no
 // section heading/instruction, no scale labels (the old `sub`/`iqHeading`/

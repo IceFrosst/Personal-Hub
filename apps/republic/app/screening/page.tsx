@@ -1,18 +1,17 @@
 'use client'
 
-// Secondary screening — the cognitive self-assessment step between identity
-// verification (/biometric) and /processing. The absurd follow-up question
-// itself now lives on the landing page (asked immediately after a YES
-// declaration — see app/page.tsx); this page is just the IQ bell-curve meme
-// with the slider. The declared IQ lands on the progress card and final
-// document (with its matching wojak face stamp) via lib/visaAddendum.ts.
+// Secondary screening — between identity verification (/biometric) and
+// /processing. Two variants by visa type: the DATE path gets the CONFIDENCE
+// meter (whatever they declare prints 15% lower on the passport, "adjusted
+// by officer"); every other path gets the IQ bell-curve meme. The declared
+// value lands on the progress card and final document.
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
-import { SCREENING } from '@/lib/content'
+import { CONFIDENCE, SCREENING } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 
@@ -20,6 +19,7 @@ export default function ScreeningPage() {
   const router = useRouter()
   const { state, update, hydrated } = useApplication()
   const [iq, setIq] = useState<number>(SCREENING.iqDefault)
+  const [confidence, setConfidence] = useState<number>(CONFIDENCE.default)
 
   useEffect(() => {
     // Same hydration-race guard as every other funnel page — never redirect
@@ -34,26 +34,60 @@ export default function ScreeningPage() {
     // this page sits directly after it in the funnel.
     if (!state.visaType || !state.serial || !state.slot || !state.issuedDate || !state.selfieCaptured) {
       router.replace('/visa')
-      return
-    }
-    // DATE VISA skips the IQ self-assessment entirely (owner request) —
-    // /biometric routes fiancé applicants straight to /processing, so anyone
-    // landing here with that visa type is deep-linking/back-navigating and
-    // gets forwarded the same way.
-    if (state.visaType === 'fiance') {
-      router.replace('/processing')
     }
   }, [hydrated, state, router])
 
-  if (!hydrated || !state.visaType || state.visaType === 'fiance' || !state.selfieCaptured) return null
+  if (!hydrated || !state.visaType || !state.selfieCaptured) return null
 
-  const fillPercent = Math.round(((iq - SCREENING.iqMin) / (SCREENING.iqMax - SCREENING.iqMin)) * 100)
+  const isDate = state.visaType === 'fiance'
+  const fillPercent = isDate
+    ? Math.round(((confidence - CONFIDENCE.min) / (CONFIDENCE.max - CONFIDENCE.min)) * 100)
+    : Math.round(((iq - SCREENING.iqMin) / (SCREENING.iqMax - SCREENING.iqMin)) * 100)
 
   function submit() {
     playStampThunk()
-    update({ declaredIq: iq })
-    addStamp('SECONDARY SCREENING CLEARED')
+    if (isDate) {
+      update({ declaredConfidence: confidence })
+      addStamp('CONFIDENCE ASSESSED')
+    } else {
+      update({ declaredIq: iq })
+      addStamp('SECONDARY SCREENING CLEARED')
+    }
     router.push('/processing')
+  }
+
+  if (isDate) {
+    return (
+      <PageShell showProgress>
+        <div className="paper-card p-5">
+          <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{SCREENING.heading}</h1>
+
+          <p className="mt-4 text-center text-[11px] uppercase tracking-[0.2em] text-navy">{CONFIDENCE.label}</p>
+          <p className="mt-3 text-center font-stamp text-3xl uppercase tracking-widest text-navy">{confidence}%</p>
+          <input
+            type="range"
+            min={CONFIDENCE.min}
+            max={CONFIDENCE.max}
+            value={confidence}
+            onChange={(event) => setConfidence(Number(event.target.value))}
+            aria-label={CONFIDENCE.ariaLabel}
+            className="iq-slider mt-3 w-full cursor-pointer"
+            style={{
+              background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={submit}
+            className="mt-5 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
+          >
+            {SCREENING.submit}
+          </button>
+        </div>
+        <Footer />
+      </PageShell>
+    )
   }
 
   return (

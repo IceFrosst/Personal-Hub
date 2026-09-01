@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
@@ -12,9 +12,13 @@ import { playBeep } from '@/lib/sound'
 
 export default function VisaSelectionPage() {
   const router = useRouter()
-  const { selectVisa } = useApplication()
+  const { selectVisa, update } = useApplication()
+  // Hesitation timer — started on mount (client-only, hydration-safe), read
+  // at selection. Printed on the passport ONLY when they choose DATE.
+  const mountedAtRef = useRef<number | null>(null)
 
   useEffect(() => {
+    mountedAtRef.current = Date.now()
     addStamp('VISA SELECTION VIEWED')
   }, [])
 
@@ -27,6 +31,14 @@ export default function VisaSelectionPage() {
     // enforces this — see ApplicationState#serial and the sticker's
     // single-source note in lib/content.ts.
     selectVisa(slug)
+    // DATE applicants get their hesitation immortalized; every other choice
+    // clears any stale measurement from an earlier detour through this page.
+    update({
+      dateDecisionSeconds:
+        slug === 'fiance' && mountedAtRef.current !== null
+          ? (Date.now() - mountedAtRef.current) / 1000
+          : null,
+    })
     router.push(`/visa/${slug}`)
   }
 

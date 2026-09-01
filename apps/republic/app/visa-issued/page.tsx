@@ -9,6 +9,10 @@ import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from 
 import { useApplication } from '@/lib/applicationContext'
 import {
   APPROVED,
+  CONFIDENCE,
+  DECISION_TIME_LABEL,
+  adjustedConfidence,
+  formatDecisionTime,
   DOCUMENT_PROGRESS,
   FULLY_EQUIPPED_STAMP,
   STICKER_LABELS,
@@ -151,6 +155,9 @@ export default function VisaIssuedPage() {
         ...(visaAddendum ? [visaAddendum] : []),
         // IQ is rendered beside SEX in the field grid, not as an addendum.
         ...screeningAddenda.filter((item) => !item.imageSrc),
+        ...(state.visaType === 'fiance' && state.dateDecisionSeconds !== null
+          ? [{ label: DECISION_TIME_LABEL, value: formatDecisionTime(state.dateDecisionSeconds) }]
+          : []),
         ...(state.dutyFreeItems.length
           ? [{ label: DOCUMENT_PROGRESS.dutyFreeLabel, value: state.dutyFreeItems.join(' · ') }]
           : []),
@@ -288,6 +295,14 @@ export default function VisaIssuedPage() {
       cell(STICKER_LABELS.other, passportPhotoNote(visa!.slug), colBx, rightColWidth)
       rowY += rowGap
       cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, leftColWidth)
+      if (state.declaredConfidence !== null) {
+        cell(
+          CONFIDENCE.passportLabel,
+          `${adjustedConfidence(state.declaredConfidence)}${CONFIDENCE.adjustedSuffix}`,
+          colBx,
+          rightColWidth
+        )
+      }
       if (state.declaredIq !== null) {
         const size = 24
         const sx = colBx
@@ -414,6 +429,8 @@ export default function VisaIssuedPage() {
     state.visaType,
     state.specialOtherness,
     state.sidequestSupplies,
+    state.declaredConfidence,
+    state.dateDecisionSeconds,
   ])
 
   function handleDownload() {
@@ -478,6 +495,13 @@ export default function VisaIssuedPage() {
           imageAlt: iqFaceFor(state.declaredIq).alt,
         }]
       : []),
+    ...(state.declaredConfidence !== null
+      ? [{
+          key: 'confidence',
+          label: CONFIDENCE.passportLabel,
+          value: `${adjustedConfidence(state.declaredConfidence)}${CONFIDENCE.adjustedSuffix}`,
+        }]
+      : []),
     {
       key: 'appointment',
       label: DOCUMENT_PROGRESS.appointmentLabel,
@@ -505,6 +529,13 @@ export default function VisaIssuedPage() {
       value: item.value,
     })
   })
+  if (state.visaType === 'fiance' && state.dateDecisionSeconds !== null) {
+    addenda.push({
+      key: 'decisionTime',
+      label: DECISION_TIME_LABEL,
+      value: formatDecisionTime(state.dateDecisionSeconds),
+    })
+  }
   if (state.dutyFreeItems.length) {
     addenda.push({
       key: 'duty-free',

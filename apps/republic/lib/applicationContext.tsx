@@ -33,6 +33,10 @@ export interface ApplicationState {
   screeningAnswer: string | null
   /** Self-declared IQ from the bell-curve slider — never verified, obviously. */
   declaredIq: number | null
+  /** DATE path only: self-declared confidence (raw; the passport prints it 15% lower). */
+  declaredConfidence: number | null
+  /** Seconds spent staring at /visa before picking — printed only for the DATE path. */
+  dateDecisionSeconds: number | null
   /** Available duty-free items the applicant clicked; printed as one passport addendum. */
   dutyFreeItems: string[]
   /** Passport SEX field value ('M' / 'F' / 'X') from the landing gender question. */
@@ -69,6 +73,8 @@ const EMPTY_STATE: ApplicationState = {
   screeningQuestion: null,
   screeningAnswer: null,
   declaredIq: null,
+  declaredConfidence: null,
+  dateDecisionSeconds: null,
   dutyFreeItems: [],
   gender: null,
   referenceCode: null,
