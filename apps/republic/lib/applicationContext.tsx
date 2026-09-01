@@ -8,7 +8,6 @@ export interface ApplicationState {
   applicantName: string
   instagramHandle: string
   visaType: VisaType | null
-  consultationMatter: string
   fianceAnswers: string[]
   businessPitch: string
   specialStatement: string
@@ -49,7 +48,6 @@ const EMPTY_STATE: ApplicationState = {
   applicantName: '',
   instagramHandle: '',
   visaType: null,
-  consultationMatter: '',
   fianceAnswers: [],
   businessPitch: '',
   specialStatement: '',

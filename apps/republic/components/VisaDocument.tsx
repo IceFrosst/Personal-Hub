@@ -64,16 +64,21 @@ const SIZE = {
     blankNarrow: 'w-9',
     blankWide: 'w-16',
   },
+  // Full is the SAME arrangement as compact, just scaled up — label + value
+  // on one line per row, photo beside the grid. It used to stack each label
+  // above its value with big row gaps, which stretched the final document
+  // vertically into something that no longer resembled the card the visitor
+  // watched fill in all funnel long; owner asked for them to match.
   full: {
     wrap: 'p-1.5',
     inner: 'p-3',
     title: 'text-base',
     subtitle: 'text-[10px]',
-    photo: 'h-24 w-24',
-    photoText: 'text-[9px] px-1',
+    photo: 'h-20 w-20',
+    photoText: 'text-[8px] px-1',
     photoGap: 'gap-3',
-    grid: 'w-full text-[12px] gap-x-4 gap-y-3',
-    addendum: 'text-[12px]',
+    grid: 'text-[11px] gap-x-3 gap-y-1.5',
+    addendum: 'text-[11px]',
     barcodeClass: 'barcode',
     barcodeGap: 'mt-3',
     blankNarrow: 'w-12',
@@ -129,12 +134,13 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
             {fields.map((field) => (
               <div
                 key={field.key}
-                className={`${size === 'full' ? 'flex min-w-0 flex-col items-start' : 'flex items-baseline justify-between gap-1.5'} ${field.span ? 'col-span-2' : ''}`}
+                className={`flex min-w-0 items-baseline justify-between gap-1.5 ${field.span ? 'col-span-2' : ''}`}
               >
                 <span className="shrink-0 text-navy">{field.label}</span>
                 {field.value ? (
                   <span
-                    className={`${size === 'full' ? 'w-full break-words text-left leading-snug' : 'truncate text-right'} font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
+                    className={`truncate text-right font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
+                    title={field.value}
                   >
                     {field.value}
                   </span>
@@ -149,12 +155,12 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
         {addenda?.map((item) => (
           <div
             key={item.key}
-            className={`mt-1 border-t border-dashed border-navy/40 pt-1 uppercase tracking-wide ${size === 'full' ? 'flex flex-col items-start' : 'flex items-baseline justify-between gap-1.5'} ${s.addendum}`}
+            className={`mt-1 flex items-baseline justify-between gap-1.5 border-t border-dashed border-navy/40 pt-1 uppercase tracking-wide ${s.addendum}`}
           >
             <span className="shrink-0 text-navy">{item.label}</span>
             {item.value ? (
               <span
-                className={`${size === 'full' ? 'flex w-full items-center gap-2 text-left leading-snug' : 'flex min-w-0 items-center justify-end gap-1'} font-bold text-navy ${item.animate ? 'animate-field-fill' : ''}`}
+                className={`flex min-w-0 items-center justify-end gap-1 font-bold text-navy ${item.animate ? 'animate-field-fill' : ''}`}
                 title={item.value}
               >
                 {item.imageSrc && (
@@ -162,10 +168,10 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
                   <img
                     src={item.imageSrc}
                     alt={item.imageAlt ?? ''}
-                    className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-10 w-10' : 'h-5 w-5'}`}
+                    className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-6 w-6' : 'h-5 w-5'}`}
                   />
                 )}
-                <span className={size === 'full' ? 'break-words' : 'truncate'}>{item.value}</span>
+                <span className="truncate">{item.value}</span>
               </span>
             ) : (
               <Blank size={size} />

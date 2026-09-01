@@ -313,9 +313,10 @@ the Dictatorship is also a full democracy.
   unnecessary complexity for a typewriter-styled composite — Courier New reads the same
   visually and is available everywhere.
 - `VisaDefinition` only carries `slug`/`icon`/`name`/`tagline`/`lines` — the internal
-  `slug` values (`'tourist'`, `'consultation'`, `'fiance'`, `'business'`, `'special'`)
-  and everything keyed by them (`VisaType`, route params, `state.visaType`,
-  `consultationMatter`/`businessPitch`/`specialStatement`/`fianceAnswers` field names,
+  `slug` values (`'tourist'`, `'fiance'`, `'business'`, `'special'`; `'consultation'`
+  existed too until the SEEK ADVICE PERMIT path was removed outright — see Current
+  state) and everything keyed by them (`VisaType`, route params, `state.visaType`,
+  `businessPitch`/`specialStatement`/`fianceAnswers` field names,
   component file names) were **deliberately left unchanged** during the visa rename pass
   — only the user-facing `name`/`tagline`/`lines` changed (e.g. `tourist` → "SIDEQUEST
   VISA"). Renaming the internal keys to match would ripple through ~10 files for zero
@@ -355,7 +356,27 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — spottable cash pile + bribe-means-denial + legible officer mood:**
+**Latest pass — SEEK ADVICE PERMIT removed + final document no longer stretched:**
+- **The consultation path is gone entirely, not hidden** (owner request): the
+  `'consultation'` slug was removed from `VisaType` and `VISAS` (so `/visa` shows four
+  cards and `/visa/consultation` 404s via `VALID_SLUGS`), `ConsultationStep.tsx` was
+  deleted along with its `CONSULTATION` copy and the unused `PRELIMINARY_RULINGS` bank,
+  `consultationMatter` left `ApplicationState`, `visaAddendum`'s consultation case and
+  `DOCUMENT_PROGRESS.matterLabel` are gone. `appointmentPeriodsFor`'s `string[] | null`
+  signature was kept (consultation was the only null — the appointment page's
+  no-time-step branch is currently unreachable but harmless). `lib/api.ts` keeps the
+  optional `matter` field in the record/table shape for forward-compat, just never
+  populates it. The fake "Consultation permits issued: 129" statistic stays — a permit
+  nobody can apply for anymore is in keeping with the Ministry.
+- **`VisaDocument size="full"` no longer stretches vertically** — it used to stack each
+  label above its value with large row gaps; now both sizes share the exact compact
+  arrangement (label + value on one line, `justify-between`, values `truncate` with a
+  `title` attribute, photo `h-20`), so `/visa-issued`'s document reads as a scaled-up
+  version of the progress card the visitor watched fill in, not a different, taller
+  layout. Long addenda (pitch/statement/screening answer) therefore truncate on screen
+  — the downloadable PNG canvas still renders them in full, wrapped.
+
+**Previous pass — spottable cash pile + bribe-means-denial + legible officer mood:**
 - **The hidden bribe is no longer a 💵 emoji tab.** `components/HiddenBribe.tsx` now
   draws an SVG pile of banknotes (fanned bills + currency strap, muted greens) peeking
   from behind the right screen edge — mostly off-screen (clipped by the global
@@ -527,7 +548,7 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
   — that's accurate history about a past design, not a stale claim about the present.
 - **`DocumentProgress` shows the chosen visa's sub-step content again**, as a compact,
   optional one-line addendum below the field grid (same treatment as the existing
-  APPOINTMENT addendum) — the consultation matter, business pitch, special-purpose
+  APPOINTMENT addendum) — the business pitch, special-purpose
   sworn statement, or fiancé interview answers (joined into one line), whichever
   applies; tourist has no sub-step and so never shows one. New centralized labels:
   `DOCUMENT_PROGRESS.matterLabel`/`.pitchLabel`/`.statementLabel`/`.interviewAnswersLabel`

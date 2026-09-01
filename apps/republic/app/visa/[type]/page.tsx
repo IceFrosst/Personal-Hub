@@ -2,7 +2,6 @@ import { notFound } from 'next/navigation'
 import { VISAS, type VisaType } from '@/lib/content'
 import { RequireIdentity } from '@/components/RequireIdentity'
 import { TouristStep } from '@/components/visa-steps/TouristStep'
-import { ConsultationStep } from '@/components/visa-steps/ConsultationStep'
 import { FianceStep } from '@/components/visa-steps/FianceStep'
 import { BusinessStep } from '@/components/visa-steps/BusinessStep'
 import { SpecialStep } from '@/components/visa-steps/SpecialStep'
@@ -22,12 +21,6 @@ export default async function VisaSubStepPage({ params }: { params: Promise<{ ty
       return (
         <RequireIdentity>
           <TouristStep />
-        </RequireIdentity>
-      )
-    case 'consultation':
-      return (
-        <RequireIdentity>
-          <ConsultationStep />
         </RequireIdentity>
       )
     case 'fiance':

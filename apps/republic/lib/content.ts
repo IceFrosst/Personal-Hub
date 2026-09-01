@@ -1,7 +1,10 @@
 // All editable copy/config for the Dictatorship of Ignas lives here.
 // Deadpan is the law — do not punch up the jokes, just keep them straight-faced.
 
-export type VisaType = 'tourist' | 'consultation' | 'fiance' | 'business' | 'special'
+// 'consultation' (SEEK ADVICE PERMIT) was removed outright per owner request
+// — the whole path is gone, not hidden (no VISAS entry, no /visa/consultation
+// route, no ConsultationStep, no consultationMatter state).
+export type VisaType = 'tourist' | 'fiance' | 'business' | 'special'
 
 export interface VisaDefinition {
   slug: VisaType
@@ -16,7 +19,8 @@ export interface VisaDefinition {
 // separately in app/visa/page.tsx). Empty `tagline`/`lines` are hidden
 // entirely by that page, not rendered as empty quotes/an empty list.
 // Business visa is listed first per owner request; the rest keep their prior
-// relative order (tourist, consultation, fiance, special).
+// relative order (tourist, fiance, special). The SEEK ADVICE PERMIT
+// (consultation) card was removed entirely — see the VisaType note above.
 export const VISAS: VisaDefinition[] = [
   {
     slug: 'business',
@@ -31,13 +35,6 @@ export const VISAS: VisaDefinition[] = [
     name: 'SIDEQUEST VISA',
     tagline: '',
     lines: ['Reward: infinite memories'],
-  },
-  {
-    slug: 'consultation',
-    icon: '📋',
-    name: 'SEEK ADVICE PERMIT',
-    tagline: '',
-    lines: ['Advice quality: unknown'],
   },
   {
     slug: 'fiance',
@@ -197,23 +194,6 @@ export const TOURIST_STEP = {
 }
 
 // ---------------------------------------------------------------------------
-// Consultation permit
-// ---------------------------------------------------------------------------
-
-export const CONSULTATION = {
-  prompt: 'STATE YOUR MATTER, APPLICANT.',
-  placeholder: 'Type your matter here. Be concise. The Ministry has other applicants.',
-  submit: 'SUBMIT MATTER',
-}
-
-export const PRELIMINARY_RULINGS = [
-  'PRELIMINARY RULING: you already know the answer. FULL VERDICT: via DM, 1–3 business moods.',
-  'PRELIMINARY RULING: this is above the officer\'s pay grade. Escalated to the Minister. FULL VERDICT: via DM.',
-  'PRELIMINARY RULING: inconclusive. The Ministry needs to think about it over a coffee. FULL VERDICT: via DM.',
-  'PRELIMINARY RULING: sounds like a you problem, but a fixable one. FULL VERDICT: via DM, 1–3 business moods.',
-]
-
-// ---------------------------------------------------------------------------
 // Fiancé visa — vibe check interview
 // ---------------------------------------------------------------------------
 
@@ -304,10 +284,10 @@ export const APPOINTMENT = {
 // intervals (see lib/googleCalendar.ts), so every period below is offered as
 // available — deliberately vague day-parts, never clock hours (owner
 // request), and no per-period unavailability logic, unlike the old joke slot
-// pool further down this file. Per-visa rules: SEEK ADVICE PERMIT
-// (consultation) skips the time step entirely — picking a day IS the whole
-// appointment — and only the SIDEQUEST VISA (tourist) additionally offers
-// FULL DAY and MULTI-DAY expedition durations.
+// pool further down this file. Per-visa rules: only the SIDEQUEST VISA
+// (tourist) additionally offers FULL DAY and MULTI-DAY expedition durations.
+// (The removed SEEK ADVICE PERMIT used to skip the time step entirely — the
+// null return below is kept in the signature for that case ever returning.)
 const BASE_APPOINTMENT_PERIODS: string[] = ['MORNING', 'AFTERNOON', 'EVENING']
 const SIDEQUEST_APPOINTMENT_PERIODS: string[] = [...BASE_APPOINTMENT_PERIODS, 'FULL DAY', 'MULTI-DAY']
 
@@ -316,7 +296,6 @@ const SIDEQUEST_APPOINTMENT_PERIODS: string[] = [...BASE_APPOINTMENT_PERIODS, 'F
  * all (picking a day completes the appointment immediately).
  */
 export function appointmentPeriodsFor(visaType: VisaType): string[] | null {
-  if (visaType === 'consultation') return null
   if (visaType === 'tourist') return SIDEQUEST_APPOINTMENT_PERIODS
   return BASE_APPOINTMENT_PERIODS
 }
@@ -338,8 +317,8 @@ export function formatSlotDateLabel(dateIso: string): string {
 
 /**
  * The single unambiguous string stored in ApplicationState#slot. With a
- * period it's "SAT, 14 JUN 2025 — MORNING"; without one (visas that need no
- * time, i.e. consultation) it's just the date label.
+ * period it's "SAT, 14 JUN 2025 — MORNING"; without one (a visa whose
+ * appointmentPeriodsFor is null) it's just the date label.
  */
 export function formatSlot(dateIso: string, period?: string): string {
   const label = formatSlotDateLabel(dateIso)
@@ -565,9 +544,9 @@ export const STICKER_LABELS = {
 // sticker itself.
 //
 // A second, optional addendum line sits below the appointment line: whatever
-// typed/selected content the chosen visa's sub-step collected (consultation
-// matter, business pitch, special-purpose sworn statement, or the fiancé
-// interview answers) — tourist has no sub-step, so it never renders one.
+// typed/selected content the chosen visa's sub-step collected (business
+// pitch, special-purpose sworn statement, or the fiancé interview answers)
+// — tourist has no sub-step, so it never renders one.
 // Same pattern as APPOINTMENT: not a sticker field, shown once the relevant
 // context field is non-empty, one label per visa type below so a single
 // generic "ANSWER:" doesn't get confusingly reused across very different
@@ -578,7 +557,6 @@ export const STICKER_LABELS = {
 
 export const DOCUMENT_PROGRESS = {
   appointmentLabel: 'APPOINTMENT:',
-  matterLabel: 'MATTER:',
   pitchLabel: 'PITCH:',
   statementLabel: 'STATEMENT:',
   interviewAnswersLabel: 'INTERVIEW:',

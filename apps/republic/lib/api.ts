@@ -126,7 +126,8 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
     selfieCaptured: state.selfieCaptured,
     selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : undefined,
   }
-  if (state.visaType === 'consultation' && state.consultationMatter) record.matter = state.consultationMatter
+  // `matter` (the removed SEEK ADVICE PERMIT's sub-step field) stays in the
+  // record/table shape for forward-compat but is never populated anymore.
   if (state.visaType === 'business' && state.businessPitch) record.pitch = state.businessPitch
   if (state.visaType === 'special' && state.specialStatement) record.statement = state.specialStatement
   if (state.visaType === 'fiance' && state.fianceAnswers.length) record.interviewAnswers = state.fianceAnswers
