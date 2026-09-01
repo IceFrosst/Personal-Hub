@@ -39,9 +39,9 @@ export function TouristStep() {
     setIdea((prev) => prev || state.sidequestIdea)
     setSupplies((prev) => (prev.length ? prev : state.sidequestSupplies))
     // Idea already filed — resume at the supply declaration, don't re-ask.
-    if (state.sidequestIdea) setStage('supplies')
+    if (state.sidequestIdeaSubmitted) setStage('supplies')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.sidequestIdea, state.sidequestSupplies, state.sidequestSuppliesDeclared])
+  }, [hydrated, state.sidequestIdea, state.sidequestIdeaSubmitted, state.sidequestSupplies, state.sidequestSuppliesDeclared])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
@@ -52,14 +52,26 @@ export function TouristStep() {
   }, [])
 
   function toggleSupply(name: string, checked: boolean) {
-    setSupplies((prev) => (checked ? [...prev, name] : prev.filter((s) => s !== name)))
+    // Functional update: two checkboxes tapped in quick succession can both
+    // fire their handlers off the same stale `supplies` closure before
+    // React re-renders between them, silently dropping one toggle. Deriving
+    // `next` from the updater's own `prev` (always the latest queued value)
+    // instead of the render-time closure makes each toggle land regardless
+    // of how quickly they're queued; the context `update()` call — a side
+    // effect — reads that same freshly-computed `next`, so it can't drift
+    // from what's about to render either.
+    setSupplies((prev) => {
+      const next = checked ? [...prev, name] : prev.filter((s) => s !== name)
+      update({ sidequestSupplies: SIDEQUEST.supplies.filter((s) => next.includes(s)) })
+      return next
+    })
   }
 
   function submitIdea(e: React.FormEvent) {
     e.preventDefault()
     if (!idea.trim()) return
     playBeep()
-    update({ sidequestIdea: idea.trim() })
+    update({ sidequestIdea: idea.trim(), sidequestIdeaSubmitted: true })
     addStamp('SIDEQUEST IDEA FILED')
     setStage('supplies')
   }
@@ -117,7 +129,11 @@ export function TouristStep() {
           id="sidequest-idea"
           required
           value={idea}
-          onChange={(e) => setIdea(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value
+            setIdea(next)
+            update({ sidequestIdea: next })
+          }}
           rows={4}
           placeholder={SIDEQUEST.placeholder}
           className="ink-border bg-paper p-2 text-[13px] text-navy placeholder:text-navy/40 focus:outline-none"

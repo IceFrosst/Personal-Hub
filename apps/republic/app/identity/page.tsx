@@ -16,7 +16,9 @@ export default function IdentityPage() {
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
 
-  const hasIdentity = state.applicantName.trim().length > 0
+  // While the applicant is typing, local state keeps this page editable even
+  // though the same value is mirrored to the audit-aware application state.
+  const hasIdentity = state.identitySubmitted
 
   useEffect(() => {
     // Same hydration race as every other route guard in this funnel.
@@ -39,7 +41,7 @@ export default function IdentityPage() {
       setNameTouched(true)
       return
     }
-    update({ applicantName: name.trim() })
+    update({ applicantName: name.trim(), identitySubmitted: true })
     playStampThunk()
     router.push('/visa')
   }
@@ -62,7 +64,11 @@ export default function IdentityPage() {
               type="text"
               required
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                setName(next)
+                update({ applicantName: next })
+              }}
               onBlur={() => setNameTouched(true)}
               placeholder={IDENTITY.namePlaceholder}
               className="mt-1 w-full border-b-2 border-navy bg-transparent px-1 py-2 font-stamp text-base uppercase tracking-wide text-navy placeholder:text-navy/30 focus:outline-none"

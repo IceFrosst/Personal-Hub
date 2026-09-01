@@ -24,10 +24,19 @@ export function FianceStep() {
   // ("OPTION REMOVED. YOUR INTEREST WAS LOGGED.") — the applicant still has
   // to pick A or B. Pure UI; nothing is stored.
   const [secretWithdrawn, setSecretWithdrawn] = useState(false)
-  // Sequential interview — answers accumulate locally and land in context
-  // together once the last question is answered.
+  // Sequential interview — answers are mirrored immediately so a refresh can
+  // resume rather than re-asking question one.
   const [questionIndex, setQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
+  const [restored, setRestored] = useState(false)
+
+  useEffect(() => {
+    if (!hydrated) return
+    const hydratedAnswers = state.fianceAnswers.slice(0, FIANCE_QUESTIONS.length)
+    setAnswers(hydratedAnswers)
+    setQuestionIndex(Math.min(hydratedAnswers.length, FIANCE_QUESTIONS.length - 1))
+    setRestored(true)
+  }, [hydrated, state.fianceAnswers])
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
     // this sub-step still establishes SERIAL № together with visaType — see
@@ -45,12 +54,14 @@ export function FianceStep() {
   function choose(option: string) {
     playBeep()
     const nextAnswers = [...answers, option]
+    // Persist each answer so refreshes and abandoned-draft history retain the
+    // complete sequence rather than only the final submission.
+    update({ fianceAnswers: nextAnswers })
     if (questionIndex < FIANCE_QUESTIONS.length - 1) {
       setAnswers(nextAnswers)
       setQuestionIndex(questionIndex + 1)
       return
     }
-    update({ fianceAnswers: nextAnswers })
     addStamp('FIANC\u00c9 VISA INTERVIEW COMPLETE')
     playStampThunk()
     // Answering the final question completes the interview and navigates
@@ -60,7 +71,7 @@ export function FianceStep() {
 
   const question = FIANCE_QUESTIONS[questionIndex]
 
-  if (hydrated && state.fianceAnswers.length >= FIANCE_QUESTIONS.length) return null
+  if (!hydrated || !restored || state.fianceAnswers.length >= FIANCE_QUESTIONS.length) return null
 
   return (
     <StepShell visa={visa}>

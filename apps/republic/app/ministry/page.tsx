@@ -36,6 +36,7 @@ import {
   type VisaType,
 } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
+import { compareDraftEvents, sortDraftEvents, submittedDraftIds } from '@/lib/ministryDrafts'
 
 interface ApplicationRow {
   id: number
@@ -59,8 +60,30 @@ interface ApplicationRow {
   decision_seconds: number | null
   gender: string | null
   selfie_path: string | null
+  intel: Record<string, unknown> | null
+  draft_id: string | null
   status: string
   decided_at: string | null
+}
+
+interface DraftEventRow {
+  id: number
+  event_id: string
+  draft_id: string
+  created_at: string
+  client_at: string
+  event_type: string
+  field: string | null
+  previous_value: unknown
+  value: unknown
+  sequence: number
+}
+
+interface DraftGroup {
+  draftId: string
+  events: DraftEventRow[]
+  latest: Map<string, DraftEventRow>
+  intel: Record<string, unknown> | null
 }
 
 function visaName(slug: string): string {
@@ -129,11 +152,58 @@ function rowToAddenda(row: ApplicationRow): VisaDocumentAddendum[] {
 }
 
 /** Officer-eyes-only intel the passport hides. */
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.join(' · ')
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function draftOfficerNotes(intel: Record<string, unknown> | null): string[] {
+  if (!intel) return []
+  const notes: string[] = []
+  const value = (key: string) => (typeof intel[key] === 'string' ? String(intel[key]) : '')
+  if (value('ip')) notes.push(`IP: ${value('ip')}`)
+  const geo = [value('city'), value('region'), value('country')].filter(Boolean).join(', ')
+  if (geo) notes.push(`FROM: ${geo}`)
+  if (value('ipTimezone') || value('deviceTimezone')) notes.push(`TZ: ${value('ipTimezone') || value('deviceTimezone')}`)
+  if (value('fromInstagram')) notes.push(`VIA INSTAGRAM: ${value('fromInstagram').toUpperCase()}`)
+  if (value('referrer')) notes.push(`REFERRER: ${value('referrer')}`)
+  if (value('battery')) notes.push(`BATTERY: ${value('battery')}`)
+  if (value('connection')) notes.push(`CONNECTION: ${value('connection')}`)
+  return notes
+}
+
 function officerNotes(row: ApplicationRow): string[] {
   const notes: string[] = []
   if (row.declared_confidence !== null) notes.push(`DECLARED CONFIDENCE: ${row.declared_confidence}%`)
   if (row.decision_seconds !== null) notes.push(`RAW DECISION TIME: ${row.decision_seconds.toFixed(1)}s`)
   if (row.screening_question) notes.push(`ASKED: ${row.screening_question}`)
+  const intel = row.intel ?? {}
+  const str = (key: string) => {
+    const value = intel[key]
+    return typeof value === 'string' && value ? value : null
+  }
+  const ip = str('ip')
+  if (ip) notes.push(`IP: ${ip}`)
+  const geo = [str('city'), str('region'), str('country')].filter(Boolean).join(', ')
+  if (geo) notes.push(`FROM: ${geo}`)
+  const tz = str('ipTimezone') ?? str('deviceTimezone')
+  if (tz) notes.push(`TZ: ${tz}`)
+  const instagram = str('fromInstagram')
+  if (instagram) notes.push(`VIA INSTAGRAM: ${instagram.toUpperCase()}`)
+  const referrer = str('referrer')
+  if (referrer) notes.push(`REFERRER: ${referrer}`)
+  const battery = str('battery')
+  if (battery) notes.push(`BATTERY: ${battery}`)
+  const connection = str('connection')
+  if (connection) notes.push(`CONNECTION: ${connection}`)
+  const retakes = intel.selfieRetakes
+  if (typeof retakes === 'number' && retakes > 0) notes.push(`SELFIE RETAKES: ${retakes}`)
   return notes
 }
 
@@ -148,22 +218,65 @@ export default function MinistryPage() {
   const [session, setSession] = useState<Session | null>(null)
   const [checkedAuth, setCheckedAuth] = useState(false)
   const [rows, setRows] = useState<ApplicationRow[] | null>(null)
+  const [events, setEvents] = useState<DraftEventRow[] | null>(null)
   const [denied, setDenied] = useState(false)
   const [photos, setPhotos] = useState<Record<number, string>>({})
 
   const loadRows = useCallback(async () => {
     if (!supabase) return
-    const { data, error } = await supabase
-      .from('applications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200)
-    if (error) {
-      setDenied(true)
-      return
+    // PostgREST's default/max limits must not silently classify old drafts as
+    // abandoned. Walk every page in created_at order; the high cap is only a
+    // runaway-query guard, not a business limit.
+    const PAGE_SIZE = 1000
+    const MAX_PAGES = 1000
+    const applications: ApplicationRow[] = []
+    const draftEvents: DraftEventRow[] = []
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const from = page * PAGE_SIZE
+      const { data, error } = await supabase
+        .from('applications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) {
+        // Only the `applications` query is access-controlled by ministry RLS
+        // (migration 0004) — an error here genuinely means "not the ministry
+        // account" (or the table is unreachable), so the whole desk
+        // correctly reports ACCESS DENIED.
+        setDenied(true)
+        return
+      }
+      const batch = (data as ApplicationRow[]) ?? []
+      applications.push(...batch)
+      if (batch.length < PAGE_SIZE) break
+    }
+    // `draft_events` is a separate, additive feature (migration 0007) with
+    // its own RLS policy. A failure here — the migration not applied yet,
+    // a transient error, anything — must never be conflated with the
+    // applications-access check above: degrade to an empty drafts section
+    // and keep the applications desk fully usable instead of denying access
+    // to everything.
+    let draftEventsFailed = false
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const from = page * PAGE_SIZE
+      const { data, error } = await supabase
+        .from('draft_events')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) {
+        draftEventsFailed = true
+        break
+      }
+      const batch = (data as DraftEventRow[]) ?? []
+      draftEvents.push(...batch)
+      if (batch.length < PAGE_SIZE) break
     }
     setDenied(false)
-    setRows((data as ApplicationRow[]) ?? [])
+    setRows(applications)
+    setEvents(draftEventsFailed ? [] : draftEvents)
   }, [supabase])
 
   // Pull each pending application's selfie from the private bucket (only the
@@ -234,6 +347,32 @@ export default function MinistryPage() {
 
   const pending = rows?.filter((r) => r.status === 'pending') ?? []
   const decided = rows?.filter((r) => r.status !== 'pending') ?? []
+  const draftGroups = useMemo<DraftGroup[]>(() => {
+    const allEvents = events ?? []
+    // A submitted event is authoritative even when the application insert is
+    // delayed, failed, or absent. Never show such a draft as abandoned.
+    const submittedDrafts = submittedDraftIds(allEvents, (rows ?? []).map((row) => row.draft_id))
+    const groups = new Map<string, DraftEventRow[]>()
+    for (const event of allEvents) {
+      if (!submittedDrafts.has(event.draft_id)) groups.set(event.draft_id, [...(groups.get(event.draft_id) ?? []), event])
+    }
+    return [...groups.entries()]
+      .map(([draftId, unsortedEvents]) => {
+        // Server created_at is authoritative across reloads/tabs. Sequence is
+        // only a same-timestamp tiebreak; event_id/id make ties deterministic.
+        const draftEvents = sortDraftEvents(unsortedEvents)
+        const latest = new Map<string, DraftEventRow>()
+        let intel: Record<string, unknown> | null = null
+        for (const event of draftEvents) {
+          if (event.event_type === 'field_changed' && event.field) latest.set(event.field, event)
+          if (event.event_type === 'intel_collected' && event.value && typeof event.value === 'object') {
+            intel = event.value as Record<string, unknown>
+          }
+        }
+        return { draftId, events: draftEvents, latest, intel }
+      })
+      .sort((a, b) => compareDraftEvents(b.events[b.events.length - 1], a.events[a.events.length - 1]))
+  }, [events, rows])
 
   return (
     <PageShell>
@@ -256,10 +395,59 @@ export default function MinistryPage() {
           </p>
         ) : rows === null ? (
           <p className="text-center text-[11px] uppercase text-navy/60">{MINISTRY.loading}</p>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && draftGroups.length === 0 ? (
           <p className="text-center text-[11px] uppercase text-navy/60">{MINISTRY.empty}</p>
         ) : (
           <div className="flex flex-col gap-5">
+            {draftGroups.length > 0 && (
+              <section>
+                <h2 className="font-stamp text-sm uppercase tracking-widest text-navy">
+                  {MINISTRY.draftsHeading} ({draftGroups.length})
+                </h2>
+                <div className="mt-2 flex flex-col gap-4">
+                  {draftGroups.map((draft) => {
+                    const last = draft.events[draft.events.length - 1]
+                    const abandoned = Date.now() - new Date(last.created_at).getTime() > 30 * 60 * 1000
+                    return (
+                      <article key={draft.draftId} className="border-2 border-navy/30 bg-paper-dark p-3">
+                        <div className="flex items-start justify-between gap-2 text-[10px] uppercase text-navy/60">
+                          <span className={`font-bold ${abandoned ? 'text-stamp' : 'text-approve'}`}>
+                            {abandoned ? MINISTRY.abandoned : MINISTRY.inProgress}
+                          </span>
+                          <span>{new Date(last.created_at).toLocaleString('en-GB')}</span>
+                        </div>
+                        <p className="mt-1 break-all text-[9px] uppercase text-navy/50">{MINISTRY.draftIdLabel} {draft.draftId}</p>
+                        <div className="mt-2 flex flex-col gap-1 text-[10px] uppercase text-navy">
+                          {[...draft.latest.values()].map((event) => (
+                            <p key={event.event_id} className="flex gap-2">
+                              <span className="shrink-0 font-bold">{event.field}:</span>
+                              <span className="min-w-0 break-words">{displayValue(event.value)}</span>
+                            </p>
+                          ))}
+                          {draft.latest.size === 0 && <p>{MINISTRY.noPartialData}</p>}
+                        </div>
+                        {draftOfficerNotes(draft.intel).length > 0 && (
+                          <p className="mt-2 text-[9px] uppercase leading-snug text-navy/60">
+                            {MINISTRY.officerNotesLabel} {draftOfficerNotes(draft.intel).join(' · ')}
+                          </p>
+                        )}
+                        <details className="mt-2 border-t border-navy/20 pt-2 text-[10px] uppercase text-navy">
+                          <summary className="min-h-11 cursor-pointer py-3 font-bold">{MINISTRY.historyLabel}</summary>
+                          <div className="flex flex-col gap-2">
+                            {draft.events.filter((event) => event.event_type === 'field_changed').map((event) => (
+                              <div key={event.event_id} className="border-t border-dashed border-navy/20 pt-1">
+                                <p>{new Date(event.client_at || event.created_at).toLocaleString('en-GB')} · {event.field}</p>
+                                <p className="break-words text-navy/60">{displayValue(event.previous_value)} → {displayValue(event.value)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
             <section>
               <h2 className="font-stamp text-sm uppercase tracking-widest text-navy">
                 {MINISTRY.pendingHeading} ({pending.length})

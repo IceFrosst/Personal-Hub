@@ -10,6 +10,7 @@ import { generateReferenceCode } from '@/lib/referenceCode'
 import { recordApplication, recordAppointment, buildApplicationRecord, uploadSelfie } from '@/lib/api'
 import { createThumbnail } from '@/lib/photo'
 import { addStamp } from '@/lib/passport'
+import { recordDraftSubmitted } from '@/lib/draftAudit'
 
 function prefersReducedMotion() {
   if (typeof window === 'undefined') return false
@@ -76,6 +77,7 @@ export default function ProcessingPage() {
         if (selfiePath) record.selfiePath = selfiePath
         void recordApplication(record)
         void recordAppointment({ visaType: record.visaType, slot: record.slot, referenceCode: code })
+        if (record.draftId) recordDraftSubmitted(record.draftId, code)
         addStamp('VISA PROCESSED')
         update({ referenceCode: code })
       }

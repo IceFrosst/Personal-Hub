@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Crest } from '@/components/Crest'
 import { Footer } from '@/components/Footer'
@@ -9,6 +9,8 @@ import { PageShell } from '@/components/PageShell'
 import { Typewriter } from '@/components/Typewriter'
 import { addStamp } from '@/lib/passport'
 import { getApplicantNumber, getLastApplication, type ApplicationRecord } from '@/lib/api'
+import { collectIntel } from '@/lib/intel'
+import { isFreshApplicationState } from '@/lib/applicationState'
 import { clearAnimatedFields } from '@/lib/formProgress'
 import {
   APPROVED,
@@ -26,7 +28,7 @@ import { useApplication } from '@/lib/applicationContext'
 
 export default function EntryDeclarationPage() {
   const router = useRouter()
-  const { state, update, reset } = useApplication()
+  const { state, update, recordIntel, reset, hydrated } = useApplication()
   // The applicant number is fetched from a Supabase RPC (or read from a
   // localStorage cache if this browser already has one) — never read/set
   // synchronously during render, since this page is statically prerendered
@@ -45,26 +47,69 @@ export default function EntryDeclarationPage() {
   // The most recent application THIS DEVICE submitted (localStorage log) —
   // read only inside the mount effect (hydration safety).
   const [pendingApp, setPendingApp] = useState<ApplicationRecord | null>(null)
+  // Bumped on every application start (mount + SUBMIT ANOTHER). Async intel
+  // collection captures the value at kickoff and only commits if it's still
+  // current — so a slow collection from a previous application can never
+  // populate a newer one started via SUBMIT ANOTHER.
+  const applicationGenRef = useRef(0)
   // Top-right corner toggle — pure theater, changes nothing downstream.
   const [priority, setPriority] = useState(true)
 
+  // Kicks off the officer-eyes-only intel probe for `draftId` and shows the
+  // declare screen. Shared by `beginNewApplication` (which first calls
+  // `reset()` to mint a brand-new draft) and the mount effect's "reuse the
+  // draft the provider's hydration effect just created" branch below, which
+  // deliberately does NOT call `reset()` again — see that branch's comment.
+  function activateDraft(draftId: string | null) {
+    clearAnimatedFields()
+    addStamp('ENTRY DECLARATION VIEWED')
+    // Officer-eyes-only visitor intel (IP/geo/battery/connection/referrer) —
+    // gathered here because document.referrer is only meaningful on the
+    // entry page. Best-effort and async; the funnel never waits for it, and
+    // a generation guard ensures a slow collection from a superseded
+    // application never lands on the next one.
+    const generation = (applicationGenRef.current += 1)
+    void collectIntel().then(
+      (intel) => {
+        if (applicationGenRef.current === generation && draftId) recordIntel(intel, draftId)
+      },
+      () => {
+        // Intel is best-effort; a failed probe must never surface as an
+        // unhandled rejection or interrupt the application funnel.
+      }
+    )
+    setStage('declare')
+  }
+
   // Restarts the funnel: identity and duty-free purchases survive, the
-  // application itself resets. Called on mount for fresh visitors, and by
-  // the SUBMIT ANOTHER APPLICATION button for returning ones.
+  // application itself resets (a brand-new draftId is minted). Called by the
+  // SUBMIT ANOTHER APPLICATION button, and by the mount effect below for any
+  // mount that isn't a genuinely fresh, still-empty draft (see the
+  // `isFreshApplicationState` branch there for that narrower case).
   function beginNewApplication() {
     const preservedName = state.applicantName
     const preservedHandle = state.instagramHandle
     const preservedDutyFreeItems = state.dutyFreeItems
-    reset()
-    clearAnimatedFields()
+    const draftId = reset()
     if (preservedName) update({ applicantName: preservedName })
     if (preservedHandle) update({ instagramHandle: preservedHandle })
     if (preservedDutyFreeItems.length) update({ dutyFreeItems: preservedDutyFreeItems })
-    addStamp('ENTRY DECLARATION VIEWED')
-    setStage('declare')
+    activateDraft(draftId)
   }
 
   useEffect(() => {
+    // `ApplicationProvider`'s own hydration effect (reading sessionStorage,
+    // minting a draftId if none existed yet) runs in a *child-before-parent*
+    // order relative to this one, so on the very first paint of the whole
+    // app it hadn't necessarily finished the first time this effect used to
+    // fire unconditionally on mount — racing it and sometimes clobbering
+    // whatever `beginNewApplication` had just set (including the draftId
+    // `recordIntel` was about to use), or minting two `draft_started` events
+    // for one visit. Waiting for `hydrated` (re-running this effect exactly
+    // once, when it flips false → true) removes the race entirely: the
+    // provider's persisted-or-fresh state is always settled before landing
+    // ever reads or resets it.
+    if (!hydrated) return
     // Returning applicant? (This device already submitted at least one
     // application — localStorage log.) Show the pending-review card instead
     // of restarting the funnel; a new application is one tap away.
@@ -72,6 +117,16 @@ export default function EntryDeclarationPage() {
     if (last) {
       setPendingApp(last)
       setStage('pending')
+    } else if (isFreshApplicationState(state)) {
+      // The provider's hydration effect already minted a brand-new draftId
+      // for this genuinely first-ever visit (no prior sessionStorage) and
+      // recorded its own draft_started event — reuse that draft instead of
+      // calling `beginNewApplication` (which would call `reset()` again,
+      // discard it, and fire a second, redundant draft_started for the same
+      // funnel). A mid-session revisit to `/` with real accumulated state
+      // still goes through the `beginNewApplication` `else` branch below,
+      // which genuinely does need a fresh draft.
+      activateDraft(state.draftId)
     } else {
       beginNewApplication()
     }
@@ -81,7 +136,7 @@ export default function EntryDeclarationPage() {
     // is ever generated locally (see lib/api.ts#getApplicantNumber).
     getApplicantNumber().then(setApplicantNumber)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [hydrated])
 
   function handleAnswer(answer: 'yes' | 'no') {
     playStampThunk()

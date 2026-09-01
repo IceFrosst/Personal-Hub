@@ -58,6 +58,8 @@ export default function BiometricPage() {
   function retake() {
     setPreview(null)
     if (inputRef.current) inputRef.current.value = ''
+    // Officer-eyes-only tally — lands in the application intel.
+    update({ selfieRetakes: state.selfieRetakes + 1 })
   }
 
   async function handleSubmit() {

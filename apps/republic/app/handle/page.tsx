@@ -23,7 +23,8 @@ export default function HandlePage() {
   const [handle, setHandle] = useState('')
   const [touched, setTouched] = useState(false)
 
-  const hasHandle = state.instagramHandle.trim().length > 0
+  // Keep the field editable while its value is mirrored for draft history.
+  const hasHandle = state.handleSubmitted
 
   useEffect(() => {
     // Same hydration-race guard as every other funnel page.
@@ -47,7 +48,7 @@ export default function HandlePage() {
       setTouched(true)
       return
     }
-    update({ instagramHandle: normalizeHandle(handle) })
+    update({ instagramHandle: normalizeHandle(handle), handleSubmitted: true })
     playStampThunk()
     router.push('/biometric')
   }
@@ -69,7 +70,11 @@ export default function HandlePage() {
           type="text"
           required
           value={handle}
-          onChange={(e) => setHandle(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value
+            setHandle(next)
+            update({ instagramHandle: next })
+          }}
           onBlur={() => setTouched(true)}
           placeholder={HANDLE_STEP.handlePlaceholder}
           className="mt-1 w-full border-b-2 border-navy bg-transparent px-1 py-2 font-stamp text-base lowercase tracking-wide text-navy placeholder:text-navy/30 focus:outline-none"

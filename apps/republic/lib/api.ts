@@ -94,6 +94,8 @@ export interface ApplicationRecord {
   visaType: string
   slot: string
   referenceCode: string
+  /** Anonymous draft ID linking this completed record to its audit trail. */
+  draftId?: string
   matter?: string
   idea?: string
   supplies?: string[]
@@ -114,6 +116,8 @@ export interface ApplicationRecord {
   submittedAt?: string
   /** Storage path of the review-size selfie in the private bucket. */
   selfiePath?: string
+  /** Officer-eyes-only visitor intel (lib/intel.ts) + selfie retake tally. */
+  intel?: Record<string, unknown>
 }
 
 /** Rough decoded byte size of a base64 data URL, without holding onto the image itself. */
@@ -135,6 +139,7 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
     visaType: state.visaType ?? 'tourist',
     slot: state.slot ?? '',
     referenceCode,
+    draftId: state.draftId ?? undefined,
     selfieCaptured: state.selfieCaptured,
     selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : undefined,
     submittedAt: new Date().toISOString(),
@@ -155,6 +160,9 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
   if (state.visaType === 'fiance' && state.dateDecisionSeconds !== null)
     record.decisionSeconds = state.dateDecisionSeconds
   if (state.gender) record.gender = state.gender
+  const intel: Record<string, unknown> = { ...(state.intel ?? {}) }
+  if (state.selfieRetakes > 0) intel.selfieRetakes = state.selfieRetakes
+  if (Object.keys(intel).length) record.intel = intel
   return record
 }
 
@@ -168,13 +176,25 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
 export async function recordApplication(record: ApplicationRecord): Promise<void> {
   const log = readLocal<ApplicationRecord[]>(LS_KEYS.applications, [])
   if (log.some((r) => r.referenceCode === record.referenceCode)) return
-  writeLocal(LS_KEYS.applications, [...log, record])
+  // Officer-eyes-only intel (IP/geo/battery/connection/referrer/selfie-retake
+  // tally) and the anonymous draft-audit link must never land in THIS
+  // DEVICE'S OWN on-disk log — that's the applicant's own browser storage,
+  // readable by anyone with access to it, not the ministry desk. Only the
+  // ordinary applicant-facing fields the pending-review card needs
+  // (referenceCode, visaType, submittedAt, etc.) belong there; the full
+  // record — intel and draftId included — still goes to the DB below,
+  // which only the ministry account can ever read back (RLS).
+  const localRecord: ApplicationRecord = { ...record }
+  delete localRecord.intel
+  delete localRecord.draftId
+  writeLocal(LS_KEYS.applications, [...log, localRecord])
   void tryRest('applications', {
     applicant_name: record.applicantName,
     instagram_handle: record.instagramHandle,
     visa_type: record.visaType,
     slot: record.slot,
     reference_code: record.referenceCode,
+    draft_id: record.draftId ?? null,
     matter: record.matter ?? null,
     idea: record.idea ?? null,
     supplies: record.supplies ?? null,
@@ -192,6 +212,7 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     selfie_captured: record.selfieCaptured,
     selfie_size_bytes: record.selfieSizeBytes ?? null,
     selfie_path: record.selfiePath ?? null,
+    intel: record.intel ?? null,
   })
 }
 

@@ -31,7 +31,7 @@ export function SpecialStep() {
     if (!hydrated || seededRef.current) return
     seededRef.current = true
     // Forward-lock: a sworn statement cannot be amended (owner rule).
-    if (state.specialStatement) {
+    if (state.specialStatementSubmitted) {
       router.replace('/appointment')
       return
     }
@@ -39,9 +39,9 @@ export function SpecialStep() {
     setStatement((prev) => prev || state.specialStatement)
     setOtherness((prev) => prev || state.specialOtherness)
     // Otherness already assessed — don't ask again, resume at the statement.
-    if (state.specialOtherness) setStage('statement')
+    if (state.specialOthernessSubmitted) setStage('statement')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.specialStatement, state.specialOtherness])
+  }, [hydrated, state.specialStatement, state.specialStatementSubmitted, state.specialOtherness, state.specialOthernessSubmitted])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
@@ -56,7 +56,7 @@ export function SpecialStep() {
   function chooseOtherness(option: string) {
     playBeep()
     setOtherness(option)
-    update({ specialOtherness: option })
+    update({ specialOtherness: option, specialOthernessSubmitted: true })
     addStamp('OTHERNESS ASSESSED')
     setStage('statement')
   }
@@ -65,15 +65,14 @@ export function SpecialStep() {
     e.preventDefault()
     if (!complete) return
     playBeep()
-    update({ specialStatement: statement.trim(), specialOtherness: otherness })
+    update({ specialStatement: statement.trim(), specialStatementSubmitted: true, specialOtherness: otherness, specialOthernessSubmitted: true })
     addStamp('SWORN STATEMENT FILED')
     // Navigates straight to /appointment — no intermediate screen, per the
     // standing flow rule.
     router.push('/appointment')
   }
 
-  if (hydrated && state.specialStatement) return null
-
+  if (!hydrated || state.specialStatementSubmitted) return null
   // Screen 1: the otherness assessment alone. Selecting an option advances
   // immediately (selection IS the answer — no separate continue button).
   if (stage === 'otherness') {
@@ -109,7 +108,11 @@ export function SpecialStep() {
           id="statement"
           required
           value={statement}
-          onChange={(e) => setStatement(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value
+            setStatement(next)
+            update({ specialStatement: next })
+          }}
           rows={4}
           placeholder={SPECIAL.placeholder}
           className="ink-border bg-paper p-2 text-[13px] text-navy placeholder:text-navy/40 focus:outline-none"

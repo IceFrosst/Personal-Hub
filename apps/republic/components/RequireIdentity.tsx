@@ -17,7 +17,7 @@ import { useApplication } from '@/lib/applicationContext'
 export function RequireIdentity({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { state, hydrated } = useApplication()
-  const hasIdentity = state.applicantName.trim().length > 0
+  const hasIdentity = state.identitySubmitted
   // Gender is asked on the landing questionnaire (after the follow-up
   // question) and printed as the passport's SEX field — a session that
   // somehow reaches visa selection without it (e.g. an old session, or a

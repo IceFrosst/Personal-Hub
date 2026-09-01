@@ -1,91 +1,23 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { VisaType } from './content'
+import type { VisitorIntel } from './intel'
 import { generateSerial } from './referenceCode'
+import { claimProviderHydration, EMPTY_STATE, type ApplicationState } from './applicationState'
+import {
+  isCurrentDraft,
+  newDraftId,
+  recordDraftFieldChange,
+  recordDraftIntel,
+  recordDraftStarted,
+} from './draftAudit'
 
-export interface ApplicationState {
-  applicantName: string
-  instagramHandle: string
-  visaType: VisaType | null
-  /** The sidequest (tourist) visa's "WHAT'S THE IDEA?" answer. */
-  sidequestIdea: string
-  /** Declared expedition supplies (sidequest) — all four earns the FULLY EQUIPPED stamp. */
-  sidequestSupplies: string[]
-  /** True once the supply declaration screen was submitted (even with zero
-   *  boxes checked) — distinguishes "declared nothing" from "not asked yet"
-   *  so the forward-lock can't re-ask. */
-  sidequestSuppliesDeclared: boolean
-  /** The special visa's "HOW OTHER IS YOUR PURPOSE?" selection. */
-  specialOtherness: string
-  fianceAnswers: string[]
-  businessPitch: string
-  specialStatement: string
-  slot: string | null
-  /** Full-resolution capture — deliberately never persisted, see below. */
-  selfieDataUrl: string | null
-  /** Persisted flag: survives a refresh even after selfieDataUrl is stripped. */
-  selfieCaptured: boolean
-  /** Persisted small (~200px JPEG) fallback so the visa sticker can still be
-   *  reconstructed after a refresh loses the full-resolution capture. */
-  selfieThumbnailUrl: string | null
-  /** Secondary-screening absurd question drawn for this session — persisted
-   *  so a refresh mid-screening doesn't re-roll the rotation (see
-   *  app/screening/page.tsx and lib/content.ts#SCREENING_QUESTIONS). */
-  screeningQuestion: string | null
-  /** The chosen answer to the screening question above. */
-  screeningAnswer: string | null
-  /** Self-declared IQ from the bell-curve slider — never verified, obviously. */
-  declaredIq: number | null
-  /** DATE path only: self-declared confidence (raw; the passport prints it 15% lower). */
-  declaredConfidence: number | null
-  /** Seconds spent staring at /visa before picking — printed only for the DATE path. */
-  dateDecisionSeconds: number | null
-  /** Available duty-free items the applicant clicked; printed as one passport addendum. */
-  dutyFreeItems: string[]
-  /** Passport SEX field value ('M' / 'F' / 'X') from the landing gender question. */
-  gender: string | null
-  referenceCode: string | null
-  /** Visa sticker SERIAL № — generated exactly once, on the FIRST visa
-   *  selection (see lib/referenceCode.ts#generateSerial), and preserved
-   *  across any later re-selection (returning to /visa and picking again, or
-   *  a direct link into a visa-step sub-page) so the progress card and the
-   *  final /visa-issued sticker always render the identical value. Only ever
-   *  set together with `visaType`, through the shared `selectVisa` operation
-   *  below — never set directly via `update`. */
-  serial: string | null
-  /** Visa sticker ISSUED date — filled once the appointment slot is
-   *  confirmed (see lib/content.ts#formatIssuedDate) so it survives a refresh
-   *  and matches whatever /visa-issued renders later in the same session. */
-  issuedDate: string | null
-}
-
-const EMPTY_STATE: ApplicationState = {
-  applicantName: '',
-  instagramHandle: '',
-  visaType: null,
-  sidequestIdea: '',
-  sidequestSupplies: [],
-  sidequestSuppliesDeclared: false,
-  specialOtherness: '',
-  fianceAnswers: [],
-  businessPitch: '',
-  specialStatement: '',
-  slot: null,
-  selfieDataUrl: null,
-  selfieCaptured: false,
-  selfieThumbnailUrl: null,
-  screeningQuestion: null,
-  screeningAnswer: null,
-  declaredIq: null,
-  declaredConfidence: null,
-  dateDecisionSeconds: null,
-  dutyFreeItems: [],
-  gender: null,
-  referenceCode: null,
-  serial: null,
-  issuedDate: null,
-}
+// `ApplicationState` (and its default, `EMPTY_STATE`) live in the plain,
+// non-JSX `./applicationState` module so they (and helpers derived from
+// them, e.g. `isFreshApplicationState`) can be unit-tested directly with
+// Node's `--experimental-strip-types` — see test/applicationState.test.mjs.
+export type { ApplicationState }
 
 const STORAGE_KEY = 'republic:application'
 
@@ -105,7 +37,9 @@ interface ApplicationContextValue {
    * the SERIAL № lifecycle note on ApplicationState#serial below.
    */
   selectVisa: (visaType: VisaType) => void
-  reset: () => void
+  /** Records intel only when the caller's captured draft is still current. */
+  recordIntel: (intel: VisitorIntel, expectedDraftId: string) => void
+  reset: () => string | null
   hydrated: boolean
 }
 
@@ -113,14 +47,34 @@ const ApplicationContext = createContext<ApplicationContextValue | null>(null)
 
 export function ApplicationProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<ApplicationState>(EMPTY_STATE)
+  const stateRef = useRef<ApplicationState>(EMPTY_STATE)
+  const hydrationStartedRef = useRef(false)
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
+    // Strict Mode replays passive effects but preserves refs for this provider
+    // instance. Claim before any storage read or draft event so replay cannot
+    // mint a second identity; a real remount gets a fresh ref and hydrates.
+    if (!claimProviderHydration(hydrationStartedRef)) return
     try {
       const raw = window.sessionStorage.getItem(STORAGE_KEY)
-      if (raw) setState({ ...EMPTY_STATE, ...(JSON.parse(raw) as Partial<ApplicationState>) })
+      let parsed: ApplicationState = EMPTY_STATE
+      if (raw) parsed = { ...EMPTY_STATE, ...(JSON.parse(raw) as Partial<ApplicationState>) }
+      // Every browser funnel, including a fresh deep link with empty storage,
+      // gets a new identity. This runs after mount, never during render.
+      if (!parsed.draftId) {
+        const draftId = newDraftId()
+        parsed = { ...parsed, draftId }
+        if (draftId) recordDraftStarted(draftId)
+      }
+      stateRef.current = parsed
+      setState(parsed)
     } catch {
-      // ignore corrupt storage
+      const draftId = newDraftId()
+      const parsed = { ...EMPTY_STATE, draftId }
+      stateRef.current = parsed
+      setState(parsed)
+      if (draftId) recordDraftStarted(draftId)
     } finally {
       setHydrated(true)
     }
@@ -157,28 +111,54 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
   }, [state, hydrated])
 
   const update = useCallback((patch: Partial<ApplicationState>) => {
-    setState((prev) => ({ ...prev, ...patch }))
+    const prev = stateRef.current
+    if (prev.draftId) {
+      for (const [field, value] of Object.entries(patch)) {
+        if (field in prev) recordDraftFieldChange(prev.draftId, field, prev[field as keyof ApplicationState], value)
+      }
+    }
+    const next = { ...prev, ...patch }
+    stateRef.current = next
+    setState(next)
   }, [])
 
   const selectVisa = useCallback((visaType: VisaType) => {
-    // Reads `prev.serial` inside the updater (not the `state` closure) so a
-    // rapid repeated call always sees the just-set value, guaranteeing
-    // exact-once generation regardless of render timing.
-    setState((prev) => ({ ...prev, visaType, serial: prev.serial ?? generateSerial() }))
+    // Read from the synchronous ref (not a render closure) so rapid repeated
+    // calls always see the just-set value, guaranteeing exact-once generation
+    // regardless of render timing.
+    const prev = stateRef.current
+    if (prev.draftId) recordDraftFieldChange(prev.draftId, 'visaType', prev.visaType, visaType)
+    const next = { ...prev, visaType, serial: prev.serial ?? generateSerial() }
+    stateRef.current = next
+    setState(next)
+  }, [])
+
+  const recordIntel = useCallback((intel: VisitorIntel, expectedDraftId: string) => {
+    const prev = stateRef.current
+    if (!isCurrentDraft(prev.draftId, expectedDraftId)) return
+    recordDraftIntel(expectedDraftId, intel)
+    const next = { ...prev, intel }
+    stateRef.current = next
+    setState(next)
   }, [])
 
   const reset = useCallback(() => {
-    setState(EMPTY_STATE)
+    const draftId = newDraftId()
+    const next = { ...EMPTY_STATE, draftId }
+    stateRef.current = next
+    setState(next)
+    if (draftId) recordDraftStarted(draftId)
     try {
       window.sessionStorage.removeItem(STORAGE_KEY)
     } catch {
       // ignore
     }
+    return draftId
   }, [])
 
   const value = useMemo(
-    () => ({ state, update, selectVisa, reset, hydrated }),
-    [state, update, selectVisa, reset, hydrated]
+    () => ({ state, update, selectVisa, recordIntel, reset, hydrated }),
+    [state, update, selectVisa, recordIntel, reset, hydrated]
   )
 
   return <ApplicationContext.Provider value={value}>{children}</ApplicationContext.Provider>

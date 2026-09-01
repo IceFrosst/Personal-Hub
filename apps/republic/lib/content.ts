@@ -741,6 +741,13 @@ export const MINISTRY = {
   approve: 'APPROVE',
   deny: 'DENY',
   loading: 'PULLING FILES…',
+  draftsHeading: 'ABANDONED / IN PROGRESS',
+  abandoned: 'ABANDONED',
+  inProgress: 'IN PROGRESS',
+  draftIdLabel: 'DRAFT ID:',
+  noPartialData: 'NO APPLICANT FIELDS RECORDED YET.',
+  officerNotesLabel: 'OFFICER-ONLY NOTES:',
+  historyLabel: 'REVISION HISTORY',
 }
 
 // ---------------------------------------------------------------------------

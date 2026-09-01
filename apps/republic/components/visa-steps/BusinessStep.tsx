@@ -23,13 +23,13 @@ export function BusinessStep() {
     if (!hydrated || seededRef.current) return
     seededRef.current = true
     // Forward-lock: an already-filed pitch cannot be changed (owner rule).
-    if (state.businessPitch) {
+    if (state.businessPitchSubmitted) {
       router.replace('/appointment')
       return
     }
     setPitch((prev) => prev || state.businessPitch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.businessPitch])
+  }, [hydrated, state.businessPitch, state.businessPitchSubmitted])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
@@ -43,14 +43,14 @@ export function BusinessStep() {
     e.preventDefault()
     if (!pitch.trim()) return
     playBeep()
-    update({ businessPitch: pitch.trim() })
+    update({ businessPitch: pitch.trim(), businessPitchSubmitted: true })
     addStamp('BUSINESS VISA PITCH FILED')
     // Navigates straight to /appointment — no intermediate "received" screen
     // or confirmation button anymore (owner flow change).
     router.push('/appointment')
   }
 
-  if (hydrated && state.businessPitch) return null
+  if (!hydrated || state.businessPitchSubmitted) return null
 
   return (
     <StepShell visa={visa}>
@@ -62,7 +62,11 @@ export function BusinessStep() {
           id="pitch"
           required
           value={pitch}
-          onChange={(e) => setPitch(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value
+            setPitch(next)
+            update({ businessPitch: next })
+          }}
           rows={4}
           placeholder={BUSINESS.placeholder}
           className="ink-border bg-paper p-2 text-[13px] text-navy placeholder:text-navy/40 focus:outline-none"
