@@ -217,6 +217,22 @@ export const SIDEQUEST = {
   prompt: "WHAT'S THE IDEA?",
   placeholder: 'It better be good',
   submit: 'SUBMIT IDEA',
+  // Customs-form supply declaration — all optional; checking ALL of them
+  // earns the FULLY EQUIPPED stamp on the passport documents.
+  suppliesHeading: 'DECLARE EXPEDITION SUPPLIES:',
+  supplies: ['Snacks', 'Playlist', 'Questionable plan', 'Bail money'],
+}
+
+// Stamped on the passport (progress + final + PNG) when a sidequest
+// applicant declares every expedition supply.
+export const FULLY_EQUIPPED_STAMP = 'FULLY EQUIPPED'
+
+/** True only when EVERY canonical supply was declared — membership, not
+ * array length, so duplicates or unknown persisted values can't earn the
+ * stamp. Single shared predicate for the progress card, the final DOM
+ * document, and the PNG canvas. */
+export function isFullyEquipped(supplies: readonly string[]): boolean {
+  return SIDEQUEST.supplies.every((supply) => supplies.includes(supply))
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +288,12 @@ export const SPECIAL = {
   placeholder: 'Sworn statement here.',
   declaration: 'I declare under penalty of mild disappointment that the above is true.',
   submit: 'SWEAR & SUBMIT',
+  othernessPrompt: 'HOW OTHER IS YOUR PURPOSE?',
+  othernessOptions: ['Mildly other', 'Substantially other', 'The form has no box for this'],
+  // Shown for a beat after submission, over the randomly blacked-out
+  // statement, before auto-advancing to /appointment. The full statement
+  // still prints un-redacted on the passport.
+  redactedNotice: 'STATEMENT REDACTED FOR YOUR PROTECTION.',
 }
 
 export const SPECIAL_REPLIES = [
@@ -607,9 +629,23 @@ export const DOCUMENT_PROGRESS = {
   statementLabel: 'STATEMENT:',
   interviewAnswersLabel: 'INTERVIEW:',
   screeningLabel: 'SCREENING:',
+  othernessLabel: 'OTHERNESS:',
   dutyFreeLabel: 'DUTY-FREE:',
   // No iqLabel — the IQ addendum prints as wojak face + bare number, no text
   // (owner request; see lib/visaAddendum.ts#getScreeningAddenda).
+}
+
+// ---------------------------------------------------------------------------
+// Identity verification — per-path officer observation, revealed right after
+// the selfie is captured on /biometric. Pure deadpan annotation; nothing is
+// actually measured, obviously.
+// ---------------------------------------------------------------------------
+
+export const BIOMETRIC_NOTES: Record<VisaType, string> = {
+  fiance: 'ELEVATED PULSE DETECTED. NOTED.',
+  tourist: 'SUSPECT IS DEHYDRATED. NOTED.',
+  business: 'POSTURE COULD BE BETTER. NOTED.',
+  special: 'SUBJECT APPEARS NERVOUS. FILED UNDER: CORRECT.',
 }
 
 // ---------------------------------------------------------------------------

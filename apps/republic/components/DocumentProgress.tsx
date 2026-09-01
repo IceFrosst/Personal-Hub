@@ -6,11 +6,13 @@ import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
 import {
   APPROVED,
   DOCUMENT_PROGRESS,
+  FULLY_EQUIPPED_STAMP,
   STICKER_LABELS,
   VISA_BY_SLUG,
   formatPassportDate,
   formatPassportVisaName,
   iqFaceFor,
+  isFullyEquipped,
 } from '@/lib/content'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
 import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
@@ -117,6 +119,13 @@ export function DocumentProgress() {
   ]
 
   const addenda: VisaDocumentAddendum[] = []
+  if (state.visaType === 'special' && state.specialOtherness) {
+    addenda.push({
+      key: 'otherness',
+      label: DOCUMENT_PROGRESS.othernessLabel,
+      value: state.specialOtherness,
+    })
+  }
   if (subStepAddendum) {
     addenda.push({
       key: 'subStep',
@@ -142,6 +151,9 @@ export function DocumentProgress() {
     })
   }
 
+  // Every canonical expedition supply declared → FULLY EQUIPPED corner stamp.
+  const fullyEquipped = state.visaType === 'tourist' && isFullyEquipped(state.sidequestSupplies)
+
   return (
     <div className="sticky top-0 z-20 mb-2">
       <VisaDocument
@@ -150,6 +162,7 @@ export function DocumentProgress() {
         photoAnimate={photoAnimate}
         fields={fields}
         addenda={addenda}
+        cornerStamp={fullyEquipped ? FULLY_EQUIPPED_STAMP : undefined}
       />
     </div>
   )

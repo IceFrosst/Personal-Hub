@@ -7,7 +7,7 @@ import { Footer } from '@/components/Footer'
 import { useApplication } from '@/lib/applicationContext'
 import { uploadPhoto } from '@/lib/api'
 import { createThumbnail } from '@/lib/photo'
-import { IDENTITY_VERIFICATION } from '@/lib/content'
+import { BIOMETRIC_NOTES, IDENTITY_VERIFICATION } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep } from '@/lib/sound'
 
@@ -96,6 +96,14 @@ export default function BiometricPage() {
             aria-hidden
           />
         </div>
+
+        {/* Per-path officer observation — revealed only once a photo exists.
+            Keyed by visa type (BIOMETRIC_NOTES); nothing is measured. */}
+        {preview && state.visaType && (
+          <p className="animate-fade-in mt-3 text-center text-[11px] font-bold uppercase tracking-wide text-stamp">
+            {BIOMETRIC_NOTES[state.visaType]}
+          </p>
+        )}
 
         {!preview ? (
           <label className="mt-5 block min-h-11 w-full cursor-pointer border-2 border-navy bg-navy py-3 text-center font-stamp text-sm uppercase tracking-widest text-paper transition-opacity hover:opacity-90">

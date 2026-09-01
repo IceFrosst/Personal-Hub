@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { StepShell } from './StepShell'
 import { useApplication } from '@/lib/applicationContext'
@@ -12,8 +12,18 @@ const visa = VISA_BY_SLUG.business
 
 export function BusinessStep() {
   const router = useRouter()
-  const { state, update, selectVisa } = useApplication()
-  const [pitch, setPitch] = useState(state.businessPitch)
+  const { state, update, selectVisa, hydrated } = useApplication()
+  // Seeded from context AFTER hydration — same latent pre-hydration bug the
+  // review found in TouristStep/SpecialStep existed here too: initializing
+  // from context during the first render reads EMPTY_STATE on a refresh.
+  const [pitch, setPitch] = useState('')
+  const seededRef = useRef(false)
+
+  useEffect(() => {
+    if (!hydrated || seededRef.current) return
+    seededRef.current = true
+    setPitch((prev) => prev || state.businessPitch)
+  }, [hydrated, state.businessPitch])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into

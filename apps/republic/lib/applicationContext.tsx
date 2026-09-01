@@ -10,6 +10,10 @@ export interface ApplicationState {
   visaType: VisaType | null
   /** The sidequest (tourist) visa's "WHAT'S THE IDEA?" answer. */
   sidequestIdea: string
+  /** Declared expedition supplies (sidequest) — all four earns the FULLY EQUIPPED stamp. */
+  sidequestSupplies: string[]
+  /** The special visa's "HOW OTHER IS YOUR PURPOSE?" selection. */
+  specialOtherness: string
   fianceAnswers: string[]
   businessPitch: string
   specialStatement: string
@@ -53,6 +57,8 @@ const EMPTY_STATE: ApplicationState = {
   instagramHandle: '',
   visaType: null,
   sidequestIdea: '',
+  sidequestSupplies: [],
+  specialOtherness: '',
   fianceAnswers: [],
   businessPitch: '',
   specialStatement: '',

@@ -10,6 +10,7 @@ import { useApplication } from '@/lib/applicationContext'
 import {
   APPROVED,
   DOCUMENT_PROGRESS,
+  FULLY_EQUIPPED_STAMP,
   STICKER_LABELS,
   CONSULATE_DM_URL,
   COPY_INSTRUCTION,
@@ -19,6 +20,7 @@ import {
   formatPassportDate,
   formatPassportVisaName,
   iqFaceFor,
+  isFullyEquipped,
 } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
@@ -142,6 +144,9 @@ export default function VisaIssuedPage() {
       const PAPER = '#f4f0e8'
       const ORANGE = '#d97706'
       const addendumValues = [
+        ...(state.visaType === 'special' && state.specialOtherness
+          ? [{ label: DOCUMENT_PROGRESS.othernessLabel, value: state.specialOtherness }]
+          : []),
         ...(visaAddendum ? [visaAddendum] : []),
         // IQ is rendered beside SEX in the field grid, not as an addendum.
         ...screeningAddenda.filter((item) => !item.imageSrc),
@@ -343,6 +348,22 @@ export default function VisaIssuedPage() {
       }
       wrappedAddenda.forEach((item) => addendum(item.label, item.lines, item.imageSrc ? face : null))
 
+      // FULLY EQUIPPED corner stamp (every canonical sidequest supply declared)
+      if (state.visaType === 'tourist' && isFullyEquipped(state.sidequestSupplies)) {
+        context.save()
+        context.translate(CANVAS_W - 150, documentHeight - 100)
+        context.rotate(-0.12)
+        context.globalAlpha = 0.9
+        context.strokeStyle = '#2e7d32'
+        context.lineWidth = 4
+        context.strokeRect(-105, -20, 210, 40)
+        context.fillStyle = '#2e7d32'
+        context.font = 'bold 18px "Courier New", monospace'
+        context.textAlign = 'center'
+        context.fillText(FULLY_EQUIPPED_STAMP, 0, 6)
+        context.restore()
+      }
+
       // barcode
       context.save()
       let bx = 60
@@ -389,6 +410,9 @@ export default function VisaIssuedPage() {
     visaAddendum,
     screeningAddenda,
     state.dutyFreeItems,
+    state.visaType,
+    state.specialOtherness,
+    state.sidequestSupplies,
   ])
 
   function handleDownload() {
@@ -460,6 +484,13 @@ export default function VisaIssuedPage() {
     },
   ]
   const addenda: VisaDocumentAddendum[] = []
+  if (state.visaType === 'special' && state.specialOtherness) {
+    addenda.push({
+      key: 'otherness',
+      label: DOCUMENT_PROGRESS.othernessLabel,
+      value: state.specialOtherness,
+    })
+  }
   if (visaAddendum) {
     addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
   }
@@ -500,6 +531,11 @@ export default function VisaIssuedPage() {
             photoUrl={state.selfieDataUrl ?? state.selfieThumbnailUrl}
             fields={fields}
             addenda={addenda}
+            cornerStamp={
+              state.visaType === 'tourist' && isFullyEquipped(state.sidequestSupplies)
+                ? FULLY_EQUIPPED_STAMP
+                : undefined
+            }
           />
           <div className="pointer-events-none absolute -right-2 -top-2">
             <StampSlam

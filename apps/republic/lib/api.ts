@@ -1,14 +1,12 @@
-// Backend stubs. The `republic` Supabase schema now exists for real, but only for
-// one narrow purpose so far: the global applicant-number sequence/RPC (see
-// supabase/migrations/0001_applicant_number_sequence.sql and getApplicantNumber
-// below) — that path needs NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY
-// configured and fails closed to `null` without them. Everything else in this file
-// (recordApplication/recordAppointment/recordBribe) still targets the
-// `applications`/`appointments`/`bribes` tables described in SIDEQUEST_PLAN.md,
-// which have NOT been created yet — those best-effort POST to Supabase only if the
-// env vars are set, wrapped in try/catch so a missing table never breaks the
-// funnel, and otherwise fall back to localStorage so the whole experience works
-// with zero backend.
+// Best-effort backend writes. The `republic` Supabase schema carries the global
+// applicant-number sequence/RPC (migration 0001, see getApplicantNumber below)
+// and the write-only submission tables `applications`/`appointments`/`bribes`
+// (migration 0002 — RLS enabled, INSERT-only for anon; check that migration's
+// applied/exposure status in CLAUDE.md's Next before assuming the rows land).
+// All network paths here need NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY
+// configured; every write is wrapped in try/catch and mirrored to localStorage
+// first, so a missing table, missing env, or network failure never breaks the
+// funnel — the whole experience works with zero backend.
 
 import { computeSlots, type Slot } from './slots'
 import type { ApplicationState } from './applicationContext'
@@ -98,9 +96,15 @@ export interface ApplicationRecord {
   referenceCode: string
   matter?: string
   idea?: string
+  supplies?: string[]
   pitch?: string
   statement?: string
+  otherness?: string
   interviewAnswers?: string[]
+  screeningQuestion?: string
+  screeningAnswer?: string
+  declaredIq?: number
+  gender?: string
   dutyFreeItems?: string[]
   selfieCaptured: boolean
   selfieSizeBytes?: number
@@ -131,10 +135,16 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
   // `matter` (the removed SEEK ADVICE PERMIT's sub-step field) stays in the
   // record/table shape for forward-compat but is never populated anymore.
   if (state.visaType === 'tourist' && state.sidequestIdea) record.idea = state.sidequestIdea
+  if (state.visaType === 'tourist' && state.sidequestSupplies.length) record.supplies = state.sidequestSupplies
   if (state.visaType === 'business' && state.businessPitch) record.pitch = state.businessPitch
   if (state.visaType === 'special' && state.specialStatement) record.statement = state.specialStatement
+  if (state.visaType === 'special' && state.specialOtherness) record.otherness = state.specialOtherness
   if (state.visaType === 'fiance' && state.fianceAnswers.length) record.interviewAnswers = state.fianceAnswers
   if (state.dutyFreeItems.length) record.dutyFreeItems = state.dutyFreeItems
+  if (state.screeningQuestion) record.screeningQuestion = state.screeningQuestion
+  if (state.screeningAnswer) record.screeningAnswer = state.screeningAnswer
+  if (state.declaredIq !== null) record.declaredIq = state.declaredIq
+  if (state.gender) record.gender = state.gender
   return record
 }
 
@@ -157,10 +167,16 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     reference_code: record.referenceCode,
     matter: record.matter ?? null,
     idea: record.idea ?? null,
+    supplies: record.supplies ?? null,
     pitch: record.pitch ?? null,
     statement: record.statement ?? null,
+    otherness: record.otherness ?? null,
     interview_answers: record.interviewAnswers ?? null,
     duty_free_items: record.dutyFreeItems ?? null,
+    screening_question: record.screeningQuestion ?? null,
+    screening_answer: record.screeningAnswer ?? null,
+    declared_iq: record.declaredIq ?? null,
+    gender: record.gender ?? null,
     selfie_captured: record.selfieCaptured,
     selfie_size_bytes: record.selfieSizeBytes ?? null,
   })

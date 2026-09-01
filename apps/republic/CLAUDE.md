@@ -357,7 +357,48 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — pending-review stamp + compact in-grid appointment date:**
+**Latest pass — path gags + Supabase submission tables:**
+- **Per-path biometric observation** (`BIOMETRIC_NOTES` in content.ts, rendered on
+  `/biometric` only once a photo exists): fiance "ELEVATED PULSE DETECTED. NOTED.",
+  tourist "SUSPECT IS DEHYDRATED. NOTED.", business "POSTURE COULD BE BETTER. NOTED.",
+  special "SUBJECT APPEARS NERVOUS. FILED UNDER: CORRECT." (special wasn't specified by
+  the owner — added for consistency, flagged as removable).
+- **Sidequest supply declaration** (TouristStep): optional customs checkboxes — Snacks ·
+  Playlist · Questionable plan · Bail money — stored in new
+  `ApplicationState.sidequestSupplies` (canonical order preserved). Checking ALL four
+  earns a green rotated `FULLY_EQUIPPED_STAMP` corner stamp on the passport (new
+  `VisaDocument cornerStamp` prop; drawn on the PNG canvas too, above the barcode).
+- **Special path**: required "HOW OTHER IS YOUR PURPOSE?" selection
+  (`SPECIAL.othernessPrompt`/`othernessOptions`, stored in `specialOtherness`, printed
+  as an `OTHERNESS:` addendum on both documents + PNG) and a **redaction gag** — on
+  submit the statement briefly renders with ~40% of words blacked out under
+  "STATEMENT REDACTED FOR YOUR PROTECTION." then auto-advances to /appointment after
+  2.6s (auto-advance, not a button, per the standing rule; randomness computed in the
+  submit handler, never during render). The full statement still prints on the passport.
+- **ApplicationRecord expanded** (additive): supplies, otherness, screeningQuestion,
+  screeningAnswer, declaredIq, gender — so a Supabase row captures everything needed to
+  look an applicant up by reference code.
+- **`supabase/migrations/0002_submission_tables.sql`**: republic.applications/
+  appointments/bribes with RLS enabled and INSERT-only anon policies — a deliberate,
+  documented deviation from iron rule #4's user_id pattern (anonymous funnel, no auth;
+  write-only from the browser, owner reads via dashboard/service role). Unique index on
+  applications.reference_code. NOT yet applied to the remote project — see Next.
+
+**Review-fix addendum (same pass, reviewer-driven):**
+- Migration 0002 additionally grants anon/authenticated `USAGE` on exactly the three
+  identity sequences (looked up via `pg_get_serial_sequence` in a DO block — table
+  INSERT alone fails without it in a custom schema); `applicant_number_seq` stays
+  RPC-only.
+- **Sub-step forms now seed local state AFTER context hydration** (`hydrated` +
+  one-shot `seededRef`, `prev ||` merge so pre-hydration typing wins) — initializing
+  `useState` from context read pre-hydration `EMPTY_STATE` on refresh and could discard
+  persisted values on resubmit. Fixed in TouristStep, SpecialStep, AND BusinessStep
+  (same latent bug, root-caused). Verified in-browser: refresh restores idea, checked
+  supplies, statement, and otherness selection.
+- FULLY EQUIPPED is decided by the shared `isFullyEquipped` membership predicate
+  (content.ts), not array length, at all three render sites.
+
+**Previous pass — pending-review stamp + compact in-grid appointment date:**
 - **Visa field is now `VISA:` unbolded + short name bold** (`BUSINESS`, `DATE`,
   `SIDEQUEST`, `SPECIAL PURPOSE`) via `formatPassportVisaName`; no repeated VISA word.
 - **IQ is `IQ: 124 [face]` on the same row as SEX**, with a smaller borderless face
@@ -759,13 +800,15 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
   `supabase/migrations/0001_applicant_number_sequence.sql`, expose the `republic` schema
   through the Data API/authenticator configuration, and reload PostgREST config/schema.
   Re-verified anonymously on `ignas.wtf`: `APPLICANT № ————` remains after the RPC wait.
-- **V1 product decision — are submissions DM-only or retrievable?** Today application,
-  appointment and bribe records are localStorage-first best-effort stubs; the real
-  `republic` tables do not exist. REPORT TO THE AUTHORITIES opens Instagram and copies
-  only the reference line (visa name + reference + slot), so Ignas cannot look up the
-  person's typed idea/pitch/statement/interview/screening answers by reference code on a
-  different device. If lookup is part of v1, provision the additive-only tables + RLS
-  and replace the stubs before launch; if not, document DM-only as the deliberate v1.
+- **V1 backend blocker — apply migration 0002 + expose the schema.** The submission
+  tables (`supabase/migrations/0002_submission_tables.sql`, write-only RLS) are written
+  and the client already sends every field (idea/supplies/pitch/statement/otherness/
+  interview/screening/IQ/gender/duty-free), but the migration is NOT applied to the
+  remote project and the `republic` schema is NOT yet in the Data API's exposed
+  schemas. Both this and the applicant-number item above need a
+  `SUPABASE_ACCESS_TOKEN` (Management API) — not present in the local pi environment;
+  requested from the owner. After applying: verify one anonymous insert lands and the
+  landing shows a real applicant №.
 - **V1 mobile regression pass:** rerun every visa path at Pixel 8 / Instagram in-app
   viewport and iPhone SE after the rapid passport-layout iterations; verify progress +
   final DOM + downloaded PNG, camera tap-only behavior, date-path IQ skip, duty-free

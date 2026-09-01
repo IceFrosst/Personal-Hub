@@ -46,8 +46,10 @@ export interface VisaDocumentProps {
   photoAnimate?: boolean
   /** In the sticker's own order — see the two-column layout note above each caller. */
   fields: VisaDocumentField[]
-  /** Real funnel data that isn't one of the sticker's own fields (appointment slot, sub-step content) — rendered below the grid with its own dashed divider. */
+  /** Real funnel data that isn't one of the sticker's own fields (sub-step content, screening, duty-free) — rendered below the grid with its own dashed divider. */
   addenda?: VisaDocumentAddendum[]
+  /** Optional rotated corner stamp (e.g. FULLY EQUIPPED for a fully-supplied sidequest). */
+  cornerStamp?: string
 }
 
 const SIZE = {
@@ -93,11 +95,20 @@ function Blank({ wide, size }: { wide?: boolean; size: 'compact' | 'full' }) {
   return <span className={`inline-block h-2 border-b border-navy/30 ${wide ? s.blankWide : s.blankNarrow}`} aria-hidden />
 }
 
-export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda }: VisaDocumentProps) {
+export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda, cornerStamp }: VisaDocumentProps) {
   const s = SIZE[size]
 
   return (
-    <div className={`border-2 border-navy bg-paper ${s.wrap} shadow-[2px_2px_0_rgba(26,42,74,0.15)]`}>
+    <div className={`relative border-2 border-navy bg-paper ${s.wrap} shadow-[2px_2px_0_rgba(26,42,74,0.15)]`}>
+      {cornerStamp && (
+        <span
+          className={`pointer-events-none absolute bottom-2 right-2 z-10 rotate-[-7deg] border-2 border-approve bg-paper/80 px-1 py-0.5 font-stamp font-bold uppercase tracking-widest text-approve ${
+            size === 'full' ? 'text-[11px]' : 'text-[8px]'
+          }`}
+        >
+          {cornerStamp}
+        </span>
+      )}
       <div className={`border border-navy ${s.inner}`}>
         <p className={`text-center font-stamp uppercase tracking-[0.2em] text-navy ${s.title}`}>
           {STICKER_LABELS.republicTitle}
