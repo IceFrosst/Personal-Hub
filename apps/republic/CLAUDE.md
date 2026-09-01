@@ -348,6 +348,34 @@ addendum, and the selected/typed visa addendum. Its off-screen downloadable canv
 the matching two-column order, includes both addenda, and has extra height. Processing
 and DM handoff behavior remain idempotent/non-blocking as documented above.
 
+**Latest pass — spottable cash pile + bribe-means-denial + legible officer mood:**
+- **The hidden bribe is no longer a 💵 emoji tab.** `components/HiddenBribe.tsx` now
+  draws an SVG pile of banknotes (fanned bills + currency strap, muted greens) peeking
+  from behind the right screen edge — mostly off-screen (clipped by the global
+  `overflow-x: hidden`), quiet slow bob only. The old golden glow + shimmer sweep were
+  **deliberately removed** (owner: the user has to *spot* it) — `bribe-glow`/
+  `bribe-shimmer` keyframes and `.bribe-shimmer-sweep` CSS are gone; `bribe-peek` is now
+  just the subtler `bribe-bob`. Don't re-add attention-grabbing effects to it.
+- **The cash pile is mounted globally from `PageShell`** (both variants), not just the
+  landing — the applicant can screw up on any page, at any point in the funnel,
+  including after approval on `/visa-issued`.
+- **Offering the bribe DENIES the application.** `BribeButton` still records the attempt
+  (device counter + best-effort backend stub, unchanged), shows the updated
+  `BRIBE.response` ("… APPLICATION DENIED."), then after ~1.8s pushes
+  `/denied?via=bribe`. `/denied` reads `window.location.search` inside its mount effect
+  (hydration-safe; avoids `useSearchParams`' Suspense requirement) and prints
+  `BRIBE_DENIAL_REASON` instead of a random reason. `formatBribeStatus` was removed from
+  `lib/content.ts` (inlined in `BribeButton`). Known edge case: bribing while already on
+  `/denied` records the attempt but the already-mounted page's effect doesn't re-run, so
+  the printed reason doesn't change — accepted.
+- **`OfficerMoodBadge` redesigned for legibility** — the split-flap placard (stamp seal +
+  coffee-cup metaphor) read as decoration, not information (owner: "you can't really
+  understand some mood"). Now a plain readable placard: visible `OFFICER_MOOD_PREFIX`
+  caption (no longer sr-only), a five-pip ink meter, and the mood label in stamp type,
+  meter + label both tier-colored (green/navy/red from counting `●` in `mood.dots`, as
+  before). `officer-flap` keyframe/animation and `.officer-flap-window`/
+  `.officer-flap-text` CSS were removed as unused.
+
 **Historical owner feedback round (superseded details are called out):**
 - **Rebranded "Republic of Ignas" → "Dictatorship of Ignas"** everywhere user-facing:
   `lib/content.ts` (site metadata, landing title, sticker title, footer copyright, terms
@@ -373,7 +401,9 @@ and DM handoff behavior remain idempotent/non-blocking as documented above.
   per-device random number. Current behavior is the backend sequence described above.
 
 **Historical design-research polish pass:**
-- **Officer mood indicator redesigned** (`components/OfficerMoodBadge.tsx`): the old
+- **Officer mood indicator redesigned** (`components/OfficerMoodBadge.tsx`) *(the
+  split-flap design below is superseded — see the latest pass above; kept as history)*:
+  the old
   plain "CURRENT OFFICER MOOD: <dots> <label>" text line is gone, replaced by a compact
   split-flap desk placard — a small rubber-stamped circular "seal" (colored by mood
   tier: `text-approve`/`text-navy`/`text-stamp`, derived by counting `●` in
@@ -549,17 +579,6 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 `npm run build`, and `npm run lint` all pass clean from this folder.
 
 ## Next
-
-**Handoff:** Appointment redesign pass in flight on `feat/calendar-grid-appointment`:
-calendar month GRID (Option A mock) replaced the date list; time slots became
-day-part periods via `appointmentPeriodsFor` (consultation skips time entirely;
-tourist/sidequest adds FULL DAY + MULTI-DAY); "CONSULATE" removed from user-facing
-copy; booking window extended to 60 days (shared `WINDOW_DAYS` in
-`lib/calendarAvailability.ts`) with browsable next month; NEW /screening step
-(guaranteed absurd question from `SCREENING_QUESTIONS` rotation + IQ bell-curve
-meme slider, `public/iq-bell-curve.png`) between /biometric and /processing, with
-both answers printed on progress/final documents and the PNG via
-`getScreeningAddenda`. The applicant-number backend setup remains.
 
 - **Calendar integration ready:** Google Calendar API enabled; dedicated service account
   shared with the primary calendar using “See only free/busy (hide details)”; production

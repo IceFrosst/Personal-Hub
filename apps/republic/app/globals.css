@@ -47,25 +47,6 @@ textarea {
   font-family: inherit;
 }
 
-/* Split-flap reveal for the officer-mood label
-   (components/OfficerMoodBadge.tsx) — a quick 3D flip-down when the mood
-   label first appears or changes, evoking a split-flap desk placard.
-   `perspective`/`backface-visibility`/`transform-origin` aren't expressible
-   as default Tailwind utilities, hence the small custom rules; the actual
-   flip keyframe/animation (`animate-officer-flap`) lives in
-   tailwind.config.ts alongside every other animation in this app.
-   prefers-reduced-motion collapses it to a single static frame via the
-   existing global rule below, same as everything else here. */
-.officer-flap-window {
-  display: inline-block;
-  perspective: 220px;
-}
-
-.officer-flap-text {
-  transform-origin: 50% 0%;
-  backface-visibility: hidden;
-}
-
 /* Checkboxes/radios are excluded above: `appearance: none` strips their
    native box+checkmark with nothing to replace it, which is exactly what
    made the sworn-statement checkbox on /visa/special invisible. Any
@@ -134,27 +115,6 @@ button {
   height: 8px;
   width: 100%;
   opacity: 0.8;
-}
-
-/* Moving highlight sweep on the hidden-bribe tab (components/HiddenBribe.tsx)
-   — a diagonal gradient band animated via background-position (see
-   `bribe-shimmer` in tailwind.config.ts). Layered on top of the bob + glow;
-   prefers-reduced-motion collapses it to a single static frame via the
-   existing global rule below, same as every other animation in this app. */
-.bribe-shimmer-sweep {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    rgba(255, 224, 130, 0.55) 47%,
-    rgba(255, 250, 220, 0.75) 50%,
-    rgba(255, 224, 130, 0.55) 53%,
-    transparent 65%
-  );
-  background-size: 220% 220%;
 }
 
 .fingerprint-smudge {

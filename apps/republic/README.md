@@ -154,7 +154,7 @@ to `/biometric` — no confirmation screen, matching the rest of the funnel.
   `app/globals.css`) — off-white paper, navy ink, stamp red, approval green
 - Fonts via `next/font/google`: IBM Plex Mono (body/forms) + Special Elite (stamps)
 - All CSS/SVG animation (stamp slam, screen shake, typewriter reveal, paper-slide,
-  passport-card field-fill, the hidden-bribe bob/glow/shimmer) — no WebGL, no animation
+  passport-card field-fill, the hidden cash pile's quiet bob) — no WebGL, no animation
   library
 - Tiny WebAudio-generated blips, on by default for everyone (no toggle) — every call
   site is already inside a click/tap/change handler, which is what a browser's autoplay

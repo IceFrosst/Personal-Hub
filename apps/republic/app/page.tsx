@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Crest } from '@/components/Crest'
 import { Footer } from '@/components/Footer'
 import { OfficerMoodBadge } from '@/components/OfficerMoodBadge'
-import { HiddenBribe } from '@/components/HiddenBribe'
 import { PageShell } from '@/components/PageShell'
 import { Typewriter } from '@/components/Typewriter'
 import { addStamp } from '@/lib/passport'
@@ -177,7 +176,6 @@ export default function EntryDeclarationPage() {
       </div>
 
       <Footer compact />
-      <HiddenBribe />
     </PageShell>
   )
 }
