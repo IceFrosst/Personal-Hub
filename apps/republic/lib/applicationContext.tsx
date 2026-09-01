@@ -29,6 +29,8 @@ export interface ApplicationState {
   screeningAnswer: string | null
   /** Self-declared IQ from the bell-curve slider — never verified, obviously. */
   declaredIq: number | null
+  /** Available duty-free items the applicant clicked; printed as one passport addendum. */
+  dutyFreeItems: string[]
   /** Passport SEX field value ('M' / 'F' / 'X') from the landing gender question. */
   gender: string | null
   referenceCode: string | null
@@ -61,6 +63,7 @@ const EMPTY_STATE: ApplicationState = {
   screeningQuestion: null,
   screeningAnswer: null,
   declaredIq: null,
+  dutyFreeItems: [],
   gender: null,
   referenceCode: null,
   serial: null,

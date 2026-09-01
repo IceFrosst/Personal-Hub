@@ -527,7 +527,6 @@ export const APPROVED = {
 
 export const STICKER_LABELS = {
   republicTitle: 'DICTATORSHIP OF IGNAS',
-  visaPrefix: 'VISA — ',
   name: 'NAME:',
   passport: 'PASSPORT №:',
   visaType: 'VISA TYPE:',
@@ -585,6 +584,7 @@ export const DOCUMENT_PROGRESS = {
   statementLabel: 'STATEMENT:',
   interviewAnswersLabel: 'INTERVIEW:',
   screeningLabel: 'SCREENING:',
+  dutyFreeLabel: 'DUTY-FREE:',
   // No iqLabel — the IQ addendum prints as wojak face + bare number, no text
   // (owner request; see lib/visaAddendum.ts#getScreeningAddenda).
 }
@@ -692,14 +692,14 @@ export const STATISTICS_BRIBE_BASE = 214
 export const DUTY_FREE_HEADING = 'DUTY-FREE'
 export const DUTY_FREE_SUBHEADING = 'TAX-FREE SHOPPING FOR THE DISCERNING APPLICANT.'
 
-export const DUTY_FREE_ITEMS: { name: string; status: string }[] = [
+export const DUTY_FREE_ITEMS: { name: string; status: string; available?: boolean }[] = [
   { name: "Ignas's attention — 15 min", status: 'SOLD OUT' },
   { name: 'One (1) good morning text', status: 'restocked weekly' },
-  { name: 'Unsolicited life advice', status: 'always in stock, ask no one' },
+  { name: 'Unsolicited life advice', status: 'AVAILABLE', available: true },
   { name: 'One (1) inside joke, lifetime license', status: "issued at officer's discretion" },
   { name: 'Ignas laughing at your joke', status: 'availability not guaranteed' },
   { name: 'Reply within 5 minutes', status: 'DISCONTINUED' },
-  { name: 'Priority boarding on future sidequests', status: 'SOLD OUT' },
+  { name: 'Priority boarding on future sidequests', status: 'AVAILABLE', available: true },
 ]
 
 // ---------------------------------------------------------------------------

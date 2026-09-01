@@ -42,10 +42,15 @@ export default function EntryDeclarationPage() {
     // capture it before reset(), then re-apply it after.
     const preservedName = state.applicantName
     const preservedHandle = state.instagramHandle
+    // Duty-free purchases are explicitly added to the passport, so they
+    // survive returning from /duty-free to the landing even though the rest
+    // of the application resets.
+    const preservedDutyFreeItems = state.dutyFreeItems
     reset()
     clearAnimatedFields()
     if (preservedName) update({ applicantName: preservedName })
     if (preservedHandle) update({ instagramHandle: preservedHandle })
+    if (preservedDutyFreeItems.length) update({ dutyFreeItems: preservedDutyFreeItems })
 
     addStamp('ENTRY DECLARATION VIEWED')
     // Async: resolves from the localStorage cache instantly if this browser

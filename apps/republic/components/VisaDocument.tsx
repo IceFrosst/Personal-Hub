@@ -102,9 +102,10 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
         <p className={`text-center font-stamp uppercase tracking-[0.2em] text-navy ${s.title}`}>
           {STICKER_LABELS.republicTitle}
         </p>
+        {/* Visa names already include VISA where appropriate; print the
+            actual name once (not the old "VISA — DATE VISA"). */}
         {visaName ? (
           <p className={`text-center uppercase tracking-[0.15em] text-navy ${s.subtitle}`}>
-            {STICKER_LABELS.visaPrefix}
             {visaName}
           </p>
         ) : (
@@ -113,9 +114,30 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
           </div>
         )}
 
-        {/* Photo left, fields right — SAME horizontal layout in both sizes
-            (the full document used to stack the photo above the grid; owner
-            asked for the horizontal progress-card arrangement everywhere). */}
+        {/* ISSUED in the passport's ACTUAL top-left and SERIAL № in the
+            ACTUAL top-right (owner clarification). These are the first two
+            fields supplied by both callers; the remaining fields stay beside
+            the photo below. */}
+        <div className={`mt-1 grid grid-cols-2 uppercase tracking-wide ${s.grid}`}>
+          {fields.slice(0, 2).map((field, index) => (
+            <div key={field.key} className={`min-w-0 ${index === 0 ? 'text-left' : 'text-right'}`}>
+              <span className="text-navy">{field.label}</span>{' '}
+              {field.value ? (
+                <span
+                  className={`font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
+                  title={field.value}
+                >
+                  {field.value}
+                </span>
+              ) : (
+                <Blank size={size} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Photo left, remaining fields right — SAME horizontal layout in
+            both sizes. */}
         <div className={`mt-2 flex items-start ${s.photoGap}`}>
           {/* Photo keeps the capture's ORIGINAL aspect ratio (owner request —
               no square crop of the human): fixed height, natural width, with
@@ -138,7 +160,7 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
           </div>
 
           <div className={`grid min-w-0 flex-1 grid-cols-2 uppercase tracking-wide ${s.grid}`}>
-            {fields.map((field) => (
+            {fields.slice(2).map((field) => (
               <div
                 key={field.key}
                 className={`flex min-w-0 items-baseline justify-between gap-1.5 ${field.span ? 'col-span-2' : ''}`}

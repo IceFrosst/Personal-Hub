@@ -101,6 +101,7 @@ export interface ApplicationRecord {
   pitch?: string
   statement?: string
   interviewAnswers?: string[]
+  dutyFreeItems?: string[]
   selfieCaptured: boolean
   selfieSizeBytes?: number
 }
@@ -133,6 +134,7 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
   if (state.visaType === 'business' && state.businessPitch) record.pitch = state.businessPitch
   if (state.visaType === 'special' && state.specialStatement) record.statement = state.specialStatement
   if (state.visaType === 'fiance' && state.fianceAnswers.length) record.interviewAnswers = state.fianceAnswers
+  if (state.dutyFreeItems.length) record.dutyFreeItems = state.dutyFreeItems
   return record
 }
 
@@ -158,6 +160,7 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     pitch: record.pitch ?? null,
     statement: record.statement ?? null,
     interview_answers: record.interviewAnswers ?? null,
+    duty_free_items: record.dutyFreeItems ?? null,
     selfie_captured: record.selfieCaptured,
     selfie_size_bytes: record.selfieSizeBytes ?? null,
   })

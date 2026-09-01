@@ -75,10 +75,11 @@ confirms/declines by DM.
 ## The shared visa document design
 
 `components/VisaDocument.tsx` is the shared, presentational (no hooks/context) structural
-component for the navy double-border/paper visa document look — header + subtitle, a
-SQUARE photo box, a two-column field grid in the sticker's own order (NAME + PASSPORT №,
-VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED + VALID, CONDITIONS full-width), up
-to two addenda lines with a dashed-divider treatment, and a barcode strip. It has two
+component for the navy double-border/paper visa document look — header + visa name, a
+photo at the capture's natural aspect ratio, ISSUED/SERIAL № anchored in the document's
+top corners, the remaining two-column fields (NAME + PASSPORT №, VISA TYPE + VALID,
+SEX), optional addenda lines (appointment, visa answer, screening, duty-free) with a
+dashed-divider treatment, and a barcode strip. It has two
 sizes and two callers:
 
 - **`components/DocumentProgress.tsx`** (`size="compact"`) — the small sticky progress

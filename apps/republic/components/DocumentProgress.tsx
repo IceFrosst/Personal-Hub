@@ -42,9 +42,10 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
 // useRevealAnimation above), and reading live funnel state out of context;
 // VisaDocument itself just renders whatever field data it's handed.
 //
-// Field grid mirrors the sticker's own order exactly — NAME + PASSPORT,
-// VISA TYPE + SERIAL №, ISSUED + VALID, SEX — via STICKER_LABELS, the
-// single shared label source with the canvas draw code on /visa-issued.
+// Field layout mirrors the sticker exactly — ISSUED + SERIAL № in a dedicated
+// top-corner row, then NAME + PASSPORT, VISA TYPE + VALID, SEX beside the
+// photo — via STICKER_LABELS, the single shared label source with the canvas
+// draw code on /visa-issued.
 // (REFERENCE № was removed from both documents per owner request — the code
 // still exists for the DM reference line, it's just not printed.) SERIAL №
 // is set at visa selection, VALID fills immediately on visa selection (from
@@ -77,7 +78,8 @@ export function DocumentProgress() {
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
   // Field order (owner request): ISSUED top-left, SERIAL № top-right, then
-  // NAME + PASSPORT, VISA TYPE + VALID, SEX. Mirrored by /visa-issued's DOM
+  // NAME + PASSPORT, VISA TYPE + VALID, SEX. VisaDocument lifts the first
+  // two into a dedicated corner row. Mirrored by /visa-issued's DOM
   // document and PNG canvas — keep all three in sync.
   const fields: VisaDocumentField[] = [
     { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
@@ -114,6 +116,13 @@ export function DocumentProgress() {
       imageAlt: item.imageAlt,
     })
   })
+  if (state.dutyFreeItems.length) {
+    addenda.push({
+      key: 'duty-free',
+      label: DOCUMENT_PROGRESS.dutyFreeLabel,
+      value: state.dutyFreeItems.join(' · '),
+    })
+  }
 
   return (
     <div className="sticky top-0 z-20 mb-2">

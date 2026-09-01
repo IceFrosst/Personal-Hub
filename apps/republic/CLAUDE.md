@@ -209,8 +209,9 @@ the Dictatorship is also a full democracy.
   visits, full stop); see the updated `lib/passport.ts` Convention entry above. That
   removal only freed up more of the no-scroll budget, so no re-check was needed there.
 - **Progress and final visa use the same readable document component.**
-  `components/VisaDocument.tsx` renders the shared navy double-border, square photo,
-  two-column field grid, addenda, and barcode structure. `DocumentProgress` supplies
+  `components/VisaDocument.tsx` renders the shared navy double-border, natural-ratio
+  photo, true top-corner ISSUED/SERIAL row, remaining two-column fields, addenda, and
+  barcode structure. `DocumentProgress` supplies
   compact live/blank values plus one-time reveal flags; `/visa-issued` supplies the
   completed values at a mobile-readable full size and overlays `StampSlam`. Both include
   the appointment and the visa-specific selected/typed addendum (matter, pitch,
@@ -344,8 +345,8 @@ checks each candidate's entire local day with DST-safe boundaries, returns no ev
 details, and fails closed.
 
 The final `/visa-issued` screen uses the same `VisaDocument` structure as the progress
-card, sized to remain readable around 390px: square photo, two-column fields, appointment
-addendum, and the selected/typed visa addendum. Its off-screen downloadable canvas uses
+card, sized to remain readable around 390px: natural-ratio photo, true top-corner
+ISSUED/SERIAL row, remaining two-column fields, and the collected addenda. Its off-screen downloadable canvas uses
 the matching two-column order, includes both addenda, and has extra height. Processing
 and DM handoff behavior remain idempotent/non-blocking as documented above.
 
@@ -356,7 +357,34 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — big v1 feedback batch:**
+**Latest pass — clickable duty-free + final-passport layout correction:**
+- **Two duty-free items are now green, available buttons**: Unsolicited life advice and
+  Priority boarding on future sidequests. Clicking stores the name in new persisted
+  `ApplicationState.dutyFreeItems`, changes the item to "ADDED TO PASSPORT", and prints
+  the selections as one `DUTY-FREE:` addendum on the progress card, final DOM passport,
+  and downloadable PNG. `ApplicationRecord` also carries optional `dutyFreeItems` /
+  `duty_free_items`. `/duty-free` is now a client page; RETURN uses `router.back()` so it
+  resumes the funnel instead of navigating to `/` and resetting the selected item; the
+  landing reset also explicitly preserves `dutyFreeItems` for shopping initiated from
+  its footer.
+- **Visa title duplication fixed globally**: `VisaDocument` and the PNG canvas print the
+  actual `visa.name` only (`DATE VISA`), not `VISA — ${visa.name}` (`VISA — DATE VISA`).
+  `STICKER_LABELS.visaPrefix` deleted.
+- **ISSUED / SERIAL really are the passport's top corners now**: the prior pass only
+  reordered them inside the narrow grid beside the photo (owner correctly couldn't see
+  the intended move). `VisaDocument` now lifts the first two fields into a dedicated
+  full-width row directly under the title, left/right anchored; the PNG canvas mirrors
+  it at y=122. Remaining fields stay beside the photo.
+- **Final-page outer outline removed + passport widened**: `/visa-issued` no longer wraps
+  its already-double-bordered `VisaDocument` in another `.paper-card`; a plain `px-3`
+  container gives the passport ~20px more usable width than before without going
+  edge-to-edge. Browser-checked locally with a completed fake DATE VISA and both
+  duty-free selections.
+- **Camera permission note**: the browser prompt on entering `/biometric` is new and
+  expected from the previous pass's auto-starting live `getUserMedia` front camera.
+  Before that, permission/OS camera UI only appeared after tapping TAKE PHOTO.
+
+**Previous pass — big v1 feedback batch:**
 - **Landing**: applicant № moved to the card's top-LEFT corner (its old centered spot
   stays as equivalent empty space — a 15px spacer, owner request); the static PRIORITY
   stamp in the top-right is now a tappable PRIORITY ↔ NON-PRIORITY toggle button (pure

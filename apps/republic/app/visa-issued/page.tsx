@@ -149,6 +149,9 @@ export default function VisaIssuedPage() {
         { label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot ?? '' },
         ...(visaAddendum ? [visaAddendum] : []),
         ...screeningAddenda,
+        ...(state.dutyFreeItems.length
+          ? [{ label: DOCUMENT_PROGRESS.dutyFreeLabel, value: state.dutyFreeItems.join(' · ') }]
+          : []),
       ]
 
       const wrapText = (text: string, maxWidth: number): string[] => {
@@ -212,8 +215,17 @@ export default function VisaIssuedPage() {
       context.font = 'bold 34px "Courier New", monospace'
       context.fillText(STICKER_LABELS.republicTitle, CANVAS_W / 2, 66)
       context.font = '18px "Courier New", monospace'
-      context.fillText(`${STICKER_LABELS.visaPrefix}${visa!.name}`, CANVAS_W / 2, 92)
+      // Visa names already include VISA where appropriate — no duplicated
+      // "VISA — DATE VISA" prefix on the downloaded document.
+      context.fillText(visa!.name, CANVAS_W / 2, 92)
 
+      // ISSUED / SERIAL in the document's actual top corners, matching the
+      // shared DOM component rather than hiding inside the photo-side grid.
+      context.font = 'bold 12px "Courier New", monospace'
+      context.textAlign = 'left'
+      context.fillText(`${STICKER_LABELS.issued} ${issueDate}`, 60, 122)
+      context.textAlign = 'right'
+      context.fillText(`${STICKER_LABELS.serial} ${serial}`, CANVAS_W - 60, 122)
       context.textAlign = 'left'
 
       // photo frame — rectangular clip at the capture's ORIGINAL aspect
@@ -221,7 +233,7 @@ export default function VisaIssuedPage() {
       // width from the image's own ratio, clamped so an extreme capture
       // can't crowd the field grid. Placeholder box stays portrait-ish.
       const photoX = 60
-      const photoY = 130
+      const photoY = 145
       const photoH = 220
       const photoW = photo
         ? Math.max(150, Math.min(300, Math.round(photoH * (photo.width / photo.height))))
@@ -266,7 +278,7 @@ export default function VisaIssuedPage() {
       const colAx = gridX
       const colBx = gridX + colWidth + colGap
       const rowGap = 58
-      let rowY = 150
+      let rowY = 165
 
       const cell = (label: string, value: string, x: number, width: number) => {
         context.font = 'bold 12px "Courier New", monospace'
@@ -276,9 +288,6 @@ export default function VisaIssuedPage() {
         context.fillText(fitText(context, value, width), x, rowY + 20)
       }
 
-      cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
-      cell(STICKER_LABELS.serial, serial, colBx, colWidth)
-      rowY += rowGap
       cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, colWidth)
       cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, colWidth)
       rowY += rowGap
@@ -372,6 +381,7 @@ export default function VisaIssuedPage() {
     state.gender,
     visaAddendum,
     screeningAddenda,
+    state.dutyFreeItems,
   ])
 
   function handleDownload() {
@@ -444,13 +454,23 @@ export default function VisaIssuedPage() {
       imageAlt: item.imageAlt,
     })
   })
+  if (state.dutyFreeItems.length) {
+    addenda.push({
+      key: 'duty-free',
+      label: DOCUMENT_PROGRESS.dutyFreeLabel,
+      value: state.dutyFreeItems.join(' · '),
+    })
+  }
 
   return (
     // Deliberately no `showProgress` here — the final document is the payoff
     // and should stand alone, not share the screen with the (now-redundant)
     // mid-funnel progress card.
     <PageShell>
-      <div className="paper-card p-5 text-center">
+      {/* No outer paper-card outline here — the VisaDocument already has its
+          own double border. A light px-3 inset makes the passport slightly
+          wider than before without running edge-to-edge across the screen. */}
+      <div className="px-3 text-center">
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
           <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
