@@ -578,6 +578,41 @@ export const PROCESSING_TAIL_NOTE = '(this is normal. this is always normal.)'
 // Approval / visa issued
 // ---------------------------------------------------------------------------
 
+// Applicant-facing status copy is kept here so the landing card and issued page
+// can change independently without burying editable prose in components.
+export const APPLICATION_STATUS_COPY = {
+  pending: {
+    landingHeading: 'APPLICATION UNDER REVIEW',
+    landingStatus: 'STATUS: PENDING APPROVAL.',
+    landingNote: 'APPLICATION REVIEW TAKES 1–3 BUSINESS DAYS.',
+    issuedHeading: 'APPLICATION SUBMITTED.',
+    issuedStatus: 'STATUS: PENDING APPROVAL.',
+    issuedNote: 'APPLICATION REVIEW TAKES 1–3 BUSINESS DAYS.',
+    stamp: 'PENDING APPROVAL',
+    stampColor: 'pending' as const,
+  },
+  approved: {
+    landingHeading: 'APPLICATION APPROVED',
+    landingStatus: 'STATUS: APPROVED.',
+    landingNote: 'ENTRY HAS BEEN GRANTED BY THE MINISTRY.',
+    issuedHeading: 'APPLICATION APPROVED.',
+    issuedStatus: 'STATUS: APPROVED.',
+    issuedNote: 'THE MINISTRY HAS GRANTED ENTRY.',
+    stamp: 'APPROVED',
+    stampColor: 'approve' as const,
+  },
+  denied: {
+    landingHeading: 'APPLICATION DENIED',
+    landingStatus: 'STATUS: DENIED.',
+    landingNote: 'THE MINISTRY HAS REFUSED ENTRY.',
+    issuedHeading: 'APPLICATION DENIED.',
+    issuedStatus: 'STATUS: DENIED.',
+    issuedNote: 'ENTRY HAS NOT BEEN GRANTED.',
+    stamp: 'DENIED',
+    stampColor: 'stamp' as const,
+  },
+} as const
+
 // The old CONDITIONS "bring snacks" gag is fully retired per owner request
 // (`conditions`/`conditionsValue` deleted — it had already been dropped from
 // the documents, and now from the /visa-issued subtitle too).

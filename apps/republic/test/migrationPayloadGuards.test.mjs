@@ -5,6 +5,7 @@ import test from 'node:test'
 const migration = (name) => readFileSync(new URL(`../supabase/migrations/${name}`, import.meta.url), 'utf8')
 const intelSql = migration('0006_visitor_intel.sql')
 const auditSql = migration('0007_draft_audit.sql')
+const statusLookupSql = migration('0008_application_status_lookup.sql')
 
 test('0006 constrains intel to bounded JSON objects and rejects transport payloads', () => {
   assert.match(intelSql, /constraint applications_intel_check/)
@@ -20,6 +21,19 @@ test('0006 constrains intel to bounded JSON objects and rejects transport payloa
   assert.ok(intelSql.includes("'\"selfie[^\"]*\"\\s*:'"))
   assert.ok(intelSql.includes("'\"photo[^\"]*\"\\s*:'"))
   assert.ok(intelSql.includes("'\"blob[^\"]*\"\\s*:'"))
+})
+
+test('0008 status lookup is narrow, validated, and does not grant application SELECT', () => {
+  assert.match(statusLookupSql, /create or replace function republic\.lookup_application_status/)
+  assert.match(statusLookupSql, /security definer/)
+  assert.match(statusLookupSql, /set search_path = pg_catalog, republic/)
+  assert.match(statusLookupSql, /select a\.status, a\.decided_at/)
+  assert.match(statusLookupSql, /a\.reference_code = p_reference_code/)
+  assert.match(statusLookupSql, /regexp_replace\(btrim\(p_instagram_handle\)/)
+  assert.match(statusLookupSql, /char_length\(p_instagram_handle\) between 1 and 64/)
+  assert.match(statusLookupSql, /grant execute on function republic\.lookup_application_status\(text, text\)/)
+  assert.match(statusLookupSql, /revoke all on function republic\.lookup_application_status\(text, text\) from public/)
+  assert.doesNotMatch(statusLookupSql, /grant select .*applications/i)
 })
 
 test('0007 rejects all data URI and bare base64 bypass markers', () => {

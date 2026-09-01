@@ -10,6 +10,7 @@ import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from 
 import { useApplication } from '@/lib/applicationContext'
 import {
   APPROVED,
+  APPLICATION_STATUS_COPY,
   CONFIDENCE,
   DECISION_TIME_LABEL,
   adjustedConfidence,
@@ -31,6 +32,7 @@ import {
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
+import { useApplicationStatus } from '@/lib/useApplicationStatus'
 
 // DOWNLOAD VISA captures the REAL on-screen document (the DOM node, stamp
 // overlay and all) via html-to-image at 3× pixel ratio — so the saved PNG is
@@ -55,6 +57,10 @@ export default function VisaIssuedPage() {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
+  const remoteStatus = useApplicationStatus(state.referenceCode, state.instagramHandle)
+  // Until the narrow lookup succeeds, preserve the existing pending presentation.
+  const decisionStatus = remoteStatus?.status ?? 'pending'
+  const statusCopy = APPLICATION_STATUS_COPY[decisionStatus]
   // The issue date is generated earlier at appointment confirmation and
   // stored in context, so it is read straight from state rather than
   // recomputed. SERIAL still exists as an internal application invariant
@@ -148,7 +154,8 @@ export default function VisaIssuedPage() {
     ) {
       const NAVY = '#1a2a4a'
       const PAPER = '#f4f0e8'
-      const ORANGE = '#d97706'
+      const STAMP_INK =
+        decisionStatus === 'approved' ? '#2e7d32' : decisionStatus === 'denied' ? '#c0392b' : '#d97706'
       const addendumValues = [
         ...(state.visaType === 'special' && state.specialOtherness
           ? [{ label: DOCUMENT_PROGRESS.othernessLabel, value: state.specialOtherness }]
@@ -392,20 +399,20 @@ export default function VisaIssuedPage() {
       }
       context.restore()
 
-      // Orange PENDING APPROVAL stamp in the top-right, with today's issue
-      // date inside it (matching the DOM stamp) — scaled 1.5× per owner
-      // request and re-centered so it stays inside the document border.
+      // Decision stamp in the top-right, with the issue date inside it
+      // (matching the DOM stamp) — scaled 1.5× per owner and re-centered so
+      // it stays inside the document border.
       context.save()
       context.translate(CANVAS_W - 255, 96)
       context.rotate(-0.16)
       context.globalAlpha = 0.9
-      context.strokeStyle = ORANGE
+      context.strokeStyle = STAMP_INK
       context.lineWidth = 6
       context.strokeRect(-217, -51, 435, 102)
-      context.fillStyle = ORANGE
+      context.fillStyle = STAMP_INK
       context.font = 'bold 34px "Courier New", monospace'
       context.textAlign = 'center'
-      context.fillText(APPROVED.stamp, 0, 5)
+      context.fillText(statusCopy.stamp, 0, 5)
       context.font = 'bold 18px "Courier New", monospace'
       context.fillText(issueDate, 0, 33)
       context.restore()
@@ -431,7 +438,10 @@ export default function VisaIssuedPage() {
     state.specialOtherness,
     state.sidequestSupplies,
     state.declaredConfidence,
+    state.declaredIq,
     state.dateDecisionSeconds,
+    decisionStatus,
+    statusCopy.stamp,
   ])
 
   async function handleDownload() {
@@ -576,9 +586,19 @@ export default function VisaIssuedPage() {
           another 30% narrower than the previous ~20px (owner request). */}
       <div className="-mx-0.5 text-center">
         <div>
-          <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
-          <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
-          <p className="text-[10px] uppercase text-navy/50">{APPROVED.reviewNote}</p>
+          <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{statusCopy.issuedHeading}</h1>
+          <p
+            className={`mt-1 text-[11px] font-bold uppercase ${
+              decisionStatus === 'approved'
+                ? 'text-approve'
+                : decisionStatus === 'denied'
+                  ? 'text-stamp'
+                  : 'text-[#d97706]'
+            }`}
+          >
+            {statusCopy.issuedStatus}
+          </p>
+          <p className="text-[10px] uppercase text-navy/50">{statusCopy.issuedNote}</p>
         </div>
 
         {/* pt-5/pr-1 keep the overhanging stamp inside this node's bounds so
@@ -599,9 +619,9 @@ export default function VisaIssuedPage() {
             {/* 50% larger text than the old !text-sm version; border thinned
                 30% and the ghost strike removed (owner requests). */}
             <StampSlam
-              text={APPROVED.stamp}
+              text={statusCopy.stamp}
               subtext={issueDate}
-              color="pending"
+              color={statusCopy.stampColor}
               rotate={10}
               ghost={false}
               className="!border-[4px] !px-[18px] !py-1.5 !text-[21px]"

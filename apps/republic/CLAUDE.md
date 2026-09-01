@@ -335,7 +335,9 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — Strict Mode hydration guard, payload hardening, and migration regression coverage:**
+**Latest pass — applicant-facing decision synchronization:** migration `0008_application_status_lookup.sql` adds the tightly scoped `republic.lookup_application_status(reference_code, instagram_handle)` SECURITY DEFINER RPC. It validates the generated reference format and normalized Instagram handle, returns only `status`/`decided_at`, revokes PUBLIC execution, and grants execution (not application SELECT) to anon/authenticated; it was applied remotely on 2026-09-01 before deployment and smoke-tested against a real approved row. `lib/api.ts` has a typed, fail-closed RPC helper and `lib/useApplicationStatus.ts` polls every 7 seconds, rechecks on focus/visibility, aborts stale requests, and stops after approved/denied. The landing returning-application card and `/visa-issued` use editable status-specific copy and styling; the latter updates its existing DOM/canvas stamp without changing passport layout. Focused normalization/parser and migration coverage were added.
+
+**Previous latest pass — Strict Mode hydration guard, payload hardening, and migration regression coverage:**
 - **ApplicationProvider hydration is Strict Mode replay-safe.** A `useRef`-backed lifecycle claim persists across React's passive-effect replay, so one provider instance can mint only one draft ID and `draft_started` event; a real provider remount receives a fresh ref and hydrates normally. The focused application-state test simulates replay and asserts exactly one initialization/event.
 - **Visitor/draft payload guards reject all data URI forms and base64 markers.** Migration `0006_visitor_intel.sql` bounds `applications.intel` to a 12KB JSON object with the exact approved key subset (including `selfieRetakes`) and rejects transport/suspicious selfie/photo/blob keys. Migration `0007_draft_audit.sql` rejects any `data:` or `;base64,` marker while retaining its size and event/intel key checks. Runtime and SQL static regression tests cover octet-stream, text, bare-marker, and blob-like bypass examples. Both migrations are applied remotely; live constraint/RLS smoke checks passed.
 
@@ -859,20 +861,17 @@ per-route OG images, real Supabase persistence for applications/appointments/bri
 (still stubbed to localStorage) — the applicant-number counter is the one narrow
 exception, backed by a real migration/RPC; see the dedicated Gotcha above.
 
-Verified: `npm test` (19 tests — calendar boundary/overlap/fail-closed coverage, draft-audit
+Verified: `npm test` (22 tests — calendar boundary/overlap/fail-closed coverage, draft-audit
 whitelist/size/cap/batch-budget and all-data-URI behavior, migration SQL guard coverage,
-provider hydration-claim and `isFreshApplicationState` classification),
-`npm run typecheck`, `npm run build`, and `npm run lint` all pass clean from this folder
-(one pre-existing, unrelated `react-hooks/exhaustive-deps` warning on `/visa-issued`).
+provider hydration-claim and `isFreshApplicationState` classification, and status
+normalization/parser coverage), `npm run typecheck`, `npm run build`, and `npm run lint`
+all pass clean from this folder (one pre-existing, unrelated
+`react-hooks/exhaustive-deps` warning on `/visa-issued`).
 
 ## Next
 
-- **Handoff:** migrations 0006 and 0007 are already live (applied in order on 2026-09-01); anonymous append/read denial/raw-payload rejection were smoke-tested. After deployment: smoke-test abandoned-draft grouping/revision history in `/ministry` with the officer account, then rerun the mobile funnel regression.
-- **Tier 2 (not built): applicant-facing status.** Approving/denying on /ministry
-  updates the DB, but applicants still only ever see PENDING APPROVAL. When wanted:
-  public /status page + SECURITY DEFINER RPC keyed on reference code (the code acts as
-  the bearer secret), APPROVED/DENIED stamp payoff, and the landing pending card could
-  then show live status too.
+- **Handoff:** applicant status synchronization is implemented and migration 0008 is live. Anonymous RPC smoke testing returned only `status`/`decided_at` for a real approved row. Remaining manual check: approve/deny from `/ministry` while the matching applicant page is open and confirm the visual transition within seven seconds.
+- **Applicant-facing status synchronization is now built:** the landing card and `/visa-issued` call the narrow lookup by exact reference code + normalized handle, poll every 7 seconds, recheck after focus/visibility, and stop after a terminal decision. No public application SELECT was added.
 - **Owner must smoke-test /ministry sign-in on production** (Google OAuth redirect —
   can't be automated headlessly).
 - **✅ Backend is LIVE (both former blockers resolved).** Migrations 0001 + 0002 are

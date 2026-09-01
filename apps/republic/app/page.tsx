@@ -13,7 +13,7 @@ import { collectIntel } from '@/lib/intel'
 import { isFreshApplicationState } from '@/lib/applicationState'
 import { clearAnimatedFields } from '@/lib/formProgress'
 import {
-  APPROVED,
+  APPLICATION_STATUS_COPY,
   GENDER_OPTIONS,
   LANDING,
   PENDING_LANDING,
@@ -25,6 +25,7 @@ import {
 } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 import { useApplication } from '@/lib/applicationContext'
+import { useApplicationStatus } from '@/lib/useApplicationStatus'
 
 export default function EntryDeclarationPage() {
   const router = useRouter()
@@ -87,6 +88,9 @@ export default function EntryDeclarationPage() {
   // mount that isn't a genuinely fresh, still-empty draft (see the
   // `isFreshApplicationState` branch there for that narrower case).
   function beginNewApplication() {
+    // Leaving the returning-applicant card also cancels its status lookup;
+    // the new funnel must not keep polling the previous reference.
+    setPendingApp(null)
     const preservedName = state.applicantName
     const preservedHandle = state.instagramHandle
     const preservedDutyFreeItems = state.dutyFreeItems
@@ -96,6 +100,16 @@ export default function EntryDeclarationPage() {
     if (preservedDutyFreeItems.length) update({ dutyFreeItems: preservedDutyFreeItems })
     activateDraft(draftId)
   }
+
+  const remoteStatus = useApplicationStatus(pendingApp?.referenceCode, pendingApp?.instagramHandle)
+  const decisionStatus = remoteStatus?.status ?? 'pending'
+  const statusCopy = APPLICATION_STATUS_COPY[decisionStatus]
+  const statusTone =
+    decisionStatus === 'approved'
+      ? 'border-approve/60 text-approve'
+      : decisionStatus === 'denied'
+        ? 'border-stamp/60 text-stamp'
+        : 'border-[#d97706]/60 text-[#d97706]'
 
   useEffect(() => {
     // `ApplicationProvider`'s own hydration effect (reading sessionStorage,
@@ -211,10 +225,10 @@ export default function EntryDeclarationPage() {
 
         {stage === 'pending' && pendingApp ? (
           <div className="animate-fade-in mt-3">
-            <p className="text-center font-stamp text-base uppercase tracking-wide text-navy">
-              {PENDING_LANDING.heading}
+            <p className={`text-center font-stamp text-base uppercase tracking-wide ${statusTone}`}>
+              {statusCopy.landingHeading}
             </p>
-            <div className="mx-auto mt-3 w-fit border-2 border-navy/40 bg-paper-dark px-4 py-2 text-left text-[11px] uppercase tracking-wide text-navy">
+            <div className={`mx-auto mt-3 w-fit border-2 bg-paper-dark px-4 py-2 text-left text-[11px] uppercase tracking-wide text-navy ${statusTone}`}>
               <p>
                 {PENDING_LANDING.referenceLabel} <span className="font-bold">{pendingApp.referenceCode}</span>
               </p>
@@ -224,9 +238,9 @@ export default function EntryDeclarationPage() {
                   {VISA_BY_SLUG[pendingApp.visaType as VisaType]?.name ?? pendingApp.visaType.toUpperCase()}
                 </span>
               </p>
-              <p className="mt-1 text-stamp">{PENDING_LANDING.statusLine}</p>
+              <p className={`mt-1 font-bold ${statusTone}`}>{statusCopy.landingStatus}</p>
             </div>
-            <p className="mt-2 text-center text-[10px] uppercase text-navy/60">{APPROVED.reviewNote}</p>
+            <p className="mt-2 text-center text-[10px] uppercase text-navy/60">{statusCopy.landingNote}</p>
             <button
               type="button"
               onClick={() => {

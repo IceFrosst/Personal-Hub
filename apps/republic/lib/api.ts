@@ -10,6 +10,8 @@
 
 import { computeSlots, type Slot } from './slots'
 import type { ApplicationState } from './applicationContext'
+import { normalizeInstagramHandle, parseApplicationStatus, type ApplicationStatus } from './applicationStatus'
+export { normalizeInstagramHandle, parseApplicationStatus, type ApplicationStatus } from './applicationStatus'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -87,6 +89,43 @@ async function tryRest(table: string, body: Record<string, unknown>): Promise<bo
 // chosen appointment slot, the reference code, and selfie metadata (never the
 // raw image — see `buildApplicationRecord`).
 // ---------------------------------------------------------------------------
+
+/**
+ * Best-effort applicant-facing status lookup. The RPC deliberately returns no
+ * application fields other than status/decided_at, and every malformed or
+ * failed response is treated as unavailable so it can never block the funnel.
+ */
+export async function getApplicationStatus(
+  referenceCode: string,
+  instagramHandle: string,
+  signal?: AbortSignal
+): Promise<ApplicationStatus | null> {
+  const normalizedHandle = normalizeInstagramHandle(instagramHandle)
+  // Mirror the RPC's abuse limits before making a request. Reference codes are
+  // exact (untrimmed) matches; handles are the only normalized input.
+  if (!/^RIG-[A-Z2-9]{4}$/.test(referenceCode) || !/^[a-z0-9._]{1,30}$/.test(normalizedHandle)) return null
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/lookup_application_status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Profile': SUPABASE_SCHEMA,
+      },
+      body: JSON.stringify({ p_reference_code: referenceCode, p_instagram_handle: normalizedHandle }),
+      cache: 'no-store',
+      signal,
+    })
+    if (!response.ok) return null
+    return parseApplicationStatus(await response.json())
+  } catch {
+    // Abort, missing network, and an unapplied migration are all harmless to
+    // the applicant view; local pending copy remains available.
+    return null
+  }
+}
 
 export interface ApplicationRecord {
   applicantName: string
