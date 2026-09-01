@@ -7,7 +7,8 @@ import { ProgressBar } from '@/components/ProgressBar'
 import { useApplication } from '@/lib/applicationContext'
 import { PROCESSING_HEADING, PROCESSING_LINES, PROCESSING_TAIL_NOTE } from '@/lib/content'
 import { generateReferenceCode } from '@/lib/referenceCode'
-import { recordApplication, recordAppointment, buildApplicationRecord } from '@/lib/api'
+import { recordApplication, recordAppointment, buildApplicationRecord, uploadSelfie } from '@/lib/api'
+import { createThumbnail } from '@/lib/photo'
 import { addStamp } from '@/lib/passport'
 
 function prefersReducedMotion() {
@@ -69,11 +70,31 @@ export default function ProcessingPage() {
       if (finalizedRef.current) return
       finalizedRef.current = true
       const code = generateReferenceCode()
-      const record = buildApplicationRecord(state, code)
-      void recordApplication(record)
-      void recordAppointment({ visaType: record.visaType, slot: record.slot, referenceCode: code })
-      addStamp('VISA PROCESSED')
-      update({ referenceCode: code })
+
+      const complete = (selfiePath: string | null) => {
+        const record = buildApplicationRecord(state, code)
+        if (selfiePath) record.selfiePath = selfiePath
+        void recordApplication(record)
+        void recordAppointment({ visaType: record.visaType, slot: record.slot, referenceCode: code })
+        addStamp('VISA PROCESSED')
+        update({ referenceCode: code })
+      }
+
+      // Best-effort: upload a review-size copy (~640px JPEG) of the selfie to
+      // the private bucket so the Ministry desk can see who's applying.
+      // Raced against a timeout so a stalled network can never trap the
+      // applicant on the processing screen; any failure just records without
+      // a photo path, exactly like before.
+      const source = state.selfieDataUrl ?? state.selfieThumbnailUrl
+      if (!source) {
+        complete(null)
+        return
+      }
+      const upload = createThumbnail(source, 640, 0.75)
+        .then((review) => uploadSelfie(code, review ?? source))
+        .catch(() => null)
+      const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000))
+      void Promise.race([upload, timeout]).then(complete)
     }
 
     if (prefersReducedMotion()) {

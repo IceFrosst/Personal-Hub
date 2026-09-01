@@ -112,6 +112,8 @@ export interface ApplicationRecord {
   selfieSizeBytes?: number
   /** Local-log only — when this device submitted (DB rows have created_at). */
   submittedAt?: string
+  /** Storage path of the review-size selfie in the private bucket. */
+  selfiePath?: string
 }
 
 /** Rough decoded byte size of a base64 data URL, without holding onto the image itself. */
@@ -189,6 +191,7 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     gender: record.gender ?? null,
     selfie_captured: record.selfieCaptured,
     selfie_size_bytes: record.selfieSizeBytes ?? null,
+    selfie_path: record.selfiePath ?? null,
   })
 }
 
@@ -349,9 +352,45 @@ export async function getAvailableDates(): Promise<string[]> {
   }
 }
 
-// No Supabase Storage bucket exists yet — this always resolves to the local
-// data URL used for the canvas composite. Kept async + typed so a real
-// private-bucket upload can replace the body later without touching call sites.
+// Kept for the biometric page's call site — resolves the local data URL used
+// for the in-session composite (the REVIEW copy upload happens separately at
+// finalization, see uploadSelfie below).
 export async function uploadPhoto(dataUrl: string): Promise<string | null> {
   return dataUrl
+}
+
+export function selfieStoragePath(referenceCode: string): string {
+  return `${referenceCode}.jpg`
+}
+
+/**
+ * Best-effort upload of the review-size selfie to the PRIVATE
+ * republic-selfies bucket (write-only for anon — see migration 0005).
+ * Resolves the storage path on success (or if the object already exists
+ * from a retry), `null` on any failure; never throws, never blocks the
+ * funnel (callers race it against a timeout too).
+ */
+export async function uploadSelfie(referenceCode: string, dataUrl: string): Promise<string | null> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null
+  try {
+    const blob = await (await fetch(dataUrl)).blob()
+    const path = selfieStoragePath(referenceCode)
+    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/republic-selfies/${path}`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': blob.type || 'image/jpeg',
+      },
+      body: blob,
+    })
+    // 409 = already uploaded by an earlier attempt — the object is there.
+    if (response.ok || response.status === 409) return path
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[republic] selfie upload failed: ${response.status}`)
+    }
+    return null
+  } catch {
+    return null
+  }
 }

@@ -3,14 +3,38 @@
 // The hidden Ministry desk — Ignas reviews and decides applications here.
 // Access model: Google OAuth via the shared portfolio Supabase project;
 // RLS (migration 0004) only lets the ministry email SELECT/UPDATE
-// republic.applications, so any other signed-in account just sees an
+// republic.applications — any other signed-in account just sees an
 // access-denied error from the very first query. Visitors remain write-only.
 // No public page links here — it's an unlisted route.
+//
+// Each pending application renders as the SAME passport document the
+// applicant sees (shared VisaDocument + the same formatting helpers), photo
+// included (downloaded from the private republic-selfies bucket — only the
+// ministry can read it). Officer-only intel that the passport deliberately
+// hides (true declared confidence, raw decision seconds, the screening
+// question) sits in a small notes line under each document.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createClient, type Session } from '@supabase/supabase-js'
+import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { PageShell } from '@/components/PageShell'
-import { MINISTRY, VISA_BY_SLUG, type VisaType } from '@/lib/content'
+import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
+import {
+  CONFIDENCE,
+  DECISION_TIME_LABEL,
+  DOCUMENT_PROGRESS,
+  FULLY_EQUIPPED_STAMP,
+  MINISTRY,
+  STICKER_LABELS,
+  VISA_BY_SLUG,
+  adjustedConfidence,
+  formatDecisionTime,
+  formatPassportDate,
+  formatPassportVisaName,
+  iqFaceFor,
+  isFullyEquipped,
+  passportPhotoNote,
+  type VisaType,
+} from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 
 interface ApplicationRow {
@@ -34,6 +58,7 @@ interface ApplicationRow {
   declared_confidence: number | null
   decision_seconds: number | null
   gender: string | null
+  selfie_path: string | null
   status: string
   decided_at: string | null
 }
@@ -42,19 +67,77 @@ function visaName(slug: string): string {
   return VISA_BY_SLUG[slug as VisaType]?.name ?? slug.toUpperCase()
 }
 
-function Detail({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null
-  return (
-    <p className="text-[11px] leading-snug text-navy">
-      <span className="text-navy/60">{label} </span>
-      <span className="font-bold">{value}</span>
-    </p>
-  )
+/** Mirrors app/visa-issued's field construction from a DB row instead of context. */
+function rowToFields(row: ApplicationRow): VisaDocumentField[] {
+  const slug = row.visa_type as VisaType
+  return [
+    { key: 'name', label: STICKER_LABELS.name, value: row.applicant_name.toUpperCase() },
+    { key: 'passport', label: STICKER_LABELS.passport, value: row.instagram_handle },
+    { key: 'visaType', label: 'VISA:', value: formatPassportVisaName(visaName(row.visa_type)) },
+    {
+      key: 'other',
+      label: STICKER_LABELS.other,
+      value: VISA_BY_SLUG[slug] ? passportPhotoNote(slug) : null,
+    },
+    { key: 'sex', label: STICKER_LABELS.sex, value: row.gender ?? '—' },
+    ...(row.declared_iq !== null
+      ? [{
+          key: 'iq',
+          label: 'IQ:',
+          value: String(row.declared_iq),
+          imageSrc: iqFaceFor(row.declared_iq).src,
+          imageAlt: iqFaceFor(row.declared_iq).alt,
+        }]
+      : []),
+    ...(row.declared_confidence !== null
+      ? [{
+          key: 'confidence',
+          label: CONFIDENCE.passportLabel,
+          value: `${adjustedConfidence(row.declared_confidence)}${CONFIDENCE.adjustedSuffix}`,
+        }]
+      : []),
+    {
+      key: 'appointment',
+      label: DOCUMENT_PROGRESS.appointmentLabel,
+      value: formatPassportDate(row.slot),
+      span: true,
+    },
+  ]
+}
+
+/** Mirrors app/visa-issued's addenda construction from a DB row. */
+function rowToAddenda(row: ApplicationRow): VisaDocumentAddendum[] {
+  const addenda: VisaDocumentAddendum[] = []
+  if (row.otherness) addenda.push({ key: 'otherness', label: DOCUMENT_PROGRESS.othernessLabel, value: row.otherness })
+  if (row.idea) addenda.push({ key: 'idea', label: DOCUMENT_PROGRESS.ideaLabel, value: row.idea })
+  if (row.pitch) addenda.push({ key: 'pitch', label: DOCUMENT_PROGRESS.pitchLabel, value: row.pitch })
+  if (row.statement)
+    addenda.push({ key: 'statement', label: DOCUMENT_PROGRESS.statementLabel, value: row.statement })
+  if (row.interview_answers?.length)
+    addenda.push({
+      key: 'interview',
+      label: DOCUMENT_PROGRESS.interviewAnswersLabel,
+      value: row.interview_answers.join(' · '),
+    })
+  if (row.screening_answer)
+    addenda.push({ key: 'screening', label: DOCUMENT_PROGRESS.screeningLabel, value: row.screening_answer })
+  if (row.visa_type === 'fiance' && row.decision_seconds !== null)
+    addenda.push({ key: 'decision', label: DECISION_TIME_LABEL, value: formatDecisionTime(row.decision_seconds) })
+  if (row.duty_free_items?.length)
+    addenda.push({ key: 'dutyFree', label: DOCUMENT_PROGRESS.dutyFreeLabel, value: row.duty_free_items.join(' · ') })
+  return addenda
+}
+
+/** Officer-eyes-only intel the passport hides. */
+function officerNotes(row: ApplicationRow): string[] {
+  const notes: string[] = []
+  if (row.declared_confidence !== null) notes.push(`DECLARED CONFIDENCE: ${row.declared_confidence}%`)
+  if (row.decision_seconds !== null) notes.push(`RAW DECISION TIME: ${row.decision_seconds.toFixed(1)}s`)
+  if (row.screening_question) notes.push(`ASKED: ${row.screening_question}`)
+  return notes
 }
 
 export default function MinistryPage() {
-  // Client is created lazily on the client only (env vars are baked into the
-  // bundle; hydration-safe because nothing here renders before mount state).
   const supabase = useMemo(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -66,6 +149,7 @@ export default function MinistryPage() {
   const [checkedAuth, setCheckedAuth] = useState(false)
   const [rows, setRows] = useState<ApplicationRow[] | null>(null)
   const [denied, setDenied] = useState(false)
+  const [photos, setPhotos] = useState<Record<number, string>>({})
 
   const loadRows = useCallback(async () => {
     if (!supabase) return
@@ -75,13 +159,35 @@ export default function MinistryPage() {
       .order('created_at', { ascending: false })
       .limit(200)
     if (error) {
-      // RLS refuses anyone who isn't the ministry — same UX as no access.
       setDenied(true)
       return
     }
     setDenied(false)
     setRows((data as ApplicationRow[]) ?? [])
   }, [supabase])
+
+  // Pull each pending application's selfie from the private bucket (only the
+  // ministry session can — storage RLS). Object URLs cached per row id.
+  useEffect(() => {
+    if (!supabase || !rows) return
+    let cancelled = false
+    const client: SupabaseClient = supabase
+    rows
+      .filter((r) => r.status === 'pending' && r.selfie_path && !(r.id in photos))
+      .forEach((row) => {
+        void client.storage
+          .from('republic-selfies')
+          .download(row.selfie_path as string)
+          .then(({ data }) => {
+            if (cancelled || !data) return
+            setPhotos((prev) => (row.id in prev ? prev : { ...prev, [row.id]: URL.createObjectURL(data) }))
+          })
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, rows])
 
   useEffect(() => {
     if (!supabase) {
@@ -131,7 +237,7 @@ export default function MinistryPage() {
 
   return (
     <PageShell>
-      <div className="paper-card p-5">
+      <div className="paper-card p-4">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{MINISTRY.heading}</h1>
         <p className="mt-1 text-center text-[10px] uppercase tracking-[0.2em] text-navy/60">{MINISTRY.sub}</p>
         <div className="my-3 h-px bg-navy/20" />
@@ -158,39 +264,30 @@ export default function MinistryPage() {
               <h2 className="font-stamp text-sm uppercase tracking-widest text-navy">
                 {MINISTRY.pendingHeading} ({pending.length})
               </h2>
-              <div className="mt-2 flex flex-col gap-3">
+              <div className="mt-2 flex flex-col gap-5">
                 {pending.map((row) => (
-                  <div key={row.id} className="border-2 border-navy bg-paper p-3">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="font-stamp text-sm uppercase text-navy">
-                        {row.applicant_name} · @{row.instagram_handle}
-                      </p>
-                      <p className="shrink-0 text-[10px] uppercase text-navy/60">{row.reference_code}</p>
-                    </div>
-                    <p className="text-[11px] uppercase text-navy/70">
-                      {visaName(row.visa_type)} · {row.slot}
-                      {row.gender ? ` · ${row.gender}` : ''}
+                  <div key={row.id}>
+                    <p className="mb-1 flex items-baseline justify-between text-[10px] uppercase text-navy/60">
+                      <span>{row.reference_code}</span>
+                      <span>{new Date(row.created_at).toLocaleString('en-GB')}</span>
                     </p>
-                    <div className="mt-2 flex flex-col gap-0.5">
-                      <Detail label="IDEA:" value={row.idea} />
-                      <Detail label="SUPPLIES:" value={row.supplies?.join(' · ')} />
-                      <Detail label="PITCH:" value={row.pitch} />
-                      <Detail label="OTHERNESS:" value={row.otherness} />
-                      <Detail label="STATEMENT:" value={row.statement} />
-                      <Detail label="INTERVIEW:" value={row.interview_answers?.join(' · ')} />
-                      <Detail label="SCREENING:" value={row.screening_answer} />
-                      <Detail label="IQ:" value={row.declared_iq !== null ? String(row.declared_iq) : null} />
-                      <Detail
-                        label="CONFIDENCE:"
-                        value={row.declared_confidence !== null ? `${row.declared_confidence}% declared` : null}
-                      />
-                      <Detail
-                        label="DECISION TIME:"
-                        value={row.decision_seconds !== null ? `${Math.round(row.decision_seconds)}s` : null}
-                      />
-                      <Detail label="DUTY-FREE:" value={row.duty_free_items?.join(' · ')} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <VisaDocument
+                      size="full"
+                      photoUrl={photos[row.id] ?? null}
+                      fields={rowToFields(row)}
+                      addenda={rowToAddenda(row)}
+                      cornerStamp={
+                        row.visa_type === 'tourist' && isFullyEquipped(row.supplies ?? [])
+                          ? FULLY_EQUIPPED_STAMP
+                          : undefined
+                      }
+                    />
+                    {officerNotes(row).length > 0 && (
+                      <p className="mt-1 text-[9px] uppercase leading-snug text-navy/50">
+                        {officerNotes(row).join(' · ')}
+                      </p>
+                    )}
+                    <div className="mt-2 grid grid-cols-2 gap-3">
                       <button
                         type="button"
                         onClick={() => decide(row.id, 'approved')}
@@ -208,9 +305,7 @@ export default function MinistryPage() {
                     </div>
                   </div>
                 ))}
-                {pending.length === 0 && (
-                  <p className="text-[11px] uppercase text-navy/50">{MINISTRY.empty}</p>
-                )}
+                {pending.length === 0 && <p className="text-[11px] uppercase text-navy/50">{MINISTRY.empty}</p>}
               </div>
             </section>
 
@@ -251,6 +346,12 @@ export default function MinistryPage() {
           </button>
         )}
       </div>
+      <PageShellFooterSpacer />
     </PageShell>
   )
+}
+
+// Tiny spacer so the fixed cash pile never overlaps the last button.
+function PageShellFooterSpacer() {
+  return <div className="h-6" />
 }
