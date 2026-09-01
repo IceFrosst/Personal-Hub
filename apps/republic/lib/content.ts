@@ -43,7 +43,7 @@ export const VISAS: VisaDefinition[] = [
     tagline: '',
     // Got its flavor line back per owner feedback — it was the only card
     // without one (it used to carry nothing but the HIGH RISK stamp).
-    lines: ['Purpose: romance, allegedly'],
+    lines: ['Purpose: heart-related business'],
   },
   {
     slug: 'special',
