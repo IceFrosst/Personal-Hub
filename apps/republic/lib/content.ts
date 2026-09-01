@@ -439,16 +439,17 @@ export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
   },
 ]
 
+// The IQ section is image + number ONLY per owner request — no sub-line, no
+// section heading/instruction, no scale labels (the old `sub`/`iqHeading`/
+// `iqInstruction`/`iqValueSuffix` strings were deleted, not just unrendered).
+// `iqAriaLabel` survives as the slider's screen-reader name only.
 export const SCREENING = {
   heading: 'SECONDARY SCREENING',
-  sub: 'YOU HAVE BEEN RANDOMLY SELECTED FOR ADDITIONAL QUESTIONING. EVERYONE IS.',
-  iqHeading: 'COGNITIVE SELF-ASSESSMENT',
-  iqInstruction: 'DECLARE YOUR IQ. THE MINISTRY WILL NOT VERIFY IT, BUT IT WILL JUDGE.',
+  iqAriaLabel: 'Declare your IQ',
   iqImageAlt: 'IQ bell curve distribution chart, official Ministry issue',
   iqMin: 55,
   iqMax: 145,
   iqDefault: 100,
-  iqValueSuffix: ' — SELF-DECLARED, UNVERIFIED',
   submit: 'SUBMIT FOR SCREENING',
 }
 
@@ -511,7 +512,9 @@ export const STICKER_LABELS = {
   visaType: 'VISA TYPE:',
   sex: 'SEX:',
   serial: 'SERIAL №:',
-  reference: 'REFERENCE №:',
+  // REFERENCE № was removed from both documents per owner request — the code
+  // still exists (DM reference line, records), it's just not printed on the
+  // passport anymore.
   issued: 'ISSUED:',
   valid: 'VALID:',
   conditions: 'CONDITIONS:',
@@ -561,7 +564,8 @@ export const DOCUMENT_PROGRESS = {
   statementLabel: 'STATEMENT:',
   interviewAnswersLabel: 'INTERVIEW:',
   screeningLabel: 'SCREENING:',
-  iqLabel: 'DECLARED IQ:',
+  // No iqLabel — the IQ addendum prints as wojak face + bare number, no text
+  // (owner request; see lib/visaAddendum.ts#getScreeningAddenda).
 }
 
 // ---------------------------------------------------------------------------
@@ -601,6 +605,12 @@ export const BRIBE = {
 // (see components/BribeButton.tsx + app/denied/page.tsx).
 export const BRIBE_DENIAL_REASON =
   'Attempted to bribe a state officer. The officer kept the cash. You keep the denial.'
+
+// Printed as the denial reason when /denied is reached via `?via=classified`
+// — selecting CLASSIFIED as the gender on the landing questionnaire is a
+// trap, same mechanic as the bribe (see app/page.tsx#answerGender).
+export const CLASSIFIED_DENIAL_REASON =
+  'Applicant sex is classified above the Ministry\u2019s clearance level. Entry requires declassification.'
 
 // The drawn cash pile peeking from the screen edge (components/HiddenBribe.tsx)
 // — collapsed-state aria-label; the revealed state reuses BRIBE.button above.

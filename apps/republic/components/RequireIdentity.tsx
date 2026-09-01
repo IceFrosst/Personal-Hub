@@ -18,12 +18,23 @@ export function RequireIdentity({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { state, hydrated } = useApplication()
   const hasIdentity = state.applicantName.trim().length > 0
+  // Gender is asked on the landing questionnaire (after the follow-up
+  // question) and printed as the passport's SEX field — a session that
+  // somehow reaches visa selection without it (e.g. an old session, or a
+  // deep link) is sent back to the landing to answer, not to /identity
+  // (which never asks it). The landing preserves the name across its reset,
+  // so nothing gets re-typed — only re-answered.
+  const hasGender = Boolean(state.gender)
 
   useEffect(() => {
     if (!hydrated) return
+    if (!hasGender) {
+      router.replace('/')
+      return
+    }
     if (!hasIdentity) router.replace('/identity')
-  }, [hydrated, hasIdentity, router])
+  }, [hydrated, hasIdentity, hasGender, router])
 
-  if (!hydrated || !hasIdentity) return null
+  if (!hydrated || !hasIdentity || !hasGender) return null
   return <>{children}</>
 }

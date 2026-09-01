@@ -76,6 +76,13 @@ export default function EntryDeclarationPage() {
 
   function answerGender(value: string) {
     playStampThunk()
+    // CLASSIFIED is a trap, same mechanic as the bribe: immediate denial
+    // with its own printed reason. Nothing is stored — the landing reset
+    // wipes gender anyway when they come crawling back through the appeal.
+    if (value === 'X') {
+      router.push('/denied?via=classified')
+      return
+    }
     update({ gender: value })
     router.push('/identity')
   }

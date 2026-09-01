@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { StampSlam } from '@/components/StampSlam'
 import { Footer } from '@/components/Footer'
-import { BRIBE_DENIAL_REASON, DENIAL, DENIAL_REASONS } from '@/lib/content'
+import { BRIBE_DENIAL_REASON, CLASSIFIED_DENIAL_REASON, DENIAL, DENIAL_REASONS } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 
@@ -32,13 +32,19 @@ export default function DeniedPage() {
   const [date, setDate] = useState<string | null>(null)
 
   useEffect(() => {
-    // Arriving here by offering a bribe (components/BribeButton.tsx pushes
-    // `/denied?via=bribe`) prints the bribe-specific reason instead of a
-    // random one. Read via window.location inside the effect — hydration-safe
-    // (this page is statically prerendered), and avoids the Suspense boundary
-    // useSearchParams would demand.
-    const viaBribe = new URLSearchParams(window.location.search).get('via') === 'bribe'
-    setReason(viaBribe ? BRIBE_DENIAL_REASON : DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)])
+    // Arriving here via a specific trap (`?via=bribe` from BribeButton,
+    // `?via=classified` from the landing gender question) prints that trap's
+    // reason instead of a random one. Read via window.location inside the
+    // effect — hydration-safe (this page is statically prerendered), and
+    // avoids the Suspense boundary useSearchParams would demand.
+    const via = new URLSearchParams(window.location.search).get('via')
+    setReason(
+      via === 'bribe'
+        ? BRIBE_DENIAL_REASON
+        : via === 'classified'
+          ? CLASSIFIED_DENIAL_REASON
+          : DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)]
+    )
     setCaseNumber(randomCaseNumber())
     setDate(new Date().toLocaleDateString('en-GB'))
 
@@ -78,7 +84,11 @@ export default function DeniedPage() {
           <button
             type="button"
             disabled={!showAppeal}
-            onClick={() => router.push('/identity')}
+            // Appeals restart at the landing questionnaire, NOT /identity —
+            // going straight to /identity used to skip the declare/follow-up/
+            // gender questions entirely (the landing preserves name/handle
+            // across its reset, so nothing is re-typed — only re-answered).
+            onClick={() => router.push('/')}
             className="min-h-11 text-[12px] font-bold uppercase tracking-wide text-navy underline underline-offset-4 disabled:pointer-events-none"
           >
             {DENIAL.appeal}

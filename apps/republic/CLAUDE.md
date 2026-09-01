@@ -356,7 +356,34 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — SEEK ADVICE PERMIT removed + final document no longer stretched:**
+**Latest pass — passport trims, natural photo ratio, guaranteed sex question, CLASSIFIED trap:**
+- **REFERENCE № removed from both documents** (progress card, final DOM document, and the
+  downloadable PNG canvas) — the code itself still exists and still drives the DM
+  reference line + records; it's just not printed on the passport anymore.
+  `STICKER_LABELS.reference` deleted.
+- **Passport photo keeps the capture's original aspect ratio** — no more square crop of
+  the human. DOM: fixed height, `w-auto object-contain`, `max-w-[45%]` cap so extreme
+  landscape captures can't crowd the field grid; placeholder box keeps a fixed
+  portrait-ish width (`photoBlank` size entries). Canvas: fixed 220px height, width from
+  the image's own ratio clamped to [150, 300]. (Square frames were themselves a previous
+  owner request replacing ovals — this supersedes that: natural ratio now.)
+- **IQ is image + number only, everywhere**: `/screening` lost the sub-line, section
+  heading, instruction line, and min/100/max scale row (`SCREENING.sub`/`iqHeading`/
+  `iqInstruction`/`iqValueSuffix` deleted; `iqAriaLabel` added for the slider's
+  screen-reader name); the documents' IQ addendum is now the wojak face + the bare
+  number (empty label — `DOCUMENT_PROGRESS.iqLabel` deleted).
+- **The sex question can no longer be skipped.** Two changes: `/denied`'s appeal now
+  restarts at `/` (the landing questionnaire) instead of `/identity` — going straight to
+  /identity skipped declare/follow-up/gender entirely, which is exactly the "I was never
+  asked my sex" bug — and `RequireIdentity` now also requires `state.gender`, bouncing
+  gender-less sessions to `/` (not `/identity`, which never asks it). The landing
+  preserves name/handle across its reset, so an appeal never re-types, only re-answers.
+- **Selecting CLASSIFIED as gender is a trap** — same mechanic as the bribe:
+  `app/page.tsx#answerGender` pushes `/denied?via=classified` (nothing stored) and
+  `/denied` prints `CLASSIFIED_DENIAL_REASON`. The `via` query param now dispatches
+  between bribe/classified/random reasons.
+
+**Previous pass — SEEK ADVICE PERMIT removed + final document no longer stretched:**
 - **The consultation path is gone entirely, not hidden** (owner request): the
   `'consultation'` slug was removed from `VisaType` and `VISAS` (so `/visa` shows four
   cards and `/visa/consultation` 404s via `VALID_SLUGS`), `ConsultationStep.tsx` was

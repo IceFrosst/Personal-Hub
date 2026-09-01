@@ -52,13 +52,11 @@ export default function ScreeningPage() {
     <PageShell showProgress>
       <div className="paper-card p-5">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{SCREENING.heading}</h1>
-        <p className="mt-1 text-center text-[10px] uppercase leading-relaxed text-navy/60">{SCREENING.sub}</p>
 
-        <div className="mt-5">
-          <h2 className="text-center font-stamp text-sm uppercase tracking-wide text-navy">{SCREENING.iqHeading}</h2>
-          <p className="mt-1 text-center text-[10px] uppercase leading-relaxed text-navy/60">
-            {SCREENING.iqInstruction}
-          </p>
+        {/* Image + number ONLY (owner request) — no section heading, no
+            instruction line, no scale labels. The chart and the big declared
+            number carry the whole joke unassisted. */}
+        <div className="mt-4">
           {/* Static meme chart — decorative context for the slider, no event
               details, no external requests (served from /public). Its
               background is pre-flattened onto the paper color (#f4f0e8) so it
@@ -77,17 +75,12 @@ export default function ScreeningPage() {
             max={SCREENING.iqMax}
             value={iq}
             onChange={(event) => setIq(Number(event.target.value))}
-            aria-label={SCREENING.iqHeading}
+            aria-label={SCREENING.iqAriaLabel}
             className="iq-slider mt-4 w-full cursor-pointer"
             style={{
               background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
             }}
           />
-          <div className="mt-1 flex justify-between text-[9px] uppercase tracking-wide text-navy/50">
-            <span>{SCREENING.iqMin}</span>
-            <span>100</span>
-            <span>{SCREENING.iqMax}</span>
-          </div>
         </div>
 
         <button

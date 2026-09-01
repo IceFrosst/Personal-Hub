@@ -54,7 +54,8 @@ const SIZE = {
     inner: 'p-1.5',
     title: 'text-[9px]',
     subtitle: 'text-[7px]',
-    photo: 'h-11 w-11',
+    photo: 'h-11',
+    photoBlank: 'w-9',
     photoText: 'text-[3px]',
     photoGap: 'gap-1.5',
     grid: 'text-[8px] gap-x-2 gap-y-0.5',
@@ -74,7 +75,8 @@ const SIZE = {
     inner: 'p-3',
     title: 'text-base',
     subtitle: 'text-[10px]',
-    photo: 'h-20 w-20',
+    photo: 'h-20',
+    photoBlank: 'w-16',
     photoText: 'text-[8px] px-1',
     photoGap: 'gap-3',
     grid: 'text-[11px] gap-x-3 gap-y-1.5',
@@ -115,13 +117,18 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
             (the full document used to stack the photo above the grid; owner
             asked for the horizontal progress-card arrangement everywhere). */}
         <div className={`mt-2 flex items-start ${s.photoGap}`}>
-          <div className={`shrink-0 overflow-hidden border border-navy bg-[#cfc8b8] ${s.photo}`}>
+          {/* Photo keeps the capture's ORIGINAL aspect ratio (owner request —
+              no square crop of the human): fixed height, natural width, with
+              a max-width cap so an extreme landscape capture can't crowd out
+              the field grid. Only the no-photo placeholder box has a fixed
+              width. */}
+          <div className={`shrink-0 overflow-hidden border border-navy bg-[#cfc8b8] ${s.photo} ${photoUrl ? 'max-w-[45%]' : s.photoBlank}`}>
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={photoUrl}
                 alt=""
-                className={`h-full w-full object-cover ${photoAnimate ? 'animate-field-fill' : ''}`}
+                className={`h-full w-auto object-contain ${photoAnimate ? 'animate-field-fill' : ''}`}
               />
             ) : (
               <p className={`flex h-full w-full items-center justify-center text-center font-bold uppercase leading-[1.1] text-navy ${s.photoText}`}>

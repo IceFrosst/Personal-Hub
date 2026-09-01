@@ -27,8 +27,9 @@ import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 // not this canvas, so it renders crisp at any zoom/DPI and shares its exact
 // structure with the progress card (see components/VisaDocument.tsx). The
 // canvas's own field layout mirrors the same two-column grid order (NAME +
-// PASSPORT, VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED + VALID,
-// CONDITIONS full-width) instead of the old single vertical list, so the
+// PASSPORT, VISA TYPE + SERIAL №, ISSUED + VALID, SEX — no REFERENCE №,
+// removed from both documents per owner request) instead of the old single
+// vertical list, so the
 // downloaded image matches the on-screen design as closely as a canvas
 // practically can.
 const CANVAS_W = 900
@@ -215,11 +216,16 @@ export default function VisaIssuedPage() {
 
       context.textAlign = 'left'
 
-      // photo frame — square clip (was an ellipse; owner rejected the oval look)
+      // photo frame — rectangular clip at the capture's ORIGINAL aspect
+      // ratio (owner request — no square crop of the human): fixed height,
+      // width from the image's own ratio, clamped so an extreme capture
+      // can't crowd the field grid. Placeholder box stays portrait-ish.
       const photoX = 60
       const photoY = 130
-      const photoW = 220
       const photoH = 220
+      const photoW = photo
+        ? Math.max(150, Math.min(300, Math.round(photoH * (photo.width / photo.height))))
+        : 170
       context.save()
       context.beginPath()
       context.rect(photoX, photoY, photoW, photoH)
@@ -251,15 +257,14 @@ export default function VisaIssuedPage() {
       context.strokeRect(photoX, photoY, photoW, photoH)
 
       // Two-column field grid, same order as the DOM VisaDocument/progress
-      // card — NAME + PASSPORT, VISA TYPE + SERIAL, REFERENCE (full width),
-      // ISSUED + VALID, CONDITIONS (full width).
+      // card — NAME + PASSPORT, VISA TYPE + SERIAL, ISSUED + VALID, SEX.
+      // (No REFERENCE № — removed from the documents per owner request.)
       const gridX = photoX + photoW + 36
       const gridRight = CANVAS_W - 40
       const colGap = 24
       const colWidth = (gridRight - gridX - colGap) / 2
       const colAx = gridX
       const colBx = gridX + colWidth + colGap
-      const fullWidth = gridRight - gridX
       const rowGap = 58
       let rowY = 150
 
@@ -276,8 +281,6 @@ export default function VisaIssuedPage() {
       rowY += rowGap
       cell(STICKER_LABELS.visaType, visa!.name, colAx, colWidth)
       cell(STICKER_LABELS.serial, serial, colBx, colWidth)
-      rowY += rowGap
-      cell(STICKER_LABELS.reference, state.referenceCode ?? '', colAx, fullWidth)
       rowY += rowGap
       cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
@@ -413,7 +416,7 @@ export default function VisaIssuedPage() {
   )
     return null
 
-  // Same 8 sticker fields, same order, as components/DocumentProgress.tsx —
+  // Same sticker fields, same order, as components/DocumentProgress.tsx —
   // every one of them is guaranteed complete by the guard above, so nothing
   // here ever renders a blank/ruled row (unlike the mid-funnel progress
   // card, which shows blanks for fields not filled in yet).
@@ -422,7 +425,6 @@ export default function VisaIssuedPage() {
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
     { key: 'visaType', label: STICKER_LABELS.visaType, value: visa.name },
     { key: 'serial', label: STICKER_LABELS.serial, value: serial },
-    { key: 'reference', label: STICKER_LABELS.reference, value: state.referenceCode, span: true },
     { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },

@@ -1,5 +1,5 @@
 import type { ApplicationState } from './applicationContext'
-import { DOCUMENT_PROGRESS, SCREENING, iqFaceFor } from './content'
+import { DOCUMENT_PROGRESS, iqFaceFor } from './content'
 
 export interface VisaAddendumContent {
   label: string
@@ -39,9 +39,10 @@ export function getScreeningAddenda(state: ApplicationState): VisaAddendumConten
   }
   if (state.declaredIq !== null) {
     const face = iqFaceFor(state.declaredIq)
+    // Face + bare number only, no label or suffix text (owner request).
     addenda.push({
-      label: DOCUMENT_PROGRESS.iqLabel,
-      value: `${state.declaredIq}${SCREENING.iqValueSuffix}`,
+      label: '',
+      value: String(state.declaredIq),
       imageSrc: face.src,
       imageAlt: face.alt,
     })

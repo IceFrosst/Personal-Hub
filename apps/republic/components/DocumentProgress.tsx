@@ -43,15 +43,13 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
 // VisaDocument itself just renders whatever field data it's handed.
 //
 // Field grid mirrors the sticker's own order exactly — NAME + PASSPORT,
-// VISA TYPE + SERIAL №, REFERENCE № full-width, ISSUED + VALID, CONDITIONS
-// full-width — via STICKER_LABELS, the single shared label source with the
-// canvas draw code on /visa-issued. By /biometric, every field except
-// REFERENCE № is filled: SERIAL № is set at visa selection, VALID/
-// CONDITIONS fill immediately on visa selection (from
-// APPROVED.validValue/conditionsValue, the same constants /visa-issued
-// renders), and ISSUED fills once the appointment slot is confirmed.
-// REFERENCE № is the one truly issuance-only value and stays a ruled blank
-// until /processing generates it. Below the grid, up to two addenda (not
+// VISA TYPE + SERIAL №, ISSUED + VALID, SEX — via STICKER_LABELS, the
+// single shared label source with the canvas draw code on /visa-issued.
+// (REFERENCE № was removed from both documents per owner request — the code
+// still exists for the DM reference line, it's just not printed.) SERIAL №
+// is set at visa selection, VALID fills immediately on visa selection (from
+// APPROVED.validValue, the same constant /visa-issued renders), and ISSUED
+// fills once the appointment slot is confirmed. Below the grid, addenda (not
 // sticker fields — the appointment slot, and whatever the chosen visa's
 // sub-step collected) render with their own dashed-divider treatment.
 // Never rendered on landing or /visa-issued — see PageShell's `showProgress`.
@@ -63,7 +61,6 @@ export function DocumentProgress() {
   const passportAnimate = useRevealAnimation('passport', Boolean(state.instagramHandle))
   const visaTypeAnimate = useRevealAnimation('visaType', Boolean(state.visaType))
   const serialAnimate = useRevealAnimation('serial', Boolean(state.serial))
-  const referenceAnimate = useRevealAnimation('reference', Boolean(state.referenceCode))
   const issuedAnimate = useRevealAnimation('issued', Boolean(state.issuedDate))
   const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
   const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
@@ -89,13 +86,6 @@ export function DocumentProgress() {
     },
     { key: 'visaType', label: STICKER_LABELS.visaType, value: visa ? visa.name : null, animate: visaTypeAnimate },
     { key: 'serial', label: STICKER_LABELS.serial, value: state.serial, animate: serialAnimate },
-    {
-      key: 'reference',
-      label: STICKER_LABELS.reference,
-      value: state.referenceCode,
-      span: true,
-      animate: referenceAnimate,
-    },
     { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
