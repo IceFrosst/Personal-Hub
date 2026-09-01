@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
-import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG } from '@/lib/content'
+import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG, iqFaceFor } from '@/lib/content'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
 import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 
@@ -77,13 +77,13 @@ export function DocumentProgress() {
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
-  // Field order (owner request): ISSUED top-left, SERIAL № top-right, then
-  // NAME + PASSPORT, VISA TYPE + VALID, SEX. VisaDocument lifts the first
-  // two into a dedicated corner row. Mirrored by /visa-issued's DOM
-  // document and PNG canvas — keep all three in sync.
+  // Field order (owner request): SERIAL № top-left, bare issue date top-right,
+  // then NAME + PASSPORT, VISA TYPE + VALID, SEX + IQ face/number. VisaDocument
+  // lifts the first two into a dedicated corner row. Mirrored by
+  // /visa-issued's DOM document and PNG canvas — keep all three in sync.
   const fields: VisaDocumentField[] = [
-    { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
     { key: 'serial', label: STICKER_LABELS.serial, value: state.serial, animate: serialAnimate },
+    { key: 'issued', label: '', value: state.issuedDate, animate: issuedAnimate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName || null, animate: nameAnimate },
     {
       key: 'passport',
@@ -94,6 +94,15 @@ export function DocumentProgress() {
     { key: 'visaType', label: STICKER_LABELS.visaType, value: visa ? visa.name : null, animate: visaTypeAnimate },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
+    ...(state.declaredIq !== null
+      ? [{
+          key: 'iq',
+          label: '',
+          value: String(state.declaredIq),
+          imageSrc: iqFaceFor(state.declaredIq).src,
+          imageAlt: iqFaceFor(state.declaredIq).alt,
+        }]
+      : []),
   ]
 
   const addenda: VisaDocumentAddendum[] = [
@@ -107,13 +116,13 @@ export function DocumentProgress() {
       animate: subStepAnimate,
     })
   }
-  getScreeningAddenda(state).forEach((item, index) => {
+  // The IQ face + number lives beside SEX in the field grid now; only the
+  // non-image screening answer remains an addendum.
+  getScreeningAddenda(state).filter((item) => !item.imageSrc).forEach((item, index) => {
     addenda.push({
       key: `screening-${index}`,
       label: item.label,
       value: item.value,
-      imageSrc: item.imageSrc,
-      imageAlt: item.imageAlt,
     })
   })
   if (state.dutyFreeItems.length) {

@@ -76,9 +76,10 @@ confirms/declines by DM.
 
 `components/VisaDocument.tsx` is the shared, presentational (no hooks/context) structural
 component for the navy double-border/paper visa document look — header + visa name, a
-photo at the capture's natural aspect ratio, ISSUED/SERIAL № anchored in the document's
-top corners, the remaining two-column fields (NAME + PASSPORT №, VISA TYPE + VALID,
-SEX), optional addenda lines (appointment, visa answer, screening, duty-free) with a
+photo at the capture's natural aspect ratio, SERIAL № at the document's top-left and a
+bare bold issue date at the top-right, the remaining two-column fields (NAME + PASSPORT
+№, VISA TYPE + VALID, SEX + optional IQ face/number), optional addenda lines (date, visa
+answer, screening, duty-free) with a
 dashed-divider treatment, and a barcode strip. It has two
 sizes and two callers:
 

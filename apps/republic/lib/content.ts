@@ -532,10 +532,11 @@ export const STICKER_LABELS = {
   visaType: 'VISA TYPE:',
   sex: 'SEX:',
   serial: 'SERIAL №:',
+  // ISSUED label removed per owner request; the bare issue date is printed
+  // in smaller bold type at the passport's top-right corner.
   // REFERENCE № was removed from both documents per owner request — the code
   // still exists (DM reference line, records), it's just not printed on the
   // passport anymore.
-  issued: 'ISSUED:',
   valid: 'VALID:',
   unknownName: 'APPLICANT UNKNOWN',
   // Shown in the square photo frame when neither the full-resolution capture
@@ -578,7 +579,7 @@ export const STICKER_LABELS = {
 // ---------------------------------------------------------------------------
 
 export const DOCUMENT_PROGRESS = {
-  appointmentLabel: 'APPOINTMENT:',
+  appointmentLabel: 'DATE:',
   ideaLabel: 'IDEA:',
   pitchLabel: 'PITCH:',
   statementLabel: 'STATEMENT:',

@@ -22,7 +22,10 @@ export interface VisaDocumentField {
   key: string
   label: string
   value: string | null
-  /** REFERENCE №/CONDITIONS run full-width across both columns, same as on the sticker. */
+  /** Optional inline image (the IQ wojak face beside SEX in column 2). */
+  imageSrc?: string
+  imageAlt?: string
+  /** Full-width field across both columns. */
   span?: boolean
   animate?: boolean
 }
@@ -114,14 +117,19 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
           </div>
         )}
 
-        {/* ISSUED in the passport's ACTUAL top-left and SERIAL № in the
-            ACTUAL top-right (owner clarification). These are the first two
-            fields supplied by both callers; the remaining fields stay beside
-            the photo below. */}
+        {/* SERIAL № in the passport's actual top-left; bare issue date in
+            the actual top-right (no ISSUED label, owner request). These are
+            the first two fields supplied by both callers; the remaining
+            fields stay beside the photo below. */}
         <div className={`mt-1 grid grid-cols-2 uppercase tracking-wide ${s.grid}`}>
           {fields.slice(0, 2).map((field, index) => (
-            <div key={field.key} className={`min-w-0 ${index === 0 ? 'text-left' : 'text-right'}`}>
-              <span className="text-navy">{field.label}</span>{' '}
+            <div
+              key={field.key}
+              className={`min-w-0 ${index === 0 ? 'text-left' : 'text-right'} ${
+                index === 1 ? (size === 'full' ? 'text-[9px]' : 'text-[7px]') : ''
+              }`}
+            >
+              {field.label && <span className="text-navy">{field.label} </span>}
               {field.value ? (
                 <span
                   className={`font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
@@ -165,13 +173,21 @@ export function VisaDocument({ size, visaName, photoUrl, photoAnimate, fields, a
                 key={field.key}
                 className={`flex min-w-0 items-baseline justify-between gap-1.5 ${field.span ? 'col-span-2' : ''}`}
               >
-                <span className="shrink-0 text-navy">{field.label}</span>
+                {field.label && <span className="shrink-0 text-navy">{field.label}</span>}
                 {field.value ? (
                   <span
-                    className={`truncate text-right font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
+                    className={`flex min-w-0 items-center justify-end gap-1 truncate text-right font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
                     title={field.value}
                   >
-                    {field.value}
+                    {field.imageSrc && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={field.imageSrc}
+                        alt={field.imageAlt ?? ''}
+                        className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-7 w-7' : 'h-5 w-5'}`}
+                      />
+                    )}
+                    <span className="truncate">{field.value}</span>
                   </span>
                 ) : (
                   <Blank wide={field.span} size={size} />

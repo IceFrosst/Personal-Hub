@@ -64,38 +64,34 @@ export default function ScreeningPage() {
         {/* Image + number ONLY (owner request) — no section heading, no
             instruction line, no scale labels. The chart and the big declared
             number carry the whole joke unassisted. */}
-        <div className="mt-4">
+        {/* Bleed close to the form edges so the meme takes almost the whole
+            card width; image and slider share this exact wrapper width. */}
+        <div className="-mx-3 mt-3">
           {/* Static meme chart — decorative context for the slider, no event
               details, no external requests (served from /public). Its
               background is pre-flattened onto the paper color (#f4f0e8) so it
               blends into the card seamlessly. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/iq-bell-curve.jpg" alt={SCREENING.iqImageAlt} className="mt-3 w-full" />
+          <img src="/iq-bell-curve.jpg" alt={SCREENING.iqImageAlt} className="w-full" />
 
           {/* Just the declared number — no live wojak preview here (owner
               request); the matching face still gets stamped on the passport
               via lib/visaAddendum.ts. */}
-          <p className="mt-4 text-center font-stamp text-3xl uppercase tracking-widest text-navy">{iq}</p>
+          <p className="mt-3 text-center font-stamp text-3xl uppercase tracking-widest text-navy">{iq}</p>
 
-          {/* The slider is width-matched to the meme's own IQ axis (the 55
-              tick sits ~24% in, the 145 tick ~72% in on the source image), so
-              it never extends past the chart and its positions line up with
-              the printed scores (owner request). Percentages are relative to
-              the image, which is w-full — same reference width. */}
-          <div className="ml-[24%] w-[48%]">
-            <input
-              type="range"
-              min={SCREENING.iqMin}
-              max={SCREENING.iqMax}
-              value={iq}
-              onChange={(event) => setIq(Number(event.target.value))}
-              aria-label={SCREENING.iqAriaLabel}
-              className="iq-slider mt-2 w-full cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
-              }}
-            />
-          </div>
+          {/* Exactly the same width as the image above — no overhang. */}
+          <input
+            type="range"
+            min={SCREENING.iqMin}
+            max={SCREENING.iqMax}
+            value={iq}
+            onChange={(event) => setIq(Number(event.target.value))}
+            aria-label={SCREENING.iqAriaLabel}
+            className="iq-slider mt-2 w-full cursor-pointer"
+            style={{
+              background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
+            }}
+          />
         </div>
 
         <button

@@ -16,6 +16,7 @@ import {
   COPY_FAILED_INSTRUCTION,
   VISA_BY_SLUG,
   buildReferenceLine,
+  iqFaceFor,
 } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
@@ -148,7 +149,8 @@ export default function VisaIssuedPage() {
       const addendumValues = [
         { label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot ?? '' },
         ...(visaAddendum ? [visaAddendum] : []),
-        ...screeningAddenda,
+        // IQ is rendered beside SEX in the field grid, not as an addendum.
+        ...screeningAddenda.filter((item) => !item.imageSrc),
         ...(state.dutyFreeItems.length
           ? [{ label: DOCUMENT_PROGRESS.dutyFreeLabel, value: state.dutyFreeItems.join(' · ') }]
           : []),
@@ -219,13 +221,13 @@ export default function VisaIssuedPage() {
       // "VISA — DATE VISA" prefix on the downloaded document.
       context.fillText(visa!.name, CANVAS_W / 2, 92)
 
-      // ISSUED / SERIAL in the document's actual top corners, matching the
-      // shared DOM component rather than hiding inside the photo-side grid.
+      // SERIAL № top-left; bare issue date top-right, smaller but bold.
       context.font = 'bold 12px "Courier New", monospace'
       context.textAlign = 'left'
-      context.fillText(`${STICKER_LABELS.issued} ${issueDate}`, 60, 122)
+      context.fillText(`${STICKER_LABELS.serial} ${serial}`, 60, 122)
+      context.font = 'bold 10px "Courier New", monospace'
       context.textAlign = 'right'
-      context.fillText(`${STICKER_LABELS.serial} ${serial}`, CANVAS_W - 60, 122)
+      context.fillText(issueDate, CANVAS_W - 60, 122)
       context.textAlign = 'left'
 
       // photo frame — rectangular clip at the capture's ORIGINAL aspect
@@ -295,6 +297,20 @@ export default function VisaIssuedPage() {
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
       rowY += rowGap
       cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, colWidth)
+      if (state.declaredIq !== null) {
+        const size = 34
+        const sx = colBx
+        const sy = rowY - 13
+        if (face) {
+          context.drawImage(face, sx, sy, size, size)
+          context.strokeStyle = NAVY
+          context.lineWidth = 1
+          context.strokeRect(sx, sy, size, size)
+        }
+        context.fillStyle = NAVY
+        context.font = 'bold 15px "Courier New", monospace'
+        context.fillText(String(state.declaredIq), sx + size + 10, rowY + 10)
+      }
       // CONDITIONS row removed from the passport per owner feedback — the
       // "bring snacks" gag survives only in the /visa-issued page subtitle.
 
@@ -431,13 +447,22 @@ export default function VisaIssuedPage() {
   // here ever renders a blank/ruled row (unlike the mid-funnel progress
   // card, which shows blanks for fields not filled in yet).
   const fields: VisaDocumentField[] = [
-    { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
     { key: 'serial', label: STICKER_LABELS.serial, value: serial },
+    { key: 'issued', label: '', value: issueDate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
     { key: 'visaType', label: STICKER_LABELS.visaType, value: visa.name },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
+    ...(state.declaredIq !== null
+      ? [{
+          key: 'iq',
+          label: '',
+          value: String(state.declaredIq),
+          imageSrc: iqFaceFor(state.declaredIq).src,
+          imageAlt: iqFaceFor(state.declaredIq).alt,
+        }]
+      : []),
   ]
   const addenda: VisaDocumentAddendum[] = [
     { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot },
@@ -445,13 +470,13 @@ export default function VisaIssuedPage() {
   if (visaAddendum) {
     addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
   }
-  screeningAddenda.forEach((item, index) => {
+  // IQ is beside SEX in the field grid; only non-image screening content
+  // remains below as an addendum.
+  screeningAddenda.filter((item) => !item.imageSrc).forEach((item, index) => {
     addenda.push({
       key: `screening-${index}`,
       label: item.label,
       value: item.value,
-      imageSrc: item.imageSrc,
-      imageAlt: item.imageAlt,
     })
   })
   if (state.dutyFreeItems.length) {

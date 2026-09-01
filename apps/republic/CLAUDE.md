@@ -357,7 +357,23 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — camera permission reverted to tap-only:** `/biometric` no longer calls
+**Latest pass — passport top metadata + IQ layout:**
+- **ISSUED label removed entirely** (`STICKER_LABELS.issued` deleted). Passport metadata
+  is now SERIAL № at the true top-left and the bare issue date at the true top-right;
+  date uses smaller bold text (`7px` compact / `9px` full; PNG `10px` bold). All three
+  renderers match.
+- **APPOINTMENT addendum label → DATE** (`DOCUMENT_PROGRESS.appointmentLabel`).
+- **IQ face + bare number moved beside SEX in field column 2**, rather than a separate
+  dashed addendum. `VisaDocumentField` now supports an optional inline image; progress
+  and final DOM fields add the IQ field only when `declaredIq !== null`; the PNG draws
+  the loaded face + number in the matching cell. The textual screening answer remains
+  its own addendum. DATE VISA still has no IQ field because it skips screening.
+- **IQ meme enlarged**: `/screening` uses a near-edge-to-edge `-mx-3` wrapper; image and
+  range slider are both exactly `w-full` inside that same wrapper. This supersedes the
+  previous 48%-wide plot-axis alignment. Browser-checked locally with a completed
+  BUSINESS VISA (IQ 123) and on the screening form.
+
+**Previous pass — camera permission reverted to tap-only:** `/biometric` no longer calls
 `getUserMedia` or starts a live camera on page load. The previous auto-front-camera pass
 caused an immediate browser permission prompt; owner rejected that. The page is back to
 `<input type="file" accept="image/*" capture="user">`: no prompt on entry, and the
