@@ -9,6 +9,7 @@
 // funnel — the whole experience works with zero backend.
 
 import { computeSlots, type Slot } from './slots'
+import { mergeSelfieThumbnail } from './applicationState'
 import type { ApplicationState, SubmittedApplicationRecord } from './applicationState'
 import { normalizeInstagramHandle, parseApplicationStatus, type ApplicationStatus } from './applicationStatus'
 export { normalizeInstagramHandle, parseApplicationStatus, type ApplicationStatus } from './applicationStatus'
@@ -151,12 +152,14 @@ export interface ApplicationRecord extends SubmittedApplicationRecord {
   dutyFreeItems?: string[]
   selfieCaptured: boolean
   selfieSizeBytes?: number
-  /** Local-log only — when this device submitted (DB rows have created_at). */
-  submittedAt?: string
   /** Storage path of the review-size selfie in the private bucket. */
   selfiePath?: string
   /** Officer-eyes-only visitor intel (lib/intel.ts) + selfie retake tally. */
   intel?: Record<string, unknown>
+  // `submittedAt` and `selfieThumbnailUrl` are inherited from
+  // SubmittedApplicationRecord (lib/applicationState.ts). The thumbnail is
+  // excluded from the applications table JSON, draft_events, and intel, while
+  // processing may still use it as the private-Storage review-image fallback.
 }
 
 /** Rough decoded byte size of a base64 data URL, without holding onto the image itself. */
@@ -168,8 +171,13 @@ function approxDataUrlBytes(dataUrl: string): number {
 /**
  * Builds the single, final application record from the funnel's accumulated
  * context state once a reference code exists. Only the sub-step field that's
- * actually relevant to the chosen visa type is included; the selfie itself is
- * never embedded — only whether one was captured and its approximate size.
+ * actually relevant to the chosen visa type is included; the FULL-RESOLUTION
+ * selfie itself is never embedded in the table JSON — only whether one was
+ * captured, its approximate size, and (see `selfieThumbnailUrl` below) the
+ * small applicant-safe preview thumbnail already living in state. The table
+ * payload, `draft_events`, and `intel` omit that thumbnail, while processing
+ * may pass it to private Storage as the review image when full-res capture is
+ * unavailable.
  */
 export function buildApplicationRecord(state: ApplicationState, referenceCode: string): ApplicationRecord {
   const record: ApplicationRecord = {
@@ -184,6 +192,7 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
     selfieCaptured: state.selfieCaptured,
     selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : state.selfieSizeBytes ?? undefined,
     selfiePath: state.selfiePath ?? undefined,
+    selfieThumbnailUrl: state.selfieThumbnailUrl ?? undefined,
     submittedAt: new Date().toISOString(),
   }
   // `matter` (the removed SEEK ADVICE PERMIT's sub-step field) stays in the
@@ -209,28 +218,18 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
 }
 
 /**
- * Persists the ONE finalized application record. Idempotent by
- * `referenceCode`: since a reference code is generated exactly once per
- * completed application, a duplicate call (e.g. a dev/StrictMode double
- * effect invocation that slipped past the caller's own guard) is a no-op
- * rather than a second log entry or a second network write.
+ * Builds the exact payload sent to the Supabase `applications` table —
+ * exported (rather than left inline in `recordApplication`) specifically so
+ * its field list can be asserted directly by test without a live network/
+ * Supabase (see test/api.test.mjs). If you add a new `ApplicationRecord`
+ * field, only add it here too if it genuinely belongs on the officer/
+ * database record. The thumbnail is intentionally excluded from this
+ * `republic.applications` table JSON field list (as are `draft_events` and
+ * `intel` payloads); processing's private-Storage upload is a separate,
+ * intentional review-image path.
  */
-export async function recordApplication(record: ApplicationRecord): Promise<void> {
-  const log = readLocal<ApplicationRecord[]>(LS_KEYS.applications, [])
-  if (log.some((r) => r.referenceCode === record.referenceCode)) return
-  // Officer-eyes-only intel (IP/geo/battery/connection/referrer/selfie-retake
-  // tally) and the anonymous draft-audit link must never land in THIS
-  // DEVICE'S OWN on-disk log — that's the applicant's own browser storage,
-  // readable by anyone with access to it, not the ministry desk. Only the
-  // ordinary applicant-facing fields the pending-review card needs
-  // (referenceCode, visaType, submittedAt, etc.) belong there; the full
-  // record — intel and draftId included — still goes to the DB below,
-  // which only the ministry account can ever read back (RLS).
-  const localRecord: ApplicationRecord = { ...record }
-  delete localRecord.intel
-  delete localRecord.draftId
-  writeLocal(LS_KEYS.applications, [...log, localRecord])
-  void tryRest('applications', {
+export function buildApplicationSupabasePayload(record: ApplicationRecord): Record<string, unknown> {
+  return {
     applicant_name: record.applicantName,
     instagram_handle: record.instagramHandle,
     visa_type: record.visaType,
@@ -255,7 +254,63 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     selfie_size_bytes: record.selfieSizeBytes ?? null,
     selfie_path: record.selfiePath ?? null,
     intel: record.intel ?? null,
-  })
+  }
+}
+
+/**
+ * Persists the ONE finalized application record. Idempotent by
+ * `referenceCode`: since a reference code is generated exactly once per
+ * completed application, a duplicate call (e.g. a dev/StrictMode double
+ * effect invocation that slipped past the caller's own guard) is a no-op
+ * rather than a second log entry or a second network write.
+ */
+export async function recordApplication(record: ApplicationRecord): Promise<void> {
+  const log = readLocal<ApplicationRecord[]>(LS_KEYS.applications, [])
+  if (log.some((r) => r.referenceCode === record.referenceCode)) return
+  // Officer-eyes-only intel (IP/geo/battery/connection/referrer/selfie-retake
+  // tally) and the anonymous draft-audit link must never land in THIS
+  // DEVICE'S OWN on-disk log — that's the applicant's own browser storage,
+  // readable by anyone with access to it, not the ministry desk. Only the
+  // ordinary applicant-facing fields the pending-review card needs
+  // (referenceCode, visaType, submittedAt, selfieThumbnailUrl, etc.) belong
+  // there; the full record — intel and draftId included — still goes to the
+  // DB below (via buildApplicationSupabasePayload, whose table JSON omits
+  // selfieThumbnailUrl and submittedAt), which only the ministry account can
+  // ever read back (RLS).
+  const localRecord: ApplicationRecord = { ...record }
+  delete localRecord.intel
+  delete localRecord.draftId
+  writeLocal(LS_KEYS.applications, [...log, localRecord])
+  void tryRest('applications', buildApplicationSupabasePayload(record))
+}
+
+/**
+ * Rescues a same-device SESSION thumbnail into the matching row of THIS
+ * DEVICE'S completed-application log (localStorage), so a photo that was
+ * only ever "safe session state" for an exact reference-code match (see
+ * `resolveRestoredThumbnail` in lib/applicationState.ts) survives even after
+ * the tab/session that captured it eventually closes. Exact `referenceCode`
+ * match only — writes to that one row and nothing else; does nothing at all
+ * (no-op) if no row matches, e.g. the log was cleared, or this somehow gets
+ * called for a reference code never actually submitted on this device. Never
+ * touches Supabase, draft audit, or intel — this particular rescue helper is
+ * purely a same-device localStorage update; processing's separate upload path
+ * may send the thumbnail to private Storage when no full-res source exists.
+ */
+export function persistApplicationThumbnail(referenceCode: string, thumbnailUrl: string): void {
+  if (!referenceCode || !thumbnailUrl) return
+  const log = readLocal<ApplicationRecord[]>(LS_KEYS.applications, [])
+  // The actual exact-match/no-op logic is a pure helper in
+  // lib/applicationState.ts (mergeSelfieThumbnail) specifically so it's
+  // unit-testable directly under plain Node ESM (test/applicationState.test.mjs)
+  // — this file's own runtime imports (e.g. ./applicationStatus) only
+  // resolve inside a bundler, not under Node's native ESM resolver, so this
+  // module itself can't be imported that way. `mergeSelfieThumbnail` returns
+  // the exact same array reference (not even a shallow copy) on a genuine
+  // no-op, so the `===` check below skips a redundant localStorage write.
+  const next = mergeSelfieThumbnail(log, referenceCode, thumbnailUrl)
+  if (next === log) return
+  writeLocal(LS_KEYS.applications, next)
 }
 
 export async function recordAppointment(params: {

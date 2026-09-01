@@ -8,6 +8,8 @@ const {
   claimProviderHydration,
   isFreshApplicationState,
   mapSubmittedApplication,
+  mergeSelfieThumbnail,
+  synthesizeIssuedDate,
   resolveRestoredThumbnail,
 } = await import('../lib/applicationState.ts')
 
@@ -113,12 +115,154 @@ test('mapSubmittedApplication safely accepts legacy records missing newer fields
   const legacy = mapSubmittedApplication({ applicantName: 'Legacy', visaType: 'tourist', selfieCaptured: true })
   assert.equal(legacy.applicantName, 'Legacy')
   assert.equal(legacy.selfieCaptured, true)
+  // Genuinely incomplete (no slot/referenceCode) — nothing to synthesize;
+  // this record was never actually finished, so it correctly stays that way.
   assert.equal(legacy.serial, null)
   assert.equal(legacy.issuedDate, null)
   assert.equal(legacy.referenceCode, null)
   assert.equal(legacy.draftId, null)
   assert.equal(legacy.intel, null)
   assert.deepEqual(legacy.fianceAnswers, [])
+})
+
+test('mapSubmittedApplication synthesizes serial/issuedDate for an otherwise-complete legacy record (the /visa-issued redirect-to-/appointment bug)', () => {
+  const legacyComplete = {
+    applicantName: 'Old Timer',
+    instagramHandle: 'old.timer',
+    visaType: 'tourist',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    referenceCode: 'RIG-OLDX',
+    selfieCaptured: true,
+    submittedAt: '2026-09-01T12:00:00.000Z',
+    // No serial, no issuedDate — the exact shape an older app version wrote.
+  }
+  const restored = mapSubmittedApplication(legacyComplete)
+  // All of /visa-issued's completeness-guard fields must now be truthy —
+  // this is the actual bug fix: previously `serial`/`issuedDate` stayed
+  // null here and the guard bounced the restore to /visa, which forward-
+  // locked straight through to /appointment instead of showing the final
+  // passport.
+  assert.ok(restored.visaType)
+  assert.ok(restored.serial)
+  assert.ok(restored.slot)
+  assert.ok(restored.issuedDate)
+  assert.ok(restored.referenceCode)
+  assert.equal(restored.selfieCaptured, true)
+  // SERIAL is guard-only/internal now (never rendered) — just needs to be a
+  // stable non-empty string distinct from the real `SN-######` format so it
+  // can never be mistaken for/collide with a genuinely issued one.
+  assert.match(restored.serial, /^SN-LEGACY-\d{6}$/)
+  // issuedDate DOES render (the /visa-issued stamp) — DD/MM/YYYY derived
+  // from the record's own submittedAt using UTC calendar getters.
+  assert.equal(restored.issuedDate, '01/09/2026')
+
+  // Never randomized/regenerated on repeat views of the exact same record.
+  const restoredAgain = mapSubmittedApplication(legacyComplete)
+  assert.equal(restoredAgain.serial, restored.serial)
+  assert.equal(restoredAgain.issuedDate, restored.issuedDate)
+})
+
+test('synthesizeIssuedDate uses UTC calendar date regardless of local timezone', () => {
+  // This instant is 01 September in UTC but 31 August in US Pacific time.
+  assert.equal(synthesizeIssuedDate('2026-09-01T00:30:00.000Z'), '01/09/2026')
+  assert.equal(synthesizeIssuedDate('2026-08-31T19:30:00-05:00'), '01/09/2026')
+})
+
+test('synthesizeIssuedDate uses a truthful guard value for missing or invalid submittedAt', () => {
+  assert.equal(synthesizeIssuedDate(undefined), 'DATE ON FILE')
+  assert.equal(synthesizeIssuedDate('not-a-date'), 'DATE ON FILE')
+})
+
+test('mapSubmittedApplication falls back to a truthful deterministic issuedDate when submittedAt is also missing', () => {
+  const veryOld = {
+    applicantName: 'Ancient',
+    visaType: 'business',
+    slot: 'MON, 1 SEPT 2025 — MORNING',
+    referenceCode: 'RIG-VOLD',
+    selfieCaptured: true,
+    // No submittedAt either — an even older record.
+  }
+  const first = mapSubmittedApplication(veryOld)
+  const second = mapSubmittedApplication(veryOld)
+  assert.equal(first.issuedDate, 'DATE ON FILE')
+  assert.equal(first.issuedDate, second.issuedDate)
+  assert.notEqual(first.issuedDate, '01/01/1970')
+})
+
+test('mapSubmittedApplication uses DATE ON FILE for an invalid submittedAt fallback', () => {
+  const restored = mapSubmittedApplication({
+    applicantName: 'Bad Date',
+    visaType: 'tourist',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    referenceCode: 'RIG-BADD',
+    selfieCaptured: true,
+    submittedAt: 'invalid-timestamp',
+  })
+  assert.equal(restored.issuedDate, 'DATE ON FILE')
+})
+
+test('mapSubmittedApplication never overwrites an existing serial/issuedDate, even on an otherwise-complete record', () => {
+  const restored = mapSubmittedApplication({
+    applicantName: 'Has Both',
+    visaType: 'special',
+    slot: 'TUE, 2 SEPT 2025 — MORNING',
+    referenceCode: 'RIG-BOTH',
+    selfieCaptured: true,
+    serial: 'SN-123456',
+    issuedDate: '02/09/2025',
+    submittedAt: '2099-01-01T00:00:00.000Z',
+  })
+  assert.equal(restored.serial, 'SN-123456')
+  assert.equal(restored.issuedDate, '02/09/2025')
+})
+
+test('mapSubmittedApplication does not synthesize serial/issuedDate for a record missing slot/referenceCode/selfie, even with a visaType', () => {
+  const missingSlot = mapSubmittedApplication({
+    applicantName: 'No Slot',
+    visaType: 'tourist',
+    referenceCode: 'RIG-NOSL',
+    selfieCaptured: true,
+  })
+  assert.equal(missingSlot.serial, null)
+  assert.equal(missingSlot.issuedDate, null)
+
+  const missingReference = mapSubmittedApplication({
+    applicantName: 'No Ref',
+    visaType: 'tourist',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    selfieCaptured: true,
+  })
+  assert.equal(missingReference.serial, null)
+  assert.equal(missingReference.issuedDate, null)
+
+  const noSelfie = mapSubmittedApplication({
+    applicantName: 'No Selfie',
+    visaType: 'tourist',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    referenceCode: 'RIG-NOSF',
+    selfieCaptured: false,
+  })
+  assert.equal(noSelfie.serial, null)
+  assert.equal(noSelfie.issuedDate, null)
+})
+
+test('mapSubmittedApplication prefers the record\'s own selfieThumbnailUrl directly', () => {
+  const withOwnThumbnail = mapSubmittedApplication({
+    applicantName: 'Has Thumb',
+    visaType: 'tourist',
+    referenceCode: 'RIG-THMB',
+    selfieCaptured: true,
+    selfieThumbnailUrl: 'data:image/jpeg;base64,ownthumb',
+  })
+  assert.equal(withOwnThumbnail.selfieThumbnailUrl, 'data:image/jpeg;base64,ownthumb')
+
+  const withoutOwnThumbnail = mapSubmittedApplication({
+    applicantName: 'No Thumb',
+    visaType: 'tourist',
+    referenceCode: 'RIG-NOTH',
+    selfieCaptured: true,
+  })
+  assert.equal(withoutOwnThumbnail.selfieThumbnailUrl, null)
 })
 
 test('mapSubmittedApplication never mints a draft — restore is not activation', () => {
@@ -157,6 +301,37 @@ test('resolveRestoredThumbnail keeps the thumbnail only on an exact, unambiguous
   // A match with no captured thumbnail on this tab correctly resolves to null
   // (nothing to carry over), not a false positive.
   assert.equal(resolveRestoredThumbnail('RIG-ABCD', null, 'RIG-ABCD'), null)
+})
+
+test('mergeSelfieThumbnail rescues a thumbnail into the exact-matching row and never touches any other row', () => {
+  const log = [
+    { referenceCode: 'RIG-ABCD', applicantName: 'Ada' },
+    { referenceCode: 'RIG-WXYZ', applicantName: 'Someone Else' },
+  ]
+  const next = mergeSelfieThumbnail(log, 'RIG-ABCD', 'data:image/jpeg;base64,rescued')
+  assert.notEqual(next, log)
+  assert.equal(next[0].selfieThumbnailUrl, 'data:image/jpeg;base64,rescued')
+  assert.equal(next[0].applicantName, 'Ada')
+  // The other application's row must be byte-for-byte untouched.
+  assert.equal(next[1], log[1])
+  assert.equal(next[1].selfieThumbnailUrl, undefined)
+})
+
+test('mergeSelfieThumbnail is a same-reference no-op when no row matches the reference code', () => {
+  const log = [{ referenceCode: 'RIG-WXYZ', applicantName: 'Someone Else' }]
+  const next = mergeSelfieThumbnail(log, 'RIG-NOPE', 'data:image/jpeg;base64,rescued')
+  assert.equal(next, log)
+})
+
+test('mergeSelfieThumbnail is a same-reference no-op on an empty log', () => {
+  const next = mergeSelfieThumbnail([], 'RIG-ABCD', 'data:image/jpeg;base64,rescued')
+  assert.deepEqual(next, [])
+})
+
+test('mergeSelfieThumbnail is a same-reference no-op when the matching row already has the exact same thumbnail', () => {
+  const log = [{ referenceCode: 'RIG-ABCD', selfieThumbnailUrl: 'data:image/jpeg;base64,same' }]
+  const next = mergeSelfieThumbnail(log, 'RIG-ABCD', 'data:image/jpeg;base64,same')
+  assert.equal(next, log)
 })
 
 test('isFreshApplicationState is false once any other field diverges from EMPTY_STATE', () => {

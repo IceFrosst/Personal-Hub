@@ -33,6 +33,17 @@ export interface SubmittedApplicationRecord {
   selfieCaptured?: boolean
   selfieSizeBytes?: number
   selfiePath?: string
+  /** Local-log only — when this device submitted (DB rows have created_at
+   *  instead). Also the legacy-completion fallback source for `issuedDate`
+   *  below when an older record predates that field — see
+   *  `mapSubmittedApplication`. */
+  submittedAt?: string
+  /** Small (~200px JPEG) thumbnail retained in THIS device's application log
+   *  and session state. It is excluded from the `republic.applications` table
+   *  JSON payload, `draft_events`, and officer-eyes-only `intel`; finalization
+   *  may still send it to private Storage as the review image when the
+   *  full-resolution source is unavailable. */
+  selfieThumbnailUrl?: string
 }
 
 export interface ApplicationState {
@@ -174,16 +185,94 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+/** Small, deterministic (non-cryptographic) string hash — same input always
+ *  produces the same output, which is exactly what the legacy-completion
+ *  fallbacks below need: a value that never changes across repeat views of
+ *  the same on-file record, without needing any *new* per-record state. */
+function hashString(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) {
+    hash = (Math.imul(hash, 31) + value.charCodeAt(i)) >>> 0
+  }
+  return hash
+}
+
+/**
+ * Deterministic internal placeholder SERIAL № for a legacy local record that
+ * predates SERIAL being generated at visa-selection time (see
+ * `ApplicationState#serial`'s own lifecycle note). It is a pure
+ * *guard-satisfying* value — SERIAL № has not been printed anywhere on the
+ * passport for a while (see app/visa-issued/page.tsx's own comment) — so
+ * there is no user-facing accuracy to preserve, only the /visa-issued (and
+ * every earlier funnel step's) `!state.serial` completeness guard, which
+ * would otherwise bounce a genuinely finished old application back into the
+ * live funnel instead of showing its final document. Always derived from the
+ * record's own `referenceCode`, so re-viewing the exact same record always
+ * regenerates the exact same value — never randomized per view — and
+ * prefixed distinctly from `generateSerial()`'s real `SN-######` format so it
+ * can never collide with, or be mistaken for, a genuinely-issued one.
+ */
+function synthesizeSerial(referenceCode: string): string {
+  const digits = 100000 + (hashString(referenceCode) % 900000)
+  return `SN-LEGACY-${digits}`
+}
+
+/**
+ * Deterministic fallback ISSUED date for a legacy local record that predates
+ * `issuedDate` being stored (or, rarer still, one that predates `submittedAt`
+ * too). Unlike SERIAL №, this DOES render on-screen (the /visa-issued stamp's
+ * subtext), so it uses the exact DD/MM/YYYY shape of the en-GB date. The UTC
+ * getters are deliberate: an ISO timestamp near midnight must not display a
+ * different date merely because the applicant's browser has another timezone.
+ * It's fed the record's own `submittedAt` instead of `new Date()`, so it
+ * reflects a real moment already on file rather than inventing a new one
+ * (which would drift on every view, exactly the bug this exists to fix). A
+ * missing or invalid timestamp uses the truthful non-date guard value
+ * `DATE ON FILE`, never an epoch/1970 date.
+ */
+export function synthesizeIssuedDate(submittedAt: string | undefined): string {
+  const parsed = typeof submittedAt === 'string' ? new Date(submittedAt) : new Date(Number.NaN)
+  if (Number.isNaN(parsed.getTime())) return 'DATE ON FILE'
+  const day = String(parsed.getUTCDate()).padStart(2, '0')
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0')
+  const year = String(parsed.getUTCFullYear()).padStart(4, '0')
+  return `${day}/${month}/${year}`
+}
+
 /**
  * Rehydrates a completed local-log row without starting a new draft. A
  * completed record is inherently forward-locked: markers are set for its
  * selected path, while officer intel/draft identity remain empty because the
  * local log strips them before writing.
+ *
+ * Legacy-safe completion: an existing `serial`/`issuedDate` on the record is
+ * always preserved as-is (never regenerated/overwritten). Only when BOTH are
+ * absent AND the record is otherwise a genuinely completed application (has
+ * a `visaType`, `slot`, `referenceCode`, and `selfieCaptured === true` — the
+ * same fields /visa-issued's own guard otherwise requires) are they
+ * synthesized, deterministically, from data already on that same record —
+ * see `synthesizeSerial`/`synthesizeIssuedDate` above. This exists so an
+ * application submitted by an older app version (before SERIAL №/ISSUED were
+ * added to the local log) still resolves to a genuinely complete restored
+ * state instead of silently failing /visa-issued's completeness guard and
+ * bouncing through /visa → back into the (already-answered) sub-step →
+ * /appointment. An incomplete record (missing slot/referenceCode/selfie) is
+ * NOT synthesized — there's nothing genuinely finished to restore, so it
+ * correctly stays incomplete and the normal guards route it appropriately.
  */
 export function mapSubmittedApplication(record: SubmittedApplicationRecord): ApplicationState {
   const applicantName = stringValue(record.applicantName)
   const instagramHandle = stringValue(record.instagramHandle)
   const visaType = isVisaType(record.visaType) ? record.visaType : null
+  const slot = nullableString(record.slot)
+  const referenceCode = nullableString(record.referenceCode)
+  const selfieCaptured = record.selfieCaptured === true
+  const isOtherwiseComplete = Boolean(visaType && slot && referenceCode && selfieCaptured)
+  const existingSerial = nullableString(record.serial)
+  const existingIssuedDate = nullableString(record.issuedDate)
+  const serial = existingSerial ?? (isOtherwiseComplete && referenceCode ? synthesizeSerial(referenceCode) : null)
+  const issuedDate =
+    existingIssuedDate ?? (isOtherwiseComplete ? synthesizeIssuedDate(record.submittedAt) : null)
   return {
     ...EMPTY_STATE,
     applicantName,
@@ -203,10 +292,17 @@ export function mapSubmittedApplication(record: SubmittedApplicationRecord): App
     specialStatementSubmitted: visaType === 'special',
     identitySubmitted: Boolean(applicantName),
     handleSubmitted: Boolean(instagramHandle),
-    slot: nullableString(record.slot),
+    slot,
     selfieDataUrl: null,
-    selfieCaptured: record.selfieCaptured === true,
-    selfieThumbnailUrl: null,
+    selfieCaptured,
+    // Priority: the record's OWN persisted thumbnail (written by this same
+    // device, at submit time or by the restore-rescue path — see
+    // lib/api.ts#persistApplicationThumbnail) wins outright when present.
+    // applicationContext.tsx#restoreSubmittedApplication only ever considers
+    // the current session's in-memory thumbnail (resolveRestoredThumbnail)
+    // as a fallback when this is null — it must never override a thumbnail
+    // the record already has on file.
+    selfieThumbnailUrl: nullableString(record.selfieThumbnailUrl),
     selfieSizeBytes: finiteNumber(record.selfieSizeBytes),
     selfiePath: nullableString(record.selfiePath),
     screeningQuestion: nullableString(record.screeningQuestion),
@@ -220,15 +316,19 @@ export function mapSubmittedApplication(record: SubmittedApplicationRecord): App
     selfieRetakes: 0,
     dutyFreeItems: stringArray(record.dutyFreeItems),
     gender: nullableString(record.gender),
-    referenceCode: nullableString(record.referenceCode),
-    serial: nullableString(record.serial),
-    issuedDate: nullableString(record.issuedDate),
+    referenceCode,
+    serial,
+    issuedDate,
   }
 }
 
 /**
  * Decides whether a previously captured selfie thumbnail may carry over into
- * a restored application state. A thumbnail is safe *session* state — it may
+ * a restored application state. Only ever consulted (by
+ * `applicationContext.tsx#restoreSubmittedApplication`) as a FALLBACK, when
+ * the record itself has no `selfieThumbnailUrl` of its own —
+ * `mapSubmittedApplication` always prefers the record's own on-file
+ * thumbnail over this. A thumbnail is safe *session* state — it may
  * legitimately survive alongside an expired full-resolution capture for the
  * exact same application this tab already had open (e.g. reopening
  * /visa-issued for the record that's still live in `state`). It must never
@@ -274,6 +374,35 @@ export function isFreshApplicationState(state: ApplicationState): boolean {
       return false
     }
   })
+}
+
+/**
+ * Pure exact-reference-code merge step behind lib/api.ts#persistApplicationThumbnail
+ * — split out here (rather than left inline in that function) specifically
+ * so it's unit-testable directly under plain Node ESM alongside this
+ * module's other pure helpers (see the file header comment); lib/api.ts's
+ * own runtime imports (e.g. ./applicationStatus) only resolve inside a
+ * bundler, not under Node's native ESM module resolver, so that whole file
+ * can't be imported the same way. Returns the exact same array reference
+ * (not even a shallow copy) when no row's `referenceCode` matches, or when
+ * the matching row already carries this exact thumbnail — so a genuine
+ * no-op is `===`-detectable by the caller, which skips a redundant
+ * localStorage write. Never touches any row but the one exact match; per
+ * the "never borrow another application's image" rule, a caller must only
+ * ever pass a thumbnail already confirmed (via resolveRestoredThumbnail) to
+ * belong to this exact referenceCode.
+ */
+export function mergeSelfieThumbnail<T extends SubmittedApplicationRecord>(
+  log: T[],
+  referenceCode: string,
+  thumbnailUrl: string
+): T[] {
+  const index = log.findIndex((record) => record.referenceCode === referenceCode)
+  if (index === -1) return log
+  if (log[index].selfieThumbnailUrl === thumbnailUrl) return log
+  const next = log.slice()
+  next[index] = { ...next[index], selfieThumbnailUrl: thumbnailUrl }
+  return next
 }
 
 /**

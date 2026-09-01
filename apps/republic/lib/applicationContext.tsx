@@ -11,7 +11,7 @@ import {
   resolveRestoredThumbnail,
   type ApplicationState,
 } from './applicationState'
-import type { ApplicationRecord } from './api'
+import { persistApplicationThumbnail, type ApplicationRecord } from './api'
 import {
   isCurrentDraft,
   newDraftId,
@@ -165,18 +165,31 @@ export function ApplicationProvider({ children }: { children: React.ReactNode })
 
   const restoreSubmittedApplication = useCallback((record: ApplicationRecord) => {
     const restored = mapSubmittedApplication(record)
-    // A thumbnail is safe session state and may survive alongside an expired
-    // full-resolution capture, but only for the exact same application this
-    // tab already had open — see resolveRestoredThumbnail. Any mismatch or
-    // missing reference code drops the thumbnail entirely so /visa-issued
-    // falls back to its "PHOTO ON FILE" placeholder rather than ever risking
-    // showing the wrong photo. The local completed log intentionally has no
-    // raw/private photo to fetch or restore.
-    restored.selfieThumbnailUrl = resolveRestoredThumbnail(
-      stateRef.current.referenceCode,
-      stateRef.current.selfieThumbnailUrl,
-      record.referenceCode
-    )
+    // mapSubmittedApplication already prefers the record's OWN on-file
+    // thumbnail (written by an earlier submit or an earlier rescue below) —
+    // only fall back to the CURRENT session's in-memory thumbnail when the
+    // record has none. That fallback is safe session state and may survive
+    // alongside an expired full-resolution capture, but only for the exact
+    // same application this tab already had open — see
+    // resolveRestoredThumbnail. Any mismatch or missing reference code drops
+    // the thumbnail entirely so /visa-issued falls back to its "PHOTO ON
+    // FILE" placeholder rather than ever risking showing the wrong photo.
+    // The local completed log intentionally has no raw/private photo to
+    // fetch or restore. When the fallback DOES resolve a thumbnail, it's
+    // also rescued into the matching localStorage application-log row
+    // (persistApplicationThumbnail) so it survives even after this tab/
+    // session eventually closes, not just for the remainder of this visit.
+    if (!restored.selfieThumbnailUrl) {
+      const sessionThumbnail = resolveRestoredThumbnail(
+        stateRef.current.referenceCode,
+        stateRef.current.selfieThumbnailUrl,
+        record.referenceCode
+      )
+      if (sessionThumbnail) {
+        restored.selfieThumbnailUrl = sessionThumbnail
+        if (record.referenceCode) persistApplicationThumbnail(record.referenceCode, sessionThumbnail)
+      }
+    }
     stateRef.current = restored
     setState(restored)
   }, [])
