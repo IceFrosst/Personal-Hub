@@ -15,7 +15,7 @@
 // question) sits in a small notes line under each document.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type Session } from '@supabase/supabase-js'
 import { PageShell } from '@/components/PageShell'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
 import {
@@ -171,7 +171,7 @@ export default function MinistryPage() {
   useEffect(() => {
     if (!supabase || !rows) return
     let cancelled = false
-    const client: SupabaseClient = supabase
+    const client = supabase
     rows
       .filter((r) => r.status === 'pending' && r.selfie_path && !(r.id in photos))
       .forEach((row) => {
