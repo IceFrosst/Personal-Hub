@@ -32,6 +32,8 @@ export default function EntryDeclarationPage() {
   // 'declare' → 'followUp' → 'gender' → /identity. Gender lands on the
   // passport's SEX field (see STICKER_LABELS.sex / ApplicationState#gender).
   const [stage, setStage] = useState<'declare' | 'followUp' | 'gender'>('declare')
+  // Top-right corner toggle — pure theater, changes nothing downstream.
+  const [priority, setPriority] = useState(true)
 
   useEffect(() => {
     // Landing restarts the funnel on every visit, but identity is preserved
@@ -57,7 +59,9 @@ export default function EntryDeclarationPage() {
   function handleAnswer(answer: 'yes' | 'no') {
     playStampThunk()
     if (answer === 'no') {
-      router.push('/denied')
+      // Nothing to declare — no reason line on /denied, just the
+      // wasting-officer's-time STATUS (see app/denied/page.tsx).
+      router.push('/denied?via=nothing')
       return
     }
     // Declaring something triggers immediate follow-up questioning — the
@@ -90,12 +94,26 @@ export default function EntryDeclarationPage() {
   return (
     <PageShell fullHeight>
       <div className="paper-card relative p-4">
-        <div
-          className="absolute right-2 top-2 rotate-[8deg] border-2 border-stamp px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-stamp"
-          aria-hidden
+        {/* Applicant № — top-LEFT corner of the card (owner request; it used
+            to be a centered line under the divider — that spot is kept as
+            empty space, see the spacer below). */}
+        <p className="absolute left-2 top-2 text-[9px] uppercase tracking-wide text-navy/60">
+          {LANDING.applicantNumberPrefix}{' '}
+          {applicantNumber !== null ? formatApplicantNumber(applicantNumber) : LANDING.applicantNumberPlaceholder}
+        </p>
+        {/* PRIORITY ↔ NON-PRIORITY toggle stamp — top-right corner. A real
+            button (was a static decoration), but the choice is pure theater
+            and changes nothing downstream. */}
+        <button
+          type="button"
+          onClick={() => setPriority((p) => !p)}
+          aria-pressed={priority}
+          className={`absolute right-2 top-2 rotate-[8deg] border-2 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${
+            priority ? 'border-stamp text-stamp' : 'border-navy/50 text-navy/50'
+          }`}
         >
-          {LANDING.priorityStamp}
-        </div>
+          {priority ? LANDING.priorityStamp : LANDING.nonPriorityStamp}
+        </button>
 
         <div className="flex flex-col items-center gap-1">
           <Crest className="h-10 w-10" />
@@ -105,10 +123,9 @@ export default function EntryDeclarationPage() {
 
         <div className="my-2 h-px bg-navy/30" />
 
-        <p className="mt-0.5 text-center text-[10px] text-navy/60">
-          {LANDING.applicantNumberPrefix}{' '}
-          {applicantNumber !== null ? formatApplicantNumber(applicantNumber) : LANDING.applicantNumberPlaceholder}
-        </p>
+        {/* The applicant-№ line moved to the card's top-left corner; its old
+            spot deliberately stays as equivalent empty space (owner request). */}
+        <div className="mt-0.5 h-[15px]" aria-hidden />
 
         {stage === 'declare' ? (
           <>
@@ -141,7 +158,8 @@ export default function EntryDeclarationPage() {
           </>
         ) : stage === 'followUp' && followUp ? (
           <div className="animate-fade-in mt-3">
-            <p className="text-center font-stamp text-sm uppercase leading-relaxed tracking-wide text-navy">
+            {/* ~10% larger than the old text-sm (14px → 15px), owner request. */}
+            <p className="text-center font-stamp text-[15px] uppercase leading-relaxed tracking-wide text-navy">
               {followUp.question}
             </p>
             <div className="mt-3 flex flex-col gap-2">

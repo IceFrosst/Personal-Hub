@@ -77,18 +77,25 @@ export default function ScreeningPage() {
               via lib/visaAddendum.ts. */}
           <p className="mt-4 text-center font-stamp text-3xl uppercase tracking-widest text-navy">{iq}</p>
 
-          <input
-            type="range"
-            min={SCREENING.iqMin}
-            max={SCREENING.iqMax}
-            value={iq}
-            onChange={(event) => setIq(Number(event.target.value))}
-            aria-label={SCREENING.iqAriaLabel}
-            className="iq-slider mt-4 w-full cursor-pointer"
-            style={{
-              background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
-            }}
-          />
+          {/* The slider is width-matched to the meme's own IQ axis (the 55
+              tick sits ~24% in, the 145 tick ~72% in on the source image), so
+              it never extends past the chart and its positions line up with
+              the printed scores (owner request). Percentages are relative to
+              the image, which is w-full — same reference width. */}
+          <div className="ml-[24%] w-[48%]">
+            <input
+              type="range"
+              min={SCREENING.iqMin}
+              max={SCREENING.iqMax}
+              value={iq}
+              onChange={(event) => setIq(Number(event.target.value))}
+              aria-label={SCREENING.iqAriaLabel}
+              className="iq-slider mt-2 w-full cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #2e7d32 ${fillPercent}%, rgba(26, 42, 74, 0.12) ${fillPercent}%)`,
+              }}
+            />
+          </div>
         </div>
 
         <button

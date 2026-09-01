@@ -356,7 +356,32 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — date-path IQ skip, DATE VISA flavor line, final-page copy trims:**
+**Latest pass — big v1 feedback batch:**
+- **Landing**: applicant № moved to the card's top-LEFT corner (its old centered spot
+  stays as equivalent empty space — a 15px spacer, owner request); the static PRIORITY
+  stamp in the top-right is now a tappable PRIORITY ↔ NON-PRIORITY toggle button (pure
+  theater, changes nothing downstream; `LANDING.nonPriorityStamp` added); the follow-up
+  question font grew ~10% (text-sm → text-[15px]).
+- **/denied variants**: NO on the landing pushes `?via=nothing` — no REASON line, just
+  the existing wasting-officer's-time STATUS. CLASSIFIED gender shows no REASON either,
+  and its STATUS is `DENIAL.statusClassified` ("KINDLY, FUCK OFF.") —
+  `CLASSIFIED_DENIAL_REASON` was deleted. The appeal button is plain "FILE AN APPEAL"
+  (the "(wait, actually…)" tail removed).
+- **Passport field order** is now ISSUED + SERIAL № (top corners), NAME + PASSPORT,
+  VISA TYPE + VALID, SEX — in all three renderers (progress card, final DOM, canvas).
+- **Sidequest visa has a sub-step again**: "WHAT'S THE IDEA?" textarea (placeholder
+  "It better be good"), stored in new `ApplicationState.sidequestIdea`, printed as the
+  `IDEA:` addendum, and recorded as optional `idea` on the application record.
+- **/biometric starts the FRONT camera live on page load** (`getUserMedia`
+  `facingMode:'user'`, mirrored preview + mirrored capture); falls back to the old
+  `capture="user"` file input if getUserMedia fails/denied. Capture is an in-page
+  canvas grab now — no OS camera app in the happy path.
+- **/screening slider is width-matched to the meme's IQ axis** (ml-[24%] w-[48%] — the
+  55/145 ticks sit at ~24%/72% of the image) so it never extends past the chart.
+- **Duty-free** lost the compliment/playlist/hug items; **/terms** lost §10 (the © line
+  — the footer still carries it).
+
+**Previous pass — date-path IQ skip, DATE VISA flavor line, final-page copy trims:**
 - **DATE VISA (fiance) skips the IQ self-assessment**: `/biometric` routes fiancé
   applicants straight to `/processing`, and `/screening` itself forwards any fiancé
   session (deep link / back-navigation) the same way. No IQ addendum ever prints for

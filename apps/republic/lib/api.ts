@@ -97,6 +97,7 @@ export interface ApplicationRecord {
   slot: string
   referenceCode: string
   matter?: string
+  idea?: string
   pitch?: string
   statement?: string
   interviewAnswers?: string[]
@@ -128,6 +129,7 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
   }
   // `matter` (the removed SEEK ADVICE PERMIT's sub-step field) stays in the
   // record/table shape for forward-compat but is never populated anymore.
+  if (state.visaType === 'tourist' && state.sidequestIdea) record.idea = state.sidequestIdea
   if (state.visaType === 'business' && state.businessPitch) record.pitch = state.businessPitch
   if (state.visaType === 'special' && state.specialStatement) record.statement = state.specialStatement
   if (state.visaType === 'fiance' && state.fianceAnswers.length) record.interviewAnswers = state.fianceAnswers
@@ -152,6 +154,7 @@ export async function recordApplication(record: ApplicationRecord): Promise<void
     slot: record.slot,
     reference_code: record.referenceCode,
     matter: record.matter ?? null,
+    idea: record.idea ?? null,
     pitch: record.pitch ?? null,
     statement: record.statement ?? null,
     interview_answers: record.interviewAnswers ?? null,

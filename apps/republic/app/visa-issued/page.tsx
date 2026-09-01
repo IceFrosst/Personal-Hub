@@ -257,8 +257,8 @@ export default function VisaIssuedPage() {
       context.strokeRect(photoX, photoY, photoW, photoH)
 
       // Two-column field grid, same order as the DOM VisaDocument/progress
-      // card — NAME + PASSPORT, VISA TYPE + SERIAL, ISSUED + VALID, SEX.
-      // (No REFERENCE № — removed from the documents per owner request.)
+      // card — ISSUED + SERIAL (top corners, owner request), NAME + PASSPORT,
+      // VISA TYPE + VALID, SEX. (No REFERENCE № — removed per owner request.)
       const gridX = photoX + photoW + 36
       const gridRight = CANVAS_W - 40
       const colGap = 24
@@ -276,13 +276,13 @@ export default function VisaIssuedPage() {
         context.fillText(fitText(context, value, width), x, rowY + 20)
       }
 
+      cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
+      cell(STICKER_LABELS.serial, serial, colBx, colWidth)
+      rowY += rowGap
       cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, colWidth)
       cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, colWidth)
       rowY += rowGap
       cell(STICKER_LABELS.visaType, visa!.name, colAx, colWidth)
-      cell(STICKER_LABELS.serial, serial, colBx, colWidth)
-      rowY += rowGap
-      cell(STICKER_LABELS.issued, issueDate, colAx, colWidth)
       cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
       rowY += rowGap
       cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, colWidth)
@@ -421,11 +421,11 @@ export default function VisaIssuedPage() {
   // here ever renders a blank/ruled row (unlike the mid-funnel progress
   // card, which shows blanks for fields not filled in yet).
   const fields: VisaDocumentField[] = [
+    { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
+    { key: 'serial', label: STICKER_LABELS.serial, value: serial },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
     { key: 'visaType', label: STICKER_LABELS.visaType, value: visa.name },
-    { key: 'serial', label: STICKER_LABELS.serial, value: serial },
-    { key: 'issued', label: STICKER_LABELS.issued, value: issueDate },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
   ]

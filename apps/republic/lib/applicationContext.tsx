@@ -8,6 +8,8 @@ export interface ApplicationState {
   applicantName: string
   instagramHandle: string
   visaType: VisaType | null
+  /** The sidequest (tourist) visa's "WHAT'S THE IDEA?" answer. */
+  sidequestIdea: string
   fianceAnswers: string[]
   businessPitch: string
   specialStatement: string
@@ -48,6 +50,7 @@ const EMPTY_STATE: ApplicationState = {
   applicantName: '',
   instagramHandle: '',
   visaType: null,
+  sidequestIdea: '',
   fianceAnswers: [],
   businessPitch: '',
   specialStatement: '',

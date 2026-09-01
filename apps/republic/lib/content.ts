@@ -101,7 +101,10 @@ export const LANDING = {
   yes: 'YES',
   no: 'NO',
   genderQuestion: 'GENDER OF APPLICANT?',
+  // The top-right corner is a tappable PRIORITY ↔ NON-PRIORITY toggle now
+  // (owner request) — pure theater, it changes nothing downstream.
   priorityStamp: 'PRIORITY',
+  nonPriorityStamp: 'NON-PRIORITY',
 }
 
 // Asked on the landing card right after the follow-up question is cleared.
@@ -173,11 +176,16 @@ export const DENIAL_REASONS = [
   'RANDOM SELECTION. VERY RANDOM. VERY SELECTED.',
 ]
 
+// The REASON line only renders for a random denial or the bribe trap —
+// declaring NOTHING (`?via=nothing`) and the CLASSIFIED gender trap
+// (`?via=classified`) show no reason at all, just their STATUS line
+// (owner request; see app/denied/page.tsx).
 export const DENIAL = {
   stamp: 'ENTRY DENIED',
   reasonPrefix: 'REASON:',
   status: 'STATUS: WASTING OFFICER\'S TIME.',
-  appeal: 'FILE AN APPEAL (wait, actually…)',
+  statusClassified: 'STATUS: KINDLY, FUCK OFF.',
+  appeal: 'FILE AN APPEAL',
   caseLabel: 'CASE №:',
   dateLabel: 'DATE:',
   pendingPlaceholder: '…',
@@ -193,6 +201,16 @@ export const DENIAL = {
 export const TOURIST_STEP = {
   notice: 'NO ADDITIONAL DOCUMENTS REQUIRED.',
   disclaimer: 'The Ministry trusts you. This is unusual and should not be relied upon.',
+}
+
+// ---------------------------------------------------------------------------
+// Sidequest visa — the idea itself
+// ---------------------------------------------------------------------------
+
+export const SIDEQUEST = {
+  prompt: "WHAT'S THE IDEA?",
+  placeholder: 'It better be good',
+  submit: 'SUBMIT IDEA',
 }
 
 // ---------------------------------------------------------------------------
@@ -562,6 +580,7 @@ export const STICKER_LABELS = {
 
 export const DOCUMENT_PROGRESS = {
   appointmentLabel: 'APPOINTMENT:',
+  ideaLabel: 'IDEA:',
   pitchLabel: 'PITCH:',
   statementLabel: 'STATEMENT:',
   interviewAnswersLabel: 'INTERVIEW:',
@@ -608,11 +627,6 @@ export const BRIBE = {
 export const BRIBE_DENIAL_REASON =
   'Attempted to bribe a state officer. The officer kept the cash. You keep the denial.'
 
-// Printed as the denial reason when /denied is reached via `?via=classified`
-// — selecting CLASSIFIED as the gender on the landing questionnaire is a
-// trap, same mechanic as the bribe (see app/page.tsx#answerGender).
-export const CLASSIFIED_DENIAL_REASON =
-  'Applicant sex is classified above the Ministry\u2019s clearance level. Entry requires declassification.'
 
 // The drawn cash pile peeking from the screen edge (components/HiddenBribe.tsx)
 // — collapsed-state aria-label; the revealed state reuses BRIBE.button above.
@@ -681,10 +695,7 @@ export const DUTY_FREE_SUBHEADING = 'TAX-FREE SHOPPING FOR THE DISCERNING APPLIC
 export const DUTY_FREE_ITEMS: { name: string; status: string }[] = [
   { name: "Ignas's attention — 15 min", status: 'SOLD OUT' },
   { name: 'One (1) good morning text', status: 'restocked weekly' },
-  { name: 'A well-timed compliment', status: 'pay at consulate' },
   { name: 'Unsolicited life advice', status: 'always in stock, ask no one' },
-  { name: 'Playlist recommendation', status: 'SOLD OUT' },
-  { name: 'A single (1) hug, terms apply', status: 'pay at consulate' },
   { name: 'Priority boarding on future sidequests', status: 'SOLD OUT' },
 ]
 
@@ -707,7 +718,6 @@ export const TERMS_PARAGRAPHS: string[] = [
   '7. This document is legally binding in no jurisdiction whatsoever.',
   '8. The Ministry may change these terms at any time, for any reason, or no reason.',
   '9. The Dictatorship of Ignas is a full democracy. Ignas has won every election since birth with 100% of the vote.',
-  '10. © Ministry of Interior, Dictatorship of Ignas. Unauthorized fun prohibited.',
 ]
 
 // ---------------------------------------------------------------------------

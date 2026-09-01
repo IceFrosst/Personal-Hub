@@ -76,7 +76,12 @@ export function DocumentProgress() {
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
+  // Field order (owner request): ISSUED top-left, SERIAL № top-right, then
+  // NAME + PASSPORT, VISA TYPE + VALID, SEX. Mirrored by /visa-issued's DOM
+  // document and PNG canvas — keep all three in sync.
   const fields: VisaDocumentField[] = [
+    { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
+    { key: 'serial', label: STICKER_LABELS.serial, value: state.serial, animate: serialAnimate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName || null, animate: nameAnimate },
     {
       key: 'passport',
@@ -85,8 +90,6 @@ export function DocumentProgress() {
       animate: passportAnimate,
     },
     { key: 'visaType', label: STICKER_LABELS.visaType, value: visa ? visa.name : null, animate: visaTypeAnimate },
-    { key: 'serial', label: STICKER_LABELS.serial, value: state.serial, animate: serialAnimate },
-    { key: 'issued', label: STICKER_LABELS.issued, value: state.issuedDate, animate: issuedAnimate },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
   ]

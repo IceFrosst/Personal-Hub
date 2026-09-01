@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { StampSlam } from '@/components/StampSlam'
 import { Footer } from '@/components/Footer'
-import { BRIBE_DENIAL_REASON, CLASSIFIED_DENIAL_REASON, DENIAL, DENIAL_REASONS } from '@/lib/content'
+import { BRIBE_DENIAL_REASON, DENIAL, DENIAL_REASONS } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playStampThunk } from '@/lib/sound'
 
@@ -28,6 +28,12 @@ export default function DeniedPage() {
   const [shake, setShake] = useState(false)
   const [showAppeal, setShowAppeal] = useState(false)
   const [reason, setReason] = useState<string | null>(null)
+  // Nothing-to-declare and CLASSIFIED denials show NO reason line at all
+  // (owner request) — `showReason` gates the line, and CLASSIFIED swaps the
+  // STATUS line for its own. Both start at SSR-safe defaults and are only
+  // set inside the effect, same as everything else here.
+  const [showReason, setShowReason] = useState(true)
+  const [status, setStatus] = useState(DENIAL.status)
   const [caseNumber, setCaseNumber] = useState<string | null>(null)
   const [date, setDate] = useState<string | null>(null)
 
@@ -38,13 +44,18 @@ export default function DeniedPage() {
     // effect — hydration-safe (this page is statically prerendered), and
     // avoids the Suspense boundary useSearchParams would demand.
     const via = new URLSearchParams(window.location.search).get('via')
-    setReason(
-      via === 'bribe'
-        ? BRIBE_DENIAL_REASON
-        : via === 'classified'
-          ? CLASSIFIED_DENIAL_REASON
-          : DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)]
-    )
+    if (via === 'nothing') {
+      // Declared nothing — no reason, the STATUS line says it all.
+      setShowReason(false)
+    } else if (via === 'classified') {
+      // CLASSIFIED gender — no reason, and the Ministry is direct about it.
+      setShowReason(false)
+      setStatus(DENIAL.statusClassified)
+    } else if (via === 'bribe') {
+      setReason(BRIBE_DENIAL_REASON)
+    } else {
+      setReason(DENIAL_REASONS[Math.floor(Math.random() * DENIAL_REASONS.length)])
+    }
     setCaseNumber(randomCaseNumber())
     setDate(new Date().toLocaleDateString('en-GB'))
 
@@ -66,10 +77,12 @@ export default function DeniedPage() {
         <StampSlam text={DENIAL.stamp} color="stamp" />
 
         <div className="mt-6 space-y-1 text-left text-[12px] uppercase tracking-wide text-navy">
-          <p>
-            {DENIAL.reasonPrefix} {reason ?? DENIAL.pendingPlaceholder}
-          </p>
-          <p>{DENIAL.status}</p>
+          {showReason && (
+            <p>
+              {DENIAL.reasonPrefix} {reason ?? DENIAL.pendingPlaceholder}
+            </p>
+          )}
+          <p>{status}</p>
           <p className="mt-3 text-[11px] text-navy/60">
             {DENIAL.caseLabel} {caseNumber ?? DENIAL.pendingPlaceholder}
           </p>
