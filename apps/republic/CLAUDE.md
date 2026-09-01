@@ -335,7 +335,150 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — new emblem (Border Control seal + boom gate), replacing the generic shield crest:**
+**Latest pass — reviewer follow-up on the Ministry queue tabs/unique-visitor pass (below): always-visible queue controls, a live-updating draft-age clock, and hardened visitor-count parsing:**
+- **`/ministry` no longer has a global "desk is empty" branch that bypassed the queue
+  controls.** Previously, when `rows` had loaded successfully but both `applications`
+  and (non-submitted) draft groups were empty, the whole four-tab UI was skipped in
+  favor of a single `MINISTRY.empty` line — so an all-quiet desk couldn't show its
+  queue buttons or the (also correctly zeroed) unique-visitor panel context. Now the
+  four queue controls and the selected queue's panel always render once `rows !== null`
+  and access isn't denied, with every tab correctly reading `(0)` and the selected
+  queue's panel showing `MINISTRY.queueEmpty` — there is no code path that hides the
+  controls just because the desk happens to be empty this load. `MINISTRY.empty` is
+  now unused copy, kept per this app's standing copy-bank convention (like
+  `MINISTRY.draftsHeading` before it), not deleted.
+- **Draft ABANDONED/IN PROGRESS classification now advances on its own, without
+  requiring an unrelated re-render.** `lib/ministryDrafts.ts`'s `classifyDraft` and
+  `partitionDraftGroups` already took an explicit `now`, but it defaulted to a fresh
+  `Date.now()` read *inside* `useMemo`, so a draft only got reclassified when
+  `draftGroups`/`rows` themselves changed — a desk left open past the 30-minute mark
+  with no other activity would keep showing a draft as IN PROGRESS indefinitely.
+  `now` is now `number | Date` (an explicit `Date` instance normalizes to its epoch-ms
+  value; omitting it entirely still falls back to a live clock read, for ad-hoc/test
+  use only — render call sites must always pass one) and `app/ministry/page.tsx` holds
+  its own `nowMs` state: initialized to a constant `0` (this app's usual SSR-safe/
+  hydration-guard pattern — never a `Date.now()` read during initial render), a
+  mount effect immediately sets the real clock and then refreshes it every 45s
+  (cleared on unmount). The abandoned/in-progress `useMemo` now depends on
+  `[draftGroups, nowMs]`, so classification silently advances at the 30-minute mark on
+  its own.
+- **The page's `queueTabs` array is now built from a new pure/testable helper,**
+  `buildQueueTabs(counts)` (`lib/ministryDrafts.ts`) — returns all four
+  `{ key, count }` tabs in a fixed order over an already-computed `MinistryQueueCounts`,
+  independent of copy/labels (the page still maps `key` → `MINISTRY.*` label locally).
+  This is what let the all-zero-counts and threshold-crossing regressions below be
+  pure unit tests rather than requiring a React render harness.
+- **`parseUniqueVisitorCount` (`lib/ministryVisitors.ts`) is meaningfully hardened,**
+  per reviewer: a blank/whitespace-only numeric string (`''`, `'   '`) used to silently
+  coerce to `0` via `Number('')` — now explicitly rejected via a strict
+  `^-?\d+$` integer-string match (also rejects `'1.5'`/`'1e3'`/`'1,000'` — no
+  decimal/exponent/separator notation is accepted, only a plain signed integer
+  string). An array payload now requires **exactly one** element (`length === 1`) —
+  an empty array and a multi-row array both fail closed to `null`, not just the
+  previous implicit `[0]`/`undefined` behavior. A native JS `bigint` value is now
+  accepted directly (defensive support for a non-JSON transport path), rejecting
+  negative and `> Number.MAX_SAFE_INTEGER` bigints; a same-range check now also
+  applies to number/string inputs via `Number.isSafeInteger` (previously only
+  `Number.isInteger`, which doesn't catch an unsafe-precision integer like
+  `2^53`). BigInt arithmetic uses `BigInt(0)`/`BigInt(n)` call form, not `0n`/`42n`
+  literals, since this app's `tsconfig` targets ES2017 (BigInt literals need
+  ES2020+) — the test file itself (plain Node, no transform) still uses literals
+  freely.
+- **New/expanded tests**: `test/ministryQueues.test.mjs` gained `buildQueueTabs`'
+  all-zero-counts case, a regression proving the *same* draft group moves from
+  `inProgress` to `abandoned` purely because `now` crossed the threshold (not because
+  the group itself changed), and a `Date`-vs-epoch-ms equivalence check for both
+  `classifyDraft` and `partitionDraftGroups`. `test/ministryVisitors.test.mjs` gained
+  blank-string rejection, non-integer-notation string rejection, exactly-one-array-
+  element enforcement, `Number.MAX_SAFE_INTEGER` boundary rejection (both as a number
+  and as an oversized numeric string), and native-`bigint` acceptance/rejection
+  coverage. `npm test` (66 tests), `npm run typecheck`, `npm run build`, and
+  `npm run lint` all pass clean from this folder. Migration 0009 was applied remotely
+  before deployment; live smoke checks confirmed anonymous execution is denied and the
+  exact ministry JWT receives one bigint count only.
+
+**Previous pass — Ministry queue tabs (ABANDONED / IN PROGRESS / PENDING / DECIDED) + officer-only unique-visitor counter:**
+- **`/ministry` now shows four mobile-friendly filter buttons in a compact 2×2 grid**
+  (`role="group"` + `aria-pressed` per button, native `<button>`s — no custom tab
+  roving-tabindex machinery needed) labelled ABANDONED / IN PROGRESS / PENDING /
+  DECIDED, each showing its live case count. **Only the selected queue's cases render
+  in the DOM** — the other three are not mounted at all, per owner instruction that
+  cases should only "open" on click, not sit pre-rendered/collapsed. Default queue on
+  load is **PENDING** (the most operational view). The selected tab uses a solid navy
+  fill (`border-navy bg-navy text-paper`) against the unselected `border-navy/40`
+  outline style, in keeping with the existing navy/paper/stamp palette — no new colors.
+  Approving/denying a pending case updates that row's `status` in place (existing
+  `decide()`, unchanged) which immediately moves it out of the PENDING count/list and
+  into DECIDED on the next render; the desk deliberately stays on the PENDING tab
+  after a decision rather than auto-switching (explicitly allowed by the owner ask).
+- **Classification is a pure, unit-tested module** (`lib/ministryDrafts.ts`, new
+  exports): `classifyDraft(lastEventCreatedAt, now)` is the same 30-minute-idle rule
+  that used to be computed inline in the component (`DRAFT_ABANDONED_THRESHOLD_MS`),
+  now a named export; `partitionDraftGroups` splits the **already** submitted-filtered
+  draft groups (the existing `submittedDraftIds` exclusion is untouched, so a draft
+  with a `submitted` event or a linked application never appears as abandoned/in-progress
+  — no duplicates) into abandoned/in-progress buckets; `isPendingApplicationStatus` +
+  `computeQueueCounts` classify **finalized applications** by `status`: `'pending'` →
+  PENDING queue, anything else (`'approved'`/`'denied'`) → DECIDED queue. `app/ministry/page.tsx`
+  is now a thin render layer over these pure functions (`useMemo`'d against
+  `draftGroups`/`rows`) — no classification logic lives in JSX anymore. Existing
+  pagination (1000-row paged reads) and the `draft_events`-failure degrade-to-empty
+  behavior (only an `applications` query error denies the whole desk) are unchanged.
+- **New officer-only UNIQUE VISITORS counter**, IP-based, shown just under the desk
+  subheading once signed in and not denied. Migration
+  `supabase/migrations/0009_ministry_unique_visitors.sql` (applied remotely before
+  deployment) adds `republic.count_unique_visitor_ips()`: a `SECURITY DEFINER` function
+  that **explicitly checks `republic.is_ministry()` itself and `raise exception`s if
+  false** (mandatory since SECURITY DEFINER bypasses RLS on the tables it reads), uses
+  a fixed `search_path = pg_catalog, republic`, reads only fully-qualified
+  `republic.applications.intel->>'ip'` and `republic.draft_events` rows where
+  `event_type = 'intel_collected'` (`value->>'ip'`), excludes blank IPs and the four
+  standard documentation/test ranges (`192.0.2.0/24`, `198.51.100.0/24`,
+  `203.0.113.0/24`, `2001:db8::/32` — so the app's own synthetic smoke-check IPs never
+  inflate a real count), and returns **only a `bigint` count, never any IP value**.
+  Malformed/unparseable IP strings are caught per-row (`begin/exception when others`
+  around the `::inet` cast) rather than aborting the whole count. `EXECUTE` is revoked
+  from `public`/`anon` and granted to `authenticated` only — no new `SELECT` grant on
+  either underlying table was added. `lib/ministryVisitors.ts` (new, plain/testable)
+  has `fetchUniqueVisitorCount` (fails closed to `null` on any error/thrown
+  exception/missing client — never denies the desk) and `parseUniqueVisitorCount`
+  (accepts a JSON number or numeric string — PostgREST can serialize `bigint` either
+  way — rejects anything non-integer/negative/non-finite). The ministry page calls it
+  once per successful authenticated row load (inside `loadRows`, right after `setRows`
+  succeeds) via the already-`republic`-schema-scoped `supabase-js` client
+  (`supabase.rpc('count_unique_visitor_ips')`) — no raw `fetch`, no anon-site query.
+  It does **not** refetch after approve/deny (decisions don't change unique visitor
+  IPs). The UI shows `…` while unfetched, the count once resolved, or
+  `MINISTRY.uniqueVisitorsUnavailable` ("UNAVAILABLE") on any failure — it never denies
+  or blocks the rest of the desk. The note under the count
+  (`MINISTRY.uniqueVisitorsNote`, "IP-BASED COUNT, SINCE TRACKING BEGAN.") is
+  deliberately honest about both the methodology (IP-based, not a real "unique person"
+  count) and the time window (no historical backfill — counts only what's already been
+  collected in `intel`/`draft_events`).
+- **All new/changed copy lives in `lib/content.ts`** (`MINISTRY.queueTabsAriaLabel`,
+  `.queueEmpty`, `.uniqueVisitorsLabel`, `.uniqueVisitorsNote`,
+  `.uniqueVisitorsUnavailable`, `.uniqueVisitorsLoading`) — nothing hardcoded in
+  `app/ministry/page.tsx`. `MINISTRY.draftsHeading` (the old combined "ABANDONED / IN
+  PROGRESS" section heading) is now unused — kept as copy-bank content per this app's
+  standing convention, not deleted, since the four existing per-queue labels
+  (`.abandoned`, `.inProgress`, `.pendingHeading`, `.decidedHeading`) now double as the
+  tab labels themselves.
+- **New tests**: `test/ministryQueues.test.mjs` (boundary-exact `classifyDraft`
+  behavior at the 30-minute threshold, `partitionDraftGroups`' no-duplicates/every-group-
+  in-exactly-one-queue property and its eventless-group fallback, `isPendingApplicationStatus`,
+  and `computeQueueCounts`' pending/decided split), `test/ministryVisitors.test.mjs`
+  (`parseUniqueVisitorCount`'s number/numeric-string/array-wrapped acceptance and its
+  rejection of null/NaN/negative/non-integer/object payloads, `fetchUniqueVisitorCount`'s
+  fail-closed-to-null behavior on a missing client, an RPC error, and a thrown
+  exception, plus its success path), and three new assertions appended to
+  `test/migrationPayloadGuards.test.mjs` covering migration 0009's `is_ministry()`
+  self-check, fixed `search_path`, fully-qualified table references, the four excluded
+  test ranges, the scalar-only return shape, and the revoke-then-grant-authenticated-only
+  privilege pattern (asserting no `anon` grant and no new `SELECT` grant were introduced).
+  `npm test` (58 tests), `npm run typecheck`, `npm run build`, and `npm run lint` all
+  pass clean from this folder.
+
+**Previous pass — new emblem (Border Control seal + boom gate), replacing the generic shield crest:**
 - **Concept:** a round rubber-stamp seal (double navy ring) enclosing a checkpoint boom
   gate — post, hinge, counterweight, red-and-paper striped barrier arm — on a solid navy
   ground line. The arm hangs at 22°, neither open nor closed: the border is permanently
@@ -906,7 +1049,28 @@ all pass clean from this folder (one pre-existing, unrelated
 
 ## Next
 
-- **Handoff:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Not committed. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal. Earlier in-flight item still stands: same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
+- **Handoff:** Ministry queue tabs (ABANDONED/IN PROGRESS/PENDING/DECIDED, default
+  PENDING) and the officer-only IP-based UNIQUE VISITORS counter are implemented —
+  `lib/ministryDrafts.ts` (queue classification/counts + `buildQueueTabs`),
+  `lib/ministryVisitors.ts` (RPC fetch/hardened parse), `app/ministry/page.tsx` (tabs
+  UI always rendered post-load, incl. all-zero-counts + live `nowMs` clock, + counter
+  readout), migration `0009_ministry_unique_visitors.sql`
+  (`republic.count_unique_visitor_ips()`). A reviewer follow-up pass (see Current
+  state's latest entry) fixed three issues in this same uncommitted work: the queue
+  controls no longer disappear on an all-empty desk, draft age classification now
+  advances on a live-updating clock instead of only on unrelated re-renders, and
+  `parseUniqueVisitorCount` is hardened against blank numeric strings, multi-row
+  arrays, and unsafe-precision integers. Tests (66, including new regressions for the
+  all-zero-counts render helper and the threshold-crossing reclassification)/
+  typecheck/build/lint all pass. **Migration 0009 is applied remotely.** Live smoke
+  checks confirmed anonymous execution receives HTTP 401 while the exact ministry JWT
+  receives one bigint count and no IP values. `fetchUniqueVisitorCount` still fails
+  closed to "UNAVAILABLE" on transient errors without denying the desk. Also manually eyeball the 2×2 tab grid at real 390px width (per
+  this app's usual zoom-emulation gotcha, see below), including with a genuinely empty
+  desk (all four tabs at `(0)`, selected queue's panel reading "NO CASES IN THIS
+  QUEUE."), and confirm approving/denying a pending case updates PENDING/DECIDED
+  counts live without a page reload.
+- **Earlier in-flight item still stands:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Not committed. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal. Earlier in-flight item still stands: same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
 - **Applicant-facing status synchronization is now built:** the landing card and `/visa-issued` call the narrow lookup by exact reference code + normalized handle, poll every 7 seconds, recheck after focus/visibility, and stop after a terminal decision. No public application SELECT was added.
 - **Owner must smoke-test /ministry sign-in on production** (Google OAuth redirect —
   can't be automated headlessly).

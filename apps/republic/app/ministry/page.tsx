@@ -36,7 +36,17 @@ import {
   type VisaType,
 } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
-import { compareDraftEvents, sortDraftEvents, submittedDraftIds } from '@/lib/ministryDrafts'
+import {
+  buildQueueTabs,
+  compareDraftEvents,
+  computeQueueCounts,
+  isPendingApplicationStatus,
+  partitionDraftGroups,
+  sortDraftEvents,
+  submittedDraftIds,
+  type MinistryQueue,
+} from '@/lib/ministryDrafts'
+import { fetchUniqueVisitorCount } from '@/lib/ministryVisitors'
 
 interface ApplicationRow {
   id: number
@@ -221,6 +231,21 @@ export default function MinistryPage() {
   const [events, setEvents] = useState<DraftEventRow[] | null>(null)
   const [denied, setDenied] = useState(false)
   const [photos, setPhotos] = useState<Record<number, string>>({})
+  const [queue, setQueue] = useState<MinistryQueue>('pending')
+  // undefined = not yet fetched, null = fetched but unavailable/failed.
+  const [uniqueVisitors, setUniqueVisitors] = useState<number | null | undefined>(undefined)
+  // SSR-safe default (0, never a client-only `Date.now()` read at render time,
+  // matching this app's usual hydration-guard pattern); a client effect sets
+  // the real clock immediately on mount and refreshes it periodically so a
+  // draft's ABANDONED/IN PROGRESS classification advances at the 30-minute
+  // mark on its own, without requiring an unrelated re-render to notice.
+  const [nowMs, setNowMs] = useState(0)
+
+  useEffect(() => {
+    setNowMs(Date.now())
+    const id = setInterval(() => setNowMs(Date.now()), 45_000)
+    return () => clearInterval(id)
+  }, [])
 
   const loadRows = useCallback(async () => {
     if (!supabase) return
@@ -277,6 +302,10 @@ export default function MinistryPage() {
     setDenied(false)
     setRows(applications)
     setEvents(draftEventsFailed ? [] : draftEvents)
+    // Fetched once per authenticated row load, after the desk itself is
+    // confirmed accessible. Decisions (approve/deny) don't change unique
+    // visitor IPs, so there's no need to refetch after every decide().
+    void fetchUniqueVisitorCount(supabase).then(setUniqueVisitors)
   }, [supabase])
 
   // Pull each pending application's selfie from the private bucket (only the
@@ -345,8 +374,8 @@ export default function MinistryPage() {
     }
   }
 
-  const pending = rows?.filter((r) => r.status === 'pending') ?? []
-  const decided = rows?.filter((r) => r.status !== 'pending') ?? []
+  const pending = rows?.filter((r) => isPendingApplicationStatus(r.status)) ?? []
+  const decided = rows?.filter((r) => !isPendingApplicationStatus(r.status)) ?? []
   const draftGroups = useMemo<DraftGroup[]>(() => {
     const allEvents = events ?? []
     // A submitted event is authoritative even when the application insert is
@@ -374,11 +403,90 @@ export default function MinistryPage() {
       .sort((a, b) => compareDraftEvents(b.events[b.events.length - 1], a.events[a.events.length - 1]))
   }, [events, rows])
 
+  const { abandoned: abandonedDrafts, inProgress: inProgressDrafts } = useMemo(
+    () => partitionDraftGroups(draftGroups, nowMs),
+    [draftGroups, nowMs]
+  )
+  const queueCounts = useMemo(
+    () => computeQueueCounts(abandonedDrafts.length, inProgressDrafts.length, (rows ?? []).map((row) => row.status)),
+    [abandonedDrafts.length, inProgressDrafts.length, rows]
+  )
+  const queueLabels: Record<MinistryQueue, string> = {
+    abandoned: MINISTRY.abandoned,
+    inProgress: MINISTRY.inProgress,
+    pending: MINISTRY.pendingHeading,
+    decided: MINISTRY.decidedHeading,
+  }
+  const queueTabs: { key: MinistryQueue; label: string; count: number }[] = useMemo(
+    () => buildQueueTabs(queueCounts).map((tab) => ({ ...tab, label: queueLabels[tab.key] })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queueCounts]
+  )
+
+  function renderDraftCard(draft: DraftGroup, queueLabel: string) {
+    const last = draft.events[draft.events.length - 1]
+    return (
+      <article key={draft.draftId} className="border-2 border-navy/30 bg-paper-dark p-3">
+        <div className="flex items-start justify-between gap-2 text-[10px] uppercase text-navy/60">
+          <span className="font-bold text-navy">{queueLabel}</span>
+          <span>{new Date(last.created_at).toLocaleString('en-GB')}</span>
+        </div>
+        <p className="mt-1 break-all text-[9px] uppercase text-navy/50">
+          {MINISTRY.draftIdLabel} {draft.draftId}
+        </p>
+        <div className="mt-2 flex flex-col gap-1 text-[10px] uppercase text-navy">
+          {[...draft.latest.values()].map((event) => (
+            <p key={event.event_id} className="flex gap-2">
+              <span className="shrink-0 font-bold">{event.field}:</span>
+              <span className="min-w-0 break-words">{displayValue(event.value)}</span>
+            </p>
+          ))}
+          {draft.latest.size === 0 && <p>{MINISTRY.noPartialData}</p>}
+        </div>
+        {draftOfficerNotes(draft.intel).length > 0 && (
+          <p className="mt-2 text-[9px] uppercase leading-snug text-navy/60">
+            {MINISTRY.officerNotesLabel} {draftOfficerNotes(draft.intel).join(' · ')}
+          </p>
+        )}
+        <details className="mt-2 border-t border-navy/20 pt-2 text-[10px] uppercase text-navy">
+          <summary className="min-h-11 cursor-pointer py-3 font-bold">{MINISTRY.historyLabel}</summary>
+          <div className="flex flex-col gap-2">
+            {draft.events
+              .filter((event) => event.event_type === 'field_changed')
+              .map((event) => (
+                <div key={event.event_id} className="border-t border-dashed border-navy/20 pt-1">
+                  <p>
+                    {new Date(event.client_at || event.created_at).toLocaleString('en-GB')} · {event.field}
+                  </p>
+                  <p className="break-words text-navy/60">
+                    {displayValue(event.previous_value)} → {displayValue(event.value)}
+                  </p>
+                </div>
+              ))}
+          </div>
+        </details>
+      </article>
+    )
+  }
+
   return (
     <PageShell>
       <div className="paper-card p-4">
         <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{MINISTRY.heading}</h1>
         <p className="mt-1 text-center text-[10px] uppercase tracking-[0.2em] text-navy/60">{MINISTRY.sub}</p>
+        {session && !denied && rows !== null && (
+          <p className="mt-2 text-center text-[10px] uppercase text-navy/60">
+            {MINISTRY.uniqueVisitorsLabel}:{' '}
+            <span className="font-bold text-navy">
+              {uniqueVisitors === undefined
+                ? MINISTRY.uniqueVisitorsLoading
+                : uniqueVisitors === null
+                  ? MINISTRY.uniqueVisitorsUnavailable
+                  : uniqueVisitors}
+            </span>
+            <span className="block text-[8px] normal-case tracking-normal text-navy/40">{MINISTRY.uniqueVisitorsNote}</span>
+          </p>
+        )}
         <div className="my-3 h-px bg-navy/20" />
 
         {!checkedAuth ? null : !session ? (
@@ -395,130 +503,126 @@ export default function MinistryPage() {
           </p>
         ) : rows === null ? (
           <p className="text-center text-[11px] uppercase text-navy/60">{MINISTRY.loading}</p>
-        ) : rows.length === 0 && draftGroups.length === 0 ? (
-          <p className="text-center text-[11px] uppercase text-navy/60">{MINISTRY.empty}</p>
         ) : (
-          <div className="flex flex-col gap-5">
-            {draftGroups.length > 0 && (
+          <div className="flex flex-col gap-4">
+            <div role="group" aria-label={MINISTRY.queueTabsAriaLabel} className="grid grid-cols-2 gap-2">
+              {queueTabs.map((tab) => {
+                const selected = queue === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setQueue(tab.key)}
+                    className={`min-h-11 border-2 px-2 py-2 text-center font-stamp text-[11px] uppercase tracking-wide transition-colors ${
+                      selected ? 'border-navy bg-navy text-paper' : 'border-navy/40 bg-paper text-navy hover:bg-navy/10'
+                    }`}
+                  >
+                    {tab.label}
+                    <span className="block text-[10px] font-normal tracking-normal">({tab.count})</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {queue === 'abandoned' && (
               <section>
-                <h2 className="font-stamp text-sm uppercase tracking-widest text-navy">
-                  {MINISTRY.draftsHeading} ({draftGroups.length})
-                </h2>
-                <div className="mt-2 flex flex-col gap-4">
-                  {draftGroups.map((draft) => {
-                    const last = draft.events[draft.events.length - 1]
-                    const abandoned = Date.now() - new Date(last.created_at).getTime() > 30 * 60 * 1000
-                    return (
-                      <article key={draft.draftId} className="border-2 border-navy/30 bg-paper-dark p-3">
-                        <div className="flex items-start justify-between gap-2 text-[10px] uppercase text-navy/60">
-                          <span className={`font-bold ${abandoned ? 'text-stamp' : 'text-approve'}`}>
-                            {abandoned ? MINISTRY.abandoned : MINISTRY.inProgress}
-                          </span>
-                          <span>{new Date(last.created_at).toLocaleString('en-GB')}</span>
-                        </div>
-                        <p className="mt-1 break-all text-[9px] uppercase text-navy/50">{MINISTRY.draftIdLabel} {draft.draftId}</p>
-                        <div className="mt-2 flex flex-col gap-1 text-[10px] uppercase text-navy">
-                          {[...draft.latest.values()].map((event) => (
-                            <p key={event.event_id} className="flex gap-2">
-                              <span className="shrink-0 font-bold">{event.field}:</span>
-                              <span className="min-w-0 break-words">{displayValue(event.value)}</span>
-                            </p>
-                          ))}
-                          {draft.latest.size === 0 && <p>{MINISTRY.noPartialData}</p>}
-                        </div>
-                        {draftOfficerNotes(draft.intel).length > 0 && (
-                          <p className="mt-2 text-[9px] uppercase leading-snug text-navy/60">
-                            {MINISTRY.officerNotesLabel} {draftOfficerNotes(draft.intel).join(' · ')}
-                          </p>
-                        )}
-                        <details className="mt-2 border-t border-navy/20 pt-2 text-[10px] uppercase text-navy">
-                          <summary className="min-h-11 cursor-pointer py-3 font-bold">{MINISTRY.historyLabel}</summary>
-                          <div className="flex flex-col gap-2">
-                            {draft.events.filter((event) => event.event_type === 'field_changed').map((event) => (
-                              <div key={event.event_id} className="border-t border-dashed border-navy/20 pt-1">
-                                <p>{new Date(event.client_at || event.created_at).toLocaleString('en-GB')} · {event.field}</p>
-                                <p className="break-words text-navy/60">{displayValue(event.previous_value)} → {displayValue(event.value)}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      </article>
-                    )
-                  })}
-                </div>
+                {abandonedDrafts.length === 0 ? (
+                  <p className="text-[11px] uppercase text-navy/50">{MINISTRY.queueEmpty}</p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {abandonedDrafts.map((draft) => renderDraftCard(draft, MINISTRY.abandoned))}
+                  </div>
+                )}
               </section>
             )}
-            <section>
-              <h2 className="font-stamp text-sm uppercase tracking-widest text-navy">
-                {MINISTRY.pendingHeading} ({pending.length})
-              </h2>
-              <div className="mt-2 flex flex-col gap-5">
-                {pending.map((row) => (
-                  <div key={row.id}>
-                    <p className="mb-1 flex items-baseline justify-between text-[10px] uppercase text-navy/60">
-                      <span>{row.reference_code}</span>
-                      <span>{new Date(row.created_at).toLocaleString('en-GB')}</span>
-                    </p>
-                    <VisaDocument
-                      size="full"
-                      photoUrl={photos[row.id] ?? null}
-                      fields={rowToFields(row)}
-                      addenda={rowToAddenda(row)}
-                      cornerStamp={
-                        row.visa_type === 'tourist' && isFullyEquipped(row.supplies ?? [])
-                          ? FULLY_EQUIPPED_STAMP
-                          : undefined
-                      }
-                    />
-                    {officerNotes(row).length > 0 && (
-                      <p className="mt-1 text-[9px] uppercase leading-snug text-navy/50">
-                        {officerNotes(row).join(' · ')}
-                      </p>
-                    )}
-                    <div className="mt-2 grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => decide(row.id, 'approved')}
-                        className="min-h-11 border-2 border-approve bg-paper py-2 font-stamp text-sm uppercase tracking-widest text-approve transition-colors hover:bg-approve hover:text-paper"
-                      >
-                        {MINISTRY.approve}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => decide(row.id, 'denied')}
-                        className="min-h-11 border-2 border-stamp bg-paper py-2 font-stamp text-sm uppercase tracking-widest text-stamp transition-colors hover:bg-stamp hover:text-paper"
-                      >
-                        {MINISTRY.deny}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {pending.length === 0 && <p className="text-[11px] uppercase text-navy/50">{MINISTRY.empty}</p>}
-              </div>
-            </section>
 
-            {decided.length > 0 && (
+            {queue === 'inProgress' && (
               <section>
-                <h2 className="font-stamp text-sm uppercase tracking-widest text-navy">
-                  {MINISTRY.decidedHeading} ({decided.length})
-                </h2>
-                <div className="mt-2 flex flex-col gap-1.5">
-                  {decided.map((row) => (
-                    <div
-                      key={row.id}
-                      className="flex items-baseline justify-between gap-2 border border-navy/30 bg-paper px-2 py-1.5 text-[11px] uppercase"
-                    >
-                      <span className="min-w-0 truncate text-navy">
-                        {row.applicant_name} · {visaName(row.visa_type)} · {row.reference_code}
-                      </span>
-                      <span
-                        className={`shrink-0 font-bold ${row.status === 'approved' ? 'text-approve' : 'text-stamp'}`}
+                {inProgressDrafts.length === 0 ? (
+                  <p className="text-[11px] uppercase text-navy/50">{MINISTRY.queueEmpty}</p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {inProgressDrafts.map((draft) => renderDraftCard(draft, MINISTRY.inProgress))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {queue === 'pending' && (
+              <section>
+                {pending.length === 0 ? (
+                  <p className="text-[11px] uppercase text-navy/50">{MINISTRY.queueEmpty}</p>
+                ) : (
+                  <div className="flex flex-col gap-5">
+                    {pending.map((row) => (
+                      <div key={row.id}>
+                        <p className="mb-1 flex items-baseline justify-between text-[10px] uppercase text-navy/60">
+                          <span>{row.reference_code}</span>
+                          <span>{new Date(row.created_at).toLocaleString('en-GB')}</span>
+                        </p>
+                        <VisaDocument
+                          size="full"
+                          photoUrl={photos[row.id] ?? null}
+                          fields={rowToFields(row)}
+                          addenda={rowToAddenda(row)}
+                          cornerStamp={
+                            row.visa_type === 'tourist' && isFullyEquipped(row.supplies ?? [])
+                              ? FULLY_EQUIPPED_STAMP
+                              : undefined
+                          }
+                        />
+                        {officerNotes(row).length > 0 && (
+                          <p className="mt-1 text-[9px] uppercase leading-snug text-navy/50">
+                            {officerNotes(row).join(' · ')}
+                          </p>
+                        )}
+                        <div className="mt-2 grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => decide(row.id, 'approved')}
+                            className="min-h-11 border-2 border-approve bg-paper py-2 font-stamp text-sm uppercase tracking-widest text-approve transition-colors hover:bg-approve hover:text-paper"
+                          >
+                            {MINISTRY.approve}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => decide(row.id, 'denied')}
+                            className="min-h-11 border-2 border-stamp bg-paper py-2 font-stamp text-sm uppercase tracking-widest text-stamp transition-colors hover:bg-stamp hover:text-paper"
+                          >
+                            {MINISTRY.deny}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {queue === 'decided' && (
+              <section>
+                {decided.length === 0 ? (
+                  <p className="text-[11px] uppercase text-navy/50">{MINISTRY.queueEmpty}</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {decided.map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex items-baseline justify-between gap-2 border border-navy/30 bg-paper px-2 py-1.5 text-[11px] uppercase"
                       >
-                        {row.status.toUpperCase()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                        <span className="min-w-0 truncate text-navy">
+                          {row.applicant_name} · {visaName(row.visa_type)} · {row.reference_code}
+                        </span>
+                        <span
+                          className={`shrink-0 font-bold ${row.status === 'approved' ? 'text-approve' : 'text-stamp'}`}
+                        >
+                          {row.status.toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
           </div>

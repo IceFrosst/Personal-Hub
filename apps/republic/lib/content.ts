@@ -786,6 +786,12 @@ export const MINISTRY = {
   noPartialData: 'NO APPLICANT FIELDS RECORDED YET.',
   officerNotesLabel: 'OFFICER-ONLY NOTES:',
   historyLabel: 'REVISION HISTORY',
+  queueTabsAriaLabel: 'APPLICATION QUEUE FILTER',
+  queueEmpty: 'NO CASES IN THIS QUEUE.',
+  uniqueVisitorsLabel: 'UNIQUE VISITORS',
+  uniqueVisitorsNote: 'IP-BASED COUNT, SINCE TRACKING BEGAN.',
+  uniqueVisitorsUnavailable: 'UNAVAILABLE',
+  uniqueVisitorsLoading: '…',
 }
 
 // ---------------------------------------------------------------------------
