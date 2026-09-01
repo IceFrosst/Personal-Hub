@@ -578,6 +578,7 @@ export default function VisaIssuedPage() {
         <div>
           <h1 className="font-stamp text-xl uppercase tracking-wide text-navy">{APPROVED.granted}</h1>
           <p className="mt-1 text-[11px] uppercase text-navy/60">{APPROVED.valid}</p>
+          <p className="text-[10px] uppercase text-navy/50">{APPROVED.reviewNote}</p>
         </div>
 
         {/* pt-5/pr-1 keep the overhanging stamp inside this node's bounds so

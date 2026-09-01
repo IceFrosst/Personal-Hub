@@ -29,10 +29,19 @@ export function TouristStep() {
   useEffect(() => {
     if (!hydrated || seededRef.current) return
     seededRef.current = true
+    // Forward-lock: everything here was already answered — nothing is
+    // editable after the fact (owner rule).
+    if (state.sidequestSuppliesDeclared) {
+      router.replace('/appointment')
+      return
+    }
     // `prev ||` so anything typed before hydration finished wins.
     setIdea((prev) => prev || state.sidequestIdea)
     setSupplies((prev) => (prev.length ? prev : state.sidequestSupplies))
-  }, [hydrated, state.sidequestIdea, state.sidequestSupplies])
+    // Idea already filed — resume at the supply declaration, don't re-ask.
+    if (state.sidequestIdea) setStage('supplies')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, state.sidequestIdea, state.sidequestSupplies, state.sidequestSuppliesDeclared])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
@@ -59,12 +68,17 @@ export function TouristStep() {
     e.preventDefault()
     playBeep()
     // Preserve the canonical declaration order regardless of check order.
-    update({ sidequestSupplies: SIDEQUEST.supplies.filter((s) => supplies.includes(s)) })
+    update({
+      sidequestSupplies: SIDEQUEST.supplies.filter((s) => supplies.includes(s)),
+      sidequestSuppliesDeclared: true,
+    })
     addStamp('EXPEDITION SUPPLIES DECLARED')
     // Navigates straight to /appointment — no confirmation screen, per the
     // standing flow rule.
     router.push('/appointment')
   }
+
+  if (hydrated && state.sidequestSuppliesDeclared) return null
 
   if (stage === 'supplies') {
     return (

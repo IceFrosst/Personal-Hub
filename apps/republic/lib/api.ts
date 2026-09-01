@@ -110,6 +110,8 @@ export interface ApplicationRecord {
   dutyFreeItems?: string[]
   selfieCaptured: boolean
   selfieSizeBytes?: number
+  /** Local-log only — when this device submitted (DB rows have created_at). */
+  submittedAt?: string
 }
 
 /** Rough decoded byte size of a base64 data URL, without holding onto the image itself. */
@@ -133,6 +135,7 @@ export function buildApplicationRecord(state: ApplicationState, referenceCode: s
     referenceCode,
     selfieCaptured: state.selfieCaptured,
     selfieSizeBytes: state.selfieDataUrl ? approxDataUrlBytes(state.selfieDataUrl) : undefined,
+    submittedAt: new Date().toISOString(),
   }
   // `matter` (the removed SEEK ADVICE PERMIT's sub-step field) stays in the
   // record/table shape for forward-compat but is never populated anymore.
@@ -207,6 +210,13 @@ export async function recordBribe(): Promise<number> {
   writeLocal(LS_KEYS.bribeCount, next)
   void tryRest('bribes', { count: 1 })
   return next
+}
+
+/** The most recent application this DEVICE submitted (localStorage log) —
+ * drives the landing's pending-review card. `null` for fresh visitors. */
+export function getLastApplication(): ApplicationRecord | null {
+  const log = readLocal<ApplicationRecord[]>(LS_KEYS.applications, [])
+  return log.length ? log[log.length - 1] : null
 }
 
 export function getBribeCount(): number {

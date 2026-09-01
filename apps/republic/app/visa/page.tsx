@@ -12,7 +12,7 @@ import { playBeep } from '@/lib/sound'
 
 export default function VisaSelectionPage() {
   const router = useRouter()
-  const { state, selectVisa, update } = useApplication()
+  const { state, selectVisa, update, hydrated } = useApplication()
   // The DATE VISA is not on offer for male applicants (owner decree) — the
   // card stays on the shelf, greyed out and unclickable.
   const dateUnavailable = state.gender === 'M'
@@ -24,6 +24,13 @@ export default function VisaSelectionPage() {
     mountedAtRef.current = Date.now()
     addStamp('VISA SELECTION VIEWED')
   }, [])
+
+  // Forward-lock: a visa already chosen this application cannot be changed
+  // (owner rule) — back-navigation here just forwards to the chosen path.
+  useEffect(() => {
+    if (!hydrated) return
+    if (state.visaType) router.replace(`/visa/${state.visaType}`)
+  }, [hydrated, state.visaType, router])
 
   function select(slug: (typeof VISAS)[number]['slug']) {
     playBeep()
@@ -44,6 +51,8 @@ export default function VisaSelectionPage() {
     })
     router.push(`/visa/${slug}`)
   }
+
+  if (hydrated && state.visaType) return null
 
   return (
     <RequireIdentity>

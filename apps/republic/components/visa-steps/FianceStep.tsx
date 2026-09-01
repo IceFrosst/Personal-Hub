@@ -19,7 +19,7 @@ const visa = VISA_BY_SLUG.fiance
 
 export function FianceStep() {
   const router = useRouter()
-  const { update, selectVisa } = useApplication()
+  const { state, update, selectVisa, hydrated } = useApplication()
   // The withdrawn option: a phantom third answer that disappears when tapped
   // ("OPTION REMOVED. YOUR INTEREST WAS LOGGED.") — the applicant still has
   // to pick A or B. Pure UI; nothing is stored.
@@ -35,6 +35,12 @@ export function FianceStep() {
     selectVisa('fiance')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Forward-lock: a completed interview cannot be retaken (owner rule).
+  useEffect(() => {
+    if (!hydrated) return
+    if (state.fianceAnswers.length >= FIANCE_QUESTIONS.length) router.replace('/appointment')
+  }, [hydrated, state.fianceAnswers.length, router])
 
   function choose(option: string) {
     playBeep()
@@ -53,6 +59,8 @@ export function FianceStep() {
   }
 
   const question = FIANCE_QUESTIONS[questionIndex]
+
+  if (hydrated && state.fianceAnswers.length >= FIANCE_QUESTIONS.length) return null
 
   return (
     <StepShell visa={visa}>

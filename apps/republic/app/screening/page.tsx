@@ -34,10 +34,22 @@ export default function ScreeningPage() {
     // this page sits directly after it in the funnel.
     if (!state.visaType || !state.serial || !state.slot || !state.issuedDate || !state.selfieCaptured) {
       router.replace('/visa')
+      return
+    }
+    // Forward-lock: a declared IQ/confidence cannot be revised (owner rule).
+    if (state.declaredIq !== null || state.declaredConfidence !== null) {
+      router.replace('/processing')
     }
   }, [hydrated, state, router])
 
-  if (!hydrated || !state.visaType || !state.selfieCaptured) return null
+  if (
+    !hydrated ||
+    !state.visaType ||
+    !state.selfieCaptured ||
+    state.declaredIq !== null ||
+    state.declaredConfidence !== null
+  )
+    return null
 
   const isDate = state.visaType === 'fiance'
   const fillPercent = isDate

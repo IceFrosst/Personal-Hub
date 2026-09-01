@@ -71,6 +71,11 @@ export default function AppointmentPage() {
       router.replace('/visa')
       return
     }
+    // Forward-lock: a confirmed appointment cannot be changed (owner rule).
+    if (state.slot && state.issuedDate) {
+      router.replace('/handle')
+      return
+    }
     let cancelled = false
     getAvailableDates().then((freeDates) => {
       if (cancelled) return
@@ -84,7 +89,7 @@ export default function AppointmentPage() {
     return () => {
       cancelled = true
     }
-  }, [hydrated, state.visaType, router])
+  }, [hydrated, state.visaType, state.slot, state.issuedDate, router])
 
   const availableSet = useMemo(() => new Set(dates), [dates])
   // Every month the bookable window touches (tomorrow → today+WINDOW_DAYS),
@@ -176,7 +181,7 @@ export default function AppointmentPage() {
     [months.length]
   )
 
-  if (!hydrated || !state.visaType) return null
+  if (!hydrated || !state.visaType || (state.slot && state.issuedDate)) return null
 
   const visa = VISA_BY_SLUG[state.visaType]
 

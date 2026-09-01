@@ -30,12 +30,17 @@ export function SpecialStep() {
   useEffect(() => {
     if (!hydrated || seededRef.current) return
     seededRef.current = true
+    // Forward-lock: a sworn statement cannot be amended (owner rule).
+    if (state.specialStatement) {
+      router.replace('/appointment')
+      return
+    }
     // `prev ||` so anything entered before hydration finished wins.
     setStatement((prev) => prev || state.specialStatement)
     setOtherness((prev) => prev || state.specialOtherness)
-    // Already answered this session (refresh/back-navigation) — don't ask
-    // the otherness question again, resume at the statement screen.
+    // Otherness already assessed — don't ask again, resume at the statement.
     if (state.specialOtherness) setStage('statement')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, state.specialStatement, state.specialOtherness])
 
   useEffect(() => {
@@ -66,6 +71,8 @@ export function SpecialStep() {
     // standing flow rule.
     router.push('/appointment')
   }
+
+  if (hydrated && state.specialStatement) return null
 
   // Screen 1: the otherness assessment alone. Selecting an option advances
   // immediately (selection IS the answer — no separate continue button).

@@ -357,7 +357,39 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — passport OTHER field, bigger pending stamp, split sub-step screens:**
+**Latest pass — Ministry review system, pending-review landing, forward-locked funnel:**
+- **`/ministry` (unlisted route)** — the owner's review desk. Google OAuth via
+  supabase-js (new dep; client scoped to the `republic` schema); RLS from
+  `supabase/migrations/0004_application_status.sql` (applied remotely) lets ONLY the
+  ministry email (`republic.is_ministry()`, JWT-email-based) SELECT/UPDATE
+  `republic.applications` — any other Google account signs in fine but the first query
+  errors → ACCESS DENIED copy. New columns: `status` ('pending'/'approved'/'denied',
+  check-constrained, default pending) + `decided_at`. Desk shows pending applications
+  with every recorded field and APPROVE/DENY stamps, plus a compact decided list.
+  `ignas.wtf/**`, `www.ignas.wtf/**` and `republic-of-ignas.vercel.app/**` were added to
+  the Supabase auth `uri_allow_list` for the OAuth redirect. Approval currently has no
+  applicant-facing effect (Tier 2 /status page not built — see Next).
+- **Landing pending-review card**: if this device already submitted an application
+  (`getLastApplication()`, localStorage log — records now carry `submittedAt`), `/`
+  shows APPLICATION UNDER REVIEW (reference №, visa, status line, the 1–3 business days
+  note) instead of restarting the funnel, with a SUBMIT ANOTHER APPLICATION button that
+  runs the old reset flow. NOTE: this deliberately supersedes part of the old "landing
+  never detects repeat visits" rule — detecting a SUBMITTED APPLICATION is now required
+  behavior (owner request); visit COUNTING remains forbidden.
+- **`APPROVED.reviewNote`** ("APPLICATION REVIEW TAKES 1–3 BUSINESS DAYS.") prints under
+  the status line on /visa-issued and on the pending-review card.
+- **The funnel is forward-locked — nothing already chosen can be changed** (owner rule).
+  Back-navigation now forwards: /visa → chosen sub-step; sub-steps forward once answered
+  (tourist uses new `sidequestSuppliesDeclared` boolean so "declared zero supplies"
+  still locks; special/business/fiance key on statement/pitch/answers-complete);
+  /appointment → /handle once a slot is confirmed; /biometric → /screening once a photo
+  is submitted (retake before submit still allowed); /screening → /processing once
+  IQ/confidence is declared. Only the landing's SUBMIT ANOTHER starts a fresh,
+  changeable application.
+- Browser-verified: pending card + submit-another, and the lock cascade
+  /visa→/appointment→/handle with a mid-funnel session.
+
+**Previous pass — passport OTHER field, bigger pending stamp, split sub-step screens:**
 - **Passport field changes**: `PASSPORT №:` label → `IG HANDLE:`; the VALID field is
   gone — its grid slot now shows `OTHER:` with the officer's photo observation
   (`passportPhotoNote`, the per-path BIOMETRIC_NOTE with "NOTED."/trailing period
@@ -815,6 +847,13 @@ Verified: `npm test` (calendar boundary/overlap/fail-closed coverage), `npm run 
 
 ## Next
 
+- **Tier 2 (not built): applicant-facing status.** Approving/denying on /ministry
+  updates the DB, but applicants still only ever see PENDING APPROVAL. When wanted:
+  public /status page + SECURITY DEFINER RPC keyed on reference code (the code acts as
+  the bearer secret), APPROVED/DENIED stamp payoff, and the landing pending card could
+  then show live status too.
+- **Owner must smoke-test /ministry sign-in on production** (Google OAuth redirect —
+  can't be automated headlessly).
 - **✅ Backend is LIVE (both former blockers resolved).** Migrations 0001 + 0002 are
   applied to the remote project; the `republic` schema is exposed (Management API PATCH
   → persisted, then `ALTER ROLE authenticator SET pgrst.db_schemas` +

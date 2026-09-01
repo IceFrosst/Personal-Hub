@@ -22,7 +22,13 @@ export function BusinessStep() {
   useEffect(() => {
     if (!hydrated || seededRef.current) return
     seededRef.current = true
+    // Forward-lock: an already-filed pitch cannot be changed (owner rule).
+    if (state.businessPitch) {
+      router.replace('/appointment')
+      return
+    }
     setPitch((prev) => prev || state.businessPitch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, state.businessPitch])
 
   useEffect(() => {
@@ -43,6 +49,8 @@ export function BusinessStep() {
     // or confirmation button anymore (owner flow change).
     router.push('/appointment')
   }
+
+  if (hydrated && state.businessPitch) return null
 
   return (
     <StepShell visa={visa}>

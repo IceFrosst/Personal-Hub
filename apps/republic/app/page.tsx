@@ -8,9 +8,19 @@ import { OfficerMoodBadge } from '@/components/OfficerMoodBadge'
 import { PageShell } from '@/components/PageShell'
 import { Typewriter } from '@/components/Typewriter'
 import { addStamp } from '@/lib/passport'
-import { getApplicantNumber } from '@/lib/api'
+import { getApplicantNumber, getLastApplication, type ApplicationRecord } from '@/lib/api'
 import { clearAnimatedFields } from '@/lib/formProgress'
-import { GENDER_OPTIONS, LANDING, SCREENING_QUESTIONS, formatApplicantNumber, type ScreeningQuestion } from '@/lib/content'
+import {
+  APPROVED,
+  GENDER_OPTIONS,
+  LANDING,
+  PENDING_LANDING,
+  SCREENING_QUESTIONS,
+  VISA_BY_SLUG,
+  formatApplicantNumber,
+  type ScreeningQuestion,
+  type VisaType,
+} from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 import { useApplication } from '@/lib/applicationContext'
 
@@ -29,30 +39,42 @@ export default function EntryDeclarationPage() {
   // SCREENING_QUESTIONS at random; the answer prints on the passport via
   // lib/visaAddendum.ts#getScreeningAddenda.
   const [followUp, setFollowUp] = useState<ScreeningQuestion | null>(null)
-  // 'declare' → 'followUp' → 'gender' → /identity. Gender lands on the
-  // passport's SEX field (see STICKER_LABELS.sex / ApplicationState#gender).
-  const [stage, setStage] = useState<'declare' | 'followUp' | 'gender'>('declare')
+  // 'pending' (returning applicant card) or 'declare' → 'followUp' →
+  // 'gender' → /identity. Gender lands on the passport's SEX field.
+  const [stage, setStage] = useState<'declare' | 'followUp' | 'gender' | 'pending'>('declare')
+  // The most recent application THIS DEVICE submitted (localStorage log) —
+  // read only inside the mount effect (hydration safety).
+  const [pendingApp, setPendingApp] = useState<ApplicationRecord | null>(null)
   // Top-right corner toggle — pure theater, changes nothing downstream.
   const [priority, setPriority] = useState(true)
 
-  useEffect(() => {
-    // Landing restarts the funnel on every visit, but identity is preserved
-    // across that restart (thematically: your passport doesn't get reset
-    // every time you walk up to the counter, only the application does) —
-    // capture it before reset(), then re-apply it after.
+  // Restarts the funnel: identity and duty-free purchases survive, the
+  // application itself resets. Called on mount for fresh visitors, and by
+  // the SUBMIT ANOTHER APPLICATION button for returning ones.
+  function beginNewApplication() {
     const preservedName = state.applicantName
     const preservedHandle = state.instagramHandle
-    // Duty-free purchases are explicitly added to the passport, so they
-    // survive returning from /duty-free to the landing even though the rest
-    // of the application resets.
     const preservedDutyFreeItems = state.dutyFreeItems
     reset()
     clearAnimatedFields()
     if (preservedName) update({ applicantName: preservedName })
     if (preservedHandle) update({ instagramHandle: preservedHandle })
     if (preservedDutyFreeItems.length) update({ dutyFreeItems: preservedDutyFreeItems })
-
     addStamp('ENTRY DECLARATION VIEWED')
+    setStage('declare')
+  }
+
+  useEffect(() => {
+    // Returning applicant? (This device already submitted at least one
+    // application — localStorage log.) Show the pending-review card instead
+    // of restarting the funnel; a new application is one tap away.
+    const last = getLastApplication()
+    if (last) {
+      setPendingApp(last)
+      setStage('pending')
+    } else {
+      beginNewApplication()
+    }
     // Async: resolves from the localStorage cache instantly if this browser
     // already has a number, otherwise awaits the Supabase RPC. On failure it
     // resolves to null and the placeholder just stays put — no fake number
@@ -132,7 +154,36 @@ export default function EntryDeclarationPage() {
             spot deliberately stays as equivalent empty space (owner request). */}
         <div className="mt-0.5 h-[15px]" aria-hidden />
 
-        {stage === 'declare' ? (
+        {stage === 'pending' && pendingApp ? (
+          <div className="animate-fade-in mt-3">
+            <p className="text-center font-stamp text-base uppercase tracking-wide text-navy">
+              {PENDING_LANDING.heading}
+            </p>
+            <div className="mx-auto mt-3 w-fit border-2 border-navy/40 bg-paper-dark px-4 py-2 text-left text-[11px] uppercase tracking-wide text-navy">
+              <p>
+                {PENDING_LANDING.referenceLabel} <span className="font-bold">{pendingApp.referenceCode}</span>
+              </p>
+              <p>
+                {PENDING_LANDING.visaLabel}{' '}
+                <span className="font-bold">
+                  {VISA_BY_SLUG[pendingApp.visaType as VisaType]?.name ?? pendingApp.visaType.toUpperCase()}
+                </span>
+              </p>
+              <p className="mt-1 text-stamp">{PENDING_LANDING.statusLine}</p>
+            </div>
+            <p className="mt-2 text-center text-[10px] uppercase text-navy/60">{APPROVED.reviewNote}</p>
+            <button
+              type="button"
+              onClick={() => {
+                playStampThunk()
+                beginNewApplication()
+              }}
+              className="mt-3 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
+            >
+              {PENDING_LANDING.submitAnother}
+            </button>
+          </div>
+        ) : stage === 'declare' ? (
           <>
             <div className="mt-3 min-h-[3rem] text-center">
               <Typewriter

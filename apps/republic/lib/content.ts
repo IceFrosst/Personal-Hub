@@ -585,6 +585,7 @@ export const APPROVED = {
   stamp: 'PENDING APPROVAL',
   granted: 'APPLICATION SUBMITTED.',
   valid: 'STATUS: PENDING APPROVAL.',
+  reviewNote: 'APPLICATION REVIEW TAKES 1–3 BUSINESS DAYS.',
   download: 'DOWNLOAD VISA',
   proceed: 'REPORT TO THE AUTHORITIES',
   rendering: 'RENDERING VISA…',
@@ -706,6 +707,40 @@ export const OFFICER_MOOD_PREFIX = 'CURRENT OFFICER MOOD:'
 
 export function getOfficerMood(hour = new Date().getHours()): OfficerMood {
   return OFFICER_MOODS[hour % OFFICER_MOODS.length]
+}
+
+// ---------------------------------------------------------------------------
+// Returning applicant — the landing's pending-review card (app/page.tsx).
+// Shown instead of the declaration question when this device already has a
+// submitted application on file (localStorage log); they may always file
+// another one.
+// ---------------------------------------------------------------------------
+
+export const PENDING_LANDING = {
+  heading: 'APPLICATION UNDER REVIEW',
+  referenceLabel: 'REFERENCE №:',
+  visaLabel: 'VISA:',
+  statusLine: 'STATUS: PENDING APPROVAL.',
+  submitAnother: 'SUBMIT ANOTHER APPLICATION',
+}
+
+// ---------------------------------------------------------------------------
+// Ministry desk — the hidden /ministry review page (owner only; RLS enforces
+// the actual access, this is just copy).
+// ---------------------------------------------------------------------------
+
+export const MINISTRY = {
+  heading: 'MINISTRY OF INTERIOR',
+  sub: 'OFFICER DESK — APPLICATION REVIEW',
+  signIn: 'OFFICER SIGN-IN',
+  signOut: 'LEAVE DESK',
+  accessDenied: 'ACCESS DENIED. THIS DESK BELONGS TO THE DICTATOR.',
+  empty: 'NO APPLICATIONS ON THE DESK. THE BORDER IS QUIET.',
+  pendingHeading: 'PENDING',
+  decidedHeading: 'DECIDED',
+  approve: 'APPROVE',
+  deny: 'DENY',
+  loading: 'PULLING FILES…',
 }
 
 // ---------------------------------------------------------------------------

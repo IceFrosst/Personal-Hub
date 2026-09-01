@@ -12,6 +12,10 @@ export interface ApplicationState {
   sidequestIdea: string
   /** Declared expedition supplies (sidequest) — all four earns the FULLY EQUIPPED stamp. */
   sidequestSupplies: string[]
+  /** True once the supply declaration screen was submitted (even with zero
+   *  boxes checked) — distinguishes "declared nothing" from "not asked yet"
+   *  so the forward-lock can't re-ask. */
+  sidequestSuppliesDeclared: boolean
   /** The special visa's "HOW OTHER IS YOUR PURPOSE?" selection. */
   specialOtherness: string
   fianceAnswers: string[]
@@ -62,6 +66,7 @@ const EMPTY_STATE: ApplicationState = {
   visaType: null,
   sidequestIdea: '',
   sidequestSupplies: [],
+  sidequestSuppliesDeclared: false,
   specialOtherness: '',
   fianceAnswers: [],
   businessPitch: '',

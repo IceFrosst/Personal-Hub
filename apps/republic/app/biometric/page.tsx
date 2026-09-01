@@ -36,8 +36,13 @@ export default function BiometricPage() {
     // missing either one hasn't genuinely confirmed an appointment.
     if (!state.slot || !state.issuedDate) {
       router.replace('/appointment')
+      return
     }
-  }, [hydrated, state.visaType, state.serial, state.slot, state.issuedDate, router])
+    // Forward-lock: a submitted photo cannot be retaken later (owner rule).
+    if (state.selfieCaptured) {
+      router.replace('/screening')
+    }
+  }, [hydrated, state.visaType, state.serial, state.slot, state.issuedDate, state.selfieCaptured, router])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -72,7 +77,8 @@ export default function BiometricPage() {
     router.push('/screening')
   }
 
-  if (!hydrated || !state.visaType || !state.serial || !state.slot || !state.issuedDate) return null
+  if (!hydrated || !state.visaType || !state.serial || !state.slot || !state.issuedDate || state.selfieCaptured)
+    return null
 
   return (
     <PageShell showProgress>
