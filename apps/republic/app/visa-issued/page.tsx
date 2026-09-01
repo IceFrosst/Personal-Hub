@@ -16,6 +16,8 @@ import {
   COPY_FAILED_INSTRUCTION,
   VISA_BY_SLUG,
   buildReferenceLine,
+  formatPassportDate,
+  formatPassportVisaName,
   iqFaceFor,
 } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
@@ -27,9 +29,10 @@ import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 // the on-screen document itself is the DOM <VisaDocument size="full"> below,
 // not this canvas, so it renders crisp at any zoom/DPI and shares its exact
 // structure with the progress card (see components/VisaDocument.tsx). The
-// canvas mirrors the same layout: bare issue date top-right; larger photo;
-// NAME + PASSPORT, bare visa name + VALID, SEX + IQ number/image; no SERIAL,
-// ISSUED/VISA TYPE labels, or REFERENCE №. The downloaded image matches the on-screen design as closely as a canvas
+// canvas mirrors the same layout: larger photo; NAME + PASSPORT, unbolded
+// VISA: + bold short name and VALID, compact appointment DATE, SEX + smaller
+// borderless IQ number/image; orange pending stamp with today's date. No
+// SERIAL, ISSUED or REFERENCE №. The downloaded image matches the on-screen design as closely as a canvas
 // practically can.
 const CANVAS_W = 900
 const CANVAS_H = 680
@@ -137,9 +140,8 @@ export default function VisaIssuedPage() {
     ) {
       const NAVY = '#1a2a4a'
       const PAPER = '#f4f0e8'
-      const GREEN = '#2e7d32'
+      const ORANGE = '#d97706'
       const addendumValues = [
-        { label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot ?? '' },
         ...(visaAddendum ? [visaAddendum] : []),
         // IQ is rendered beside SEX in the field grid, not as an addendum.
         ...screeningAddenda.filter((item) => !item.imageSrc),
@@ -208,11 +210,8 @@ export default function VisaIssuedPage() {
       context.textAlign = 'center'
       context.font = 'bold 34px "Courier New", monospace'
       context.fillText(STICKER_LABELS.republicTitle, CANVAS_W / 2, 66)
-      // No visa subtitle and no SERIAL №. Bare issue date only, at the true
-      // top-right in smaller bold text.
-      context.font = 'bold 10px "Courier New", monospace'
-      context.textAlign = 'right'
-      context.fillText(issueDate, CANVAS_W - 60, 96)
+      // No visa subtitle, SERIAL № or issue-date corner. Today's issue date
+      // is printed inside the orange PENDING APPROVAL stamp below.
       context.textAlign = 'left'
 
       // photo frame — rectangular clip at the capture's ORIGINAL aspect
@@ -255,35 +254,39 @@ export default function VisaIssuedPage() {
       context.lineWidth = 3
       context.strokeRect(photoX, photoY, photoW, photoH)
 
-      // Two-column field grid, same as the DOM/progress card: NAME +
-      // PASSPORT, bare visa name + VALID, SEX + IQ number/image. Bare issue
-      // date is already top-right; SERIAL/VISA TYPE/REFERENCE labels are gone.
+      // Unequal two-column grid, same as DOM: NAME + PASSPORT, VISA: + short
+      // selected name + VALID, compact appointment DATE full-width, SEX + IQ.
       const gridX = photoX + photoW + 36
       const gridRight = CANVAS_W - 40
       const colGap = 24
-      const colWidth = (gridRight - gridX - colGap) / 2
+      const availableWidth = gridRight - gridX - colGap
+      const leftColWidth = availableWidth * 0.39
+      const rightColWidth = availableWidth - leftColWidth
+      const fullWidth = gridRight - gridX
       const colAx = gridX
-      const colBx = gridX + colWidth + colGap
+      const colBx = gridX + leftColWidth + colGap
       const rowGap = 58
       let rowY = 135
 
       const cell = (label: string, value: string, x: number, width: number) => {
-        context.font = 'bold 12px "Courier New", monospace'
+        context.font = '12px "Courier New", monospace'
         context.fillStyle = NAVY
         context.fillText(label, x, rowY)
-        context.font = '15px "Courier New", monospace'
+        context.font = 'bold 15px "Courier New", monospace'
         context.fillText(fitText(context, value, width), x, rowY + 20)
       }
 
-      cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, colWidth)
-      cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, colWidth)
+      cell(STICKER_LABELS.name, state.applicantName.toUpperCase() || STICKER_LABELS.unknownName, colAx, leftColWidth)
+      cell(STICKER_LABELS.passport, `@${state.instagramHandle}`, colBx, rightColWidth)
       rowY += rowGap
-      cell('', visa!.name, colAx, colWidth)
-      cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, colWidth)
+      cell('VISA:', formatPassportVisaName(visa!.name), colAx, leftColWidth)
+      cell(STICKER_LABELS.valid, APPROVED.validValue, colBx, rightColWidth)
       rowY += rowGap
-      cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, colWidth)
+      cell(DOCUMENT_PROGRESS.appointmentLabel, formatPassportDate(state.slot ?? ''), colAx, fullWidth)
+      rowY += rowGap
+      cell(STICKER_LABELS.sex, state.gender ?? '—', colAx, leftColWidth)
       if (state.declaredIq !== null) {
-        const size = 34
+        const size = 24
         const sx = colBx
         const sy = rowY - 13
         context.fillStyle = NAVY
@@ -292,14 +295,10 @@ export default function VisaIssuedPage() {
         context.font = 'bold 15px "Courier New", monospace'
         context.fillText(String(state.declaredIq), sx + 28, rowY + 10)
         if (face) {
-          // Re-draw after the number so the order is IQ: number image.
           const imageX = sx + 64
           context.fillStyle = PAPER
           context.fillRect(imageX, sy, size, size)
           context.drawImage(face, imageX, sy, size, size)
-          context.strokeStyle = NAVY
-          context.lineWidth = 1
-          context.strokeRect(imageX, sy, size, size)
         }
       }
       // CONDITIONS row and its "bring snacks" gag were removed entirely.
@@ -356,18 +355,21 @@ export default function VisaIssuedPage() {
       }
       context.restore()
 
-      // APPROVED stamp, rotated, overlapping the photo edge
+      // Orange PENDING APPROVAL stamp in the top-right, with today's issue
+      // date inside it (matching the DOM stamp).
       context.save()
-      context.translate(photoX + photoW - 20, photoY + photoH - 40)
-      context.rotate(-0.25)
-      context.globalAlpha = 0.88
-      context.strokeStyle = GREEN
+      context.translate(CANVAS_W - 175, 82)
+      context.rotate(-0.16)
+      context.globalAlpha = 0.9
+      context.strokeStyle = ORANGE
       context.lineWidth = 6
-      context.strokeRect(-95, -34, 190, 68)
-      context.fillStyle = GREEN
-      context.font = 'bold 34px "Courier New", monospace'
+      context.strokeRect(-145, -34, 290, 68)
+      context.fillStyle = ORANGE
+      context.font = 'bold 23px "Courier New", monospace'
       context.textAlign = 'center'
-      context.fillText(APPROVED.stamp, 0, 12)
+      context.fillText(APPROVED.stamp, 0, 3)
+      context.font = 'bold 12px "Courier New", monospace'
+      context.fillText(issueDate, 0, 22)
       context.restore()
     }
 
@@ -436,12 +438,16 @@ export default function VisaIssuedPage() {
   // here ever renders a blank/ruled row (unlike the mid-funnel progress
   // card, which shows blanks for fields not filled in yet).
   const fields: VisaDocumentField[] = [
-    { key: 'top-left-blank', label: '', value: null },
-    { key: 'issued', label: '', value: issueDate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
     { key: 'passport', label: STICKER_LABELS.passport, value: `@${state.instagramHandle}` },
-    { key: 'visaType', label: '', value: visa.name },
+    { key: 'visaType', label: 'VISA:', value: formatPassportVisaName(visa.name) },
     { key: 'valid', label: STICKER_LABELS.valid, value: APPROVED.validValue },
+    {
+      key: 'appointment',
+      label: DOCUMENT_PROGRESS.appointmentLabel,
+      value: formatPassportDate(state.slot),
+      span: true,
+    },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
     ...(state.declaredIq !== null
       ? [{
@@ -453,9 +459,7 @@ export default function VisaIssuedPage() {
         }]
       : []),
   ]
-  const addenda: VisaDocumentAddendum[] = [
-    { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot },
-  ]
+  const addenda: VisaDocumentAddendum[] = []
   if (visaAddendum) {
     addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
   }
@@ -498,7 +502,13 @@ export default function VisaIssuedPage() {
             addenda={addenda}
           />
           <div className="pointer-events-none absolute -right-2 -top-2">
-            <StampSlam text={APPROVED.stamp} color="approve" rotate={10} className="!border-[4px] !px-3 !py-1 !text-base" />
+            <StampSlam
+              text={APPROVED.stamp}
+              subtext={issueDate}
+              color="pending"
+              rotate={10}
+              className="!border-[4px] !px-3 !py-1 !text-sm"
+            />
           </div>
         </div>
 

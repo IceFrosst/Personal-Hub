@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApplication } from '@/lib/applicationContext'
 import { getAnimatedFields, markFieldAnimated } from '@/lib/formProgress'
-import { APPROVED, DOCUMENT_PROGRESS, STICKER_LABELS, VISA_BY_SLUG, iqFaceFor } from '@/lib/content'
+import {
+  APPROVED,
+  DOCUMENT_PROGRESS,
+  STICKER_LABELS,
+  VISA_BY_SLUG,
+  formatPassportDate,
+  formatPassportVisaName,
+  iqFaceFor,
+} from '@/lib/content'
 import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
 import { getScreeningAddenda, getVisaAddendum } from '@/lib/visaAddendum'
 
@@ -42,16 +50,13 @@ function useRevealAnimation(key: string, filled: boolean): boolean {
 // useRevealAnimation above), and reading live funnel state out of context;
 // VisaDocument itself just renders whatever field data it's handed.
 //
-// Field layout mirrors the sticker exactly — bare issue date top-right (empty
-// top-left), then NAME + PASSPORT, bare visa name + VALID, SEX + optional IQ
-// number/image beside the larger photo — shared with /visa-issued's canvas.
-// (REFERENCE № was removed from both documents per owner request — the code
-// still exists for the DM reference line, it's just not printed.) SERIAL №
-// is set at visa selection, VALID fills immediately on visa selection (from
-// APPROVED.validValue, the same constant /visa-issued renders), and ISSUED
-// fills once the appointment slot is confirmed. Below the grid, addenda (not
-// sticker fields — the appointment slot, and whatever the chosen visa's
-// sub-step collected) render with their own dashed-divider treatment.
+// Field layout mirrors the sticker exactly — NAME + PASSPORT, unbolded VISA:
+// + bold short name and VALID, compact appointment DATE full-width beside the
+// photo, then SEX + optional `IQ: number [face]`. The right column gets more
+// width than the left. Today's issue date lives inside the orange pending
+// stamp (final page/canvas), not as a field. REFERENCE № and SERIAL № remain
+// internal only. Visa-answer/screening/duty-free content stays below as
+// dashed addenda.
 // Never rendered on landing or /visa-issued — see PageShell's `showProgress`.
 export function DocumentProgress() {
   const { state, hydrated } = useApplication()
@@ -60,7 +65,6 @@ export function DocumentProgress() {
   const nameAnimate = useRevealAnimation('name', Boolean(state.applicantName))
   const passportAnimate = useRevealAnimation('passport', Boolean(state.instagramHandle))
   const visaTypeAnimate = useRevealAnimation('visaType', Boolean(state.visaType))
-  const issuedAnimate = useRevealAnimation('issued', Boolean(state.issuedDate))
   const validAnimate = useRevealAnimation('valid', Boolean(state.visaType))
   const sexAnimate = useRevealAnimation('sex', Boolean(state.gender))
   const photoAnimate = useRevealAnimation('photo', Boolean(state.selfieThumbnailUrl))
@@ -75,12 +79,10 @@ export function DocumentProgress() {
 
   const visa = state.visaType ? VISA_BY_SLUG[state.visaType] : null
 
-  // First entry is intentionally blank (no SERIAL №); bare issue date occupies
-  // the true top-right. Then NAME + PASSPORT, bare visa name + VALID, SEX +
-  // IQ number/image. Mirrored by /visa-issued's DOM + PNG — keep in sync.
+  // NAME + PASSPORT, VISA (unbolded) + selected name (bold), VALID, compact
+  // appointment DATE (full width), then SEX + IQ number/image. Today's issue
+  // date moved into the pending stamp and is not a field anymore.
   const fields: VisaDocumentField[] = [
-    { key: 'top-left-blank', label: '', value: null },
-    { key: 'issued', label: '', value: state.issuedDate, animate: issuedAnimate },
     { key: 'name', label: STICKER_LABELS.name, value: state.applicantName || null, animate: nameAnimate },
     {
       key: 'passport',
@@ -88,8 +90,20 @@ export function DocumentProgress() {
       value: state.instagramHandle ? `@${state.instagramHandle}` : null,
       animate: passportAnimate,
     },
-    { key: 'visaType', label: '', value: visa ? visa.name : null, animate: visaTypeAnimate },
+    {
+      key: 'visaType',
+      label: 'VISA:',
+      value: visa ? formatPassportVisaName(visa.name) : null,
+      animate: visaTypeAnimate,
+    },
     { key: 'valid', label: STICKER_LABELS.valid, value: visa ? APPROVED.validValue : null, animate: validAnimate },
+    {
+      key: 'appointment',
+      label: DOCUMENT_PROGRESS.appointmentLabel,
+      value: state.slot ? formatPassportDate(state.slot) : null,
+      span: true,
+      animate: appointmentAnimate,
+    },
     { key: 'sex', label: STICKER_LABELS.sex, value: state.gender, animate: sexAnimate },
     ...(state.declaredIq !== null
       ? [{
@@ -102,9 +116,7 @@ export function DocumentProgress() {
       : []),
   ]
 
-  const addenda: VisaDocumentAddendum[] = [
-    { key: 'appointment', label: DOCUMENT_PROGRESS.appointmentLabel, value: state.slot, animate: appointmentAnimate },
-  ]
+  const addenda: VisaDocumentAddendum[] = []
   if (subStepAddendum) {
     addenda.push({
       key: 'subStep',

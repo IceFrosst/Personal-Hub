@@ -63,6 +63,12 @@ export const VISA_SELECTION = {
   heading: 'SELECT VISA TYPE',
 }
 
+/** Passport field value: "BUSINESS VISA" → "BUSINESS", etc. The field's
+ * unbolded label already says VISA:. */
+export function formatPassportVisaName(name: string): string {
+  return name.replace(/\s+VISA$/, '')
+}
+
 // ---------------------------------------------------------------------------
 // Site metadata (browser tab title, link-preview description, PWA app name) —
 // app/layout.tsx's Next.js `Metadata`/`appleWebApp` config.
@@ -345,6 +351,22 @@ export function formatSlot(dateIso: string, period?: string): string {
   return period ? `${label} — ${period}` : label
 }
 
+/** Compact passport display for a stored slot, e.g.
+ * "SUN, 13 SEPT 2026 — AFTERNOON" → "13 Sept, Sun, Afternoon". The stored
+ * value itself stays unchanged for records/DMs; this is display-only. */
+export function formatPassportDate(slot: string): string {
+  const [datePart, periodPart] = slot.split(' — ')
+  const match = datePart.match(/^([A-Z]{3}),\s+(\d{1,2})\s+([A-Z]{3,})\s+\d{4}$/)
+  if (!match) return slot
+  const [, weekday, day, month] = match
+  const title = (value: string) => value.charAt(0) + value.slice(1).toLowerCase()
+  return [
+    `${Number(day)} ${title(month)}`,
+    title(weekday),
+    ...(periodPart ? [title(periodPart)] : []),
+  ].join(', ')
+}
+
 /** Uppercase month heading for the appointment calendar grid, e.g. "SEPTEMBER 2026". */
 export function formatMonthLabel(monthIso: string): string {
   const [year, month] = monthIso.split('-').map(Number)
@@ -510,10 +532,10 @@ export const PROCESSING_TAIL_NOTE = '(this is normal. this is always normal.)'
 // (`conditions`/`conditionsValue` deleted — it had already been dropped from
 // the documents, and now from the /visa-issued subtitle too).
 export const APPROVED = {
-  stamp: 'APPROVED',
-  granted: 'VISA GRANTED.',
+  stamp: 'PENDING APPROVAL',
+  granted: 'APPLICATION SUBMITTED.',
   validValue: 'until further notice',
-  valid: 'VALID: until further notice.',
+  valid: 'STATUS: PENDING APPROVAL.',
   download: 'DOWNLOAD VISA',
   proceed: 'REPORT TO THE AUTHORITIES',
   rendering: 'RENDERING VISA…',

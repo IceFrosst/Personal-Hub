@@ -357,7 +357,24 @@ handle — making `/visa` permanently unreachable (entering a name just bounced
 `/identity` ↔ `/visa` forever). Surfaced on the first production deploy of that code.
 `RequireIdentity` now requires the name only; `/handle`'s own guard covers the handle.
 
-**Latest pass — annotated passport cleanup:**
+**Latest pass — pending-review stamp + compact in-grid appointment date:**
+- **Visa field is now `VISA:` unbolded + short name bold** (`BUSINESS`, `DATE`,
+  `SIDEQUEST`, `SPECIAL PURPOSE`) via `formatPassportVisaName`; no repeated VISA word.
+- **IQ is `IQ: 124 [face]` on the same row as SEX**, with a smaller borderless face
+  (`h-5` full / `h-4` compact; PNG 24px, no stroke).
+- **Today's issue date moved into the stamp** (removed from the passport corner). Stamp
+  changed from green APPROVED to orange PENDING APPROVAL; `StampSlam` supports
+  `color="pending"` + optional `subtext`, and final page passes `issueDate`. PNG draws
+  the matching orange top-right stamp with the date. To avoid contradictory copy,
+  final heading/status are now APPLICATION SUBMITTED / STATUS: PENDING APPROVAL.
+- **Appointment date moved up beside the photo**, out of the dashed addenda, as a
+  full-width grid row labelled DATE. `formatPassportDate` display-formats the stored
+  `SUN, 13 SEPT 2026 — AFTERNOON` as `13 Sept, Sun, Afternoon` without changing the
+  stored record/DM value.
+- **Right field column widened** (`grid-cols-[0.78fr_1.22fr]`; PNG uses the same 39/61
+  split) for handles/validity/IQ; left only carries shorter content.
+
+**Previous pass — annotated passport cleanup:**
 - Applied the owner's marked-up screenshot literally: **SERIAL № removed from the
   passport**, separate visa subtitle removed, and `VISA TYPE:` label removed. The bare
   selected name (`BUSINESS VISA`, etc.) remains in the old visa-type field position.

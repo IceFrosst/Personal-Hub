@@ -102,34 +102,10 @@ export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda }: 
         <p className={`text-center font-stamp uppercase tracking-[0.2em] text-navy ${s.title}`}>
           {STICKER_LABELS.republicTitle}
         </p>
-        {/* No separate visa-name subtitle and no SERIAL №. The selected visa
-            name lives as a bare field beside the photo (no VISA TYPE label),
-            while the bare issue date stays at the true top-right. */}
-        <div className={`mt-1 grid grid-cols-2 uppercase tracking-wide ${s.grid}`}>
-          {fields.slice(0, 2).map((field, index) => (
-            <div
-              key={field.key}
-              className={`min-w-0 ${index === 0 ? 'text-left' : 'text-right'} ${
-                index === 1 ? (size === 'full' ? 'text-[9px]' : 'text-[7px]') : ''
-              }`}
-            >
-              {field.label && <span className="text-navy">{field.label} </span>}
-              {field.value ? (
-                <span
-                  className={`font-bold text-navy ${field.animate ? 'animate-field-fill' : ''}`}
-                  title={field.value}
-                >
-                  {field.value}
-                </span>
-              ) : field.label ? (
-                <Blank size={size} />
-              ) : null}
-            </div>
-          ))}
-        </div>
+        {/* No separate visa-name subtitle, SERIAL №, or issue-date corner.
+            Today's date now lives inside the PENDING APPROVAL stamp. */}
 
-        {/* Photo left, remaining fields right — SAME horizontal layout in
-            both sizes. */}
+        {/* Photo left, fields right — SAME horizontal layout in both sizes. */}
         <div className={`mt-2 flex items-start ${s.photoGap}`}>
           {/* Photo keeps the capture's ORIGINAL aspect ratio (owner request —
               no square crop of the human): fixed height, natural width, with
@@ -151,11 +127,13 @@ export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda }: 
             )}
           </div>
 
-          <div className={`grid min-w-0 flex-1 grid-cols-2 uppercase tracking-wide ${s.grid}`}>
-            {fields.slice(2).map((field) => (
+          {/* Unequal columns: short labels/values on the left need less room;
+              the right gets more space for handles, validity and IQ. */}
+          <div className={`grid min-w-0 flex-1 grid-cols-[0.78fr_1.22fr] uppercase tracking-wide ${s.grid}`}>
+            {fields.map((field) => (
               <div
                 key={field.key}
-                className={`flex min-w-0 items-baseline justify-between gap-1.5 ${field.span ? 'col-span-2' : ''}`}
+                className={`flex min-w-0 items-center justify-between gap-1.5 ${field.span ? 'col-span-2' : ''}`}
               >
                 {field.label && <span className="shrink-0 text-navy">{field.label}</span>}
                 {field.value ? (
@@ -169,7 +147,7 @@ export function VisaDocument({ size, photoUrl, photoAnimate, fields, addenda }: 
                       <img
                         src={field.imageSrc}
                         alt={field.imageAlt ?? ''}
-                        className={`shrink-0 border border-navy object-contain ${size === 'full' ? 'h-8 w-8' : 'h-5 w-5'}`}
+                        className={`shrink-0 object-contain ${size === 'full' ? 'h-5 w-5' : 'h-4 w-4'}`}
                       />
                     )}
                   </span>

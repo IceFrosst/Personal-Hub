@@ -5,13 +5,21 @@ export function StampSlam({
   color = 'stamp',
   rotate = -8,
   className = '',
+  subtext,
 }: {
   text: string
-  color?: 'stamp' | 'approve'
+  color?: 'stamp' | 'approve' | 'pending'
   rotate?: number
   className?: string
+  /** Optional smaller line inside the stamp (e.g. today's issue date). */
+  subtext?: string
 }) {
-  const colorClass = color === 'stamp' ? 'text-stamp border-stamp' : 'text-approve border-approve'
+  const colorClass =
+    color === 'stamp'
+      ? 'text-stamp border-stamp'
+      : color === 'approve'
+        ? 'text-approve border-approve'
+        : 'text-[#d97706] border-[#d97706]'
   return (
     <div
       className={`relative inline-flex animate-stamp-slam select-none items-center justify-center border-[6px] px-6 py-3 font-stamp text-3xl font-bold uppercase tracking-widest ${colorClass} ${className}`}
@@ -31,7 +39,10 @@ export function StampSlam({
       >
         {text}
       </span>
-      <span>{text}</span>
+      <span className="flex flex-col items-center leading-none">
+        <span>{text}</span>
+        {subtext && <span className="mt-1 text-[0.58em] tracking-[0.15em]">{subtext}</span>}
+      </span>
     </div>
   )
 }
