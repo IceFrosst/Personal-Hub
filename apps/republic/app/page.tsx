@@ -155,13 +155,13 @@ export default function EntryDeclarationPage() {
   function handleAnswer(answer: 'yes' | 'no') {
     playStampThunk()
     if (answer === 'no') {
-      // Nothing to declare — no reason line on /denied, just the
-      // wasting-officer's-time STATUS (see app/denied/page.tsx).
-      router.push('/denied?via=nothing')
+      // No entry request means no entry. The denial page states that plainly
+      // instead of pretending this was a customs declaration.
+      router.push('/denied?via=no-request')
       return
     }
-    // Declaring something triggers immediate follow-up questioning — the
-    // officer needs details. Navigation waits for the answers below.
+    // Requesting entry triggers immediate follow-up questioning. Navigation
+    // waits for the answers below.
     setFollowUp(SCREENING_QUESTIONS[Math.floor(Math.random() * SCREENING_QUESTIONS.length)])
     setStage('followUp')
   }

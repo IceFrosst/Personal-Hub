@@ -105,7 +105,7 @@ export const LANDING = {
   // Shown until lib/api.ts#getApplicantNumber resolves inside a client effect
   // (never during render — see the hydration-safety Gotcha in CLAUDE.md).
   applicantNumberPlaceholder: '————',
-  question: 'DO YOU HAVE SOMETHING TO DECLARE?',
+  question: 'ARE YOU REQUESTING PERMISSION TO ENTER?',
   yes: 'YES',
   no: 'NO',
   genderQuestion: 'GENDER OF APPLICANT?',
@@ -185,13 +185,13 @@ export const DENIAL_REASONS = [
 ]
 
 // The REASON line only renders for a random denial or the bribe trap —
-// declaring NOTHING (`?via=nothing`) and the CLASSIFIED gender trap
-// (`?via=classified`) show no reason at all, just their STATUS line
-// (owner request; see app/denied/page.tsx).
+// declining to request entry (`?via=no-request`) and the CLASSIFIED gender
+// trap (`?via=classified`) show no reason at all, just their STATUS line.
 export const DENIAL = {
   stamp: 'ENTRY DENIED',
   reasonPrefix: 'REASON:',
   status: 'STATUS: WASTING OFFICER\'S TIME.',
+  statusNoRequest: 'STATUS: ENTRY NOT REQUESTED.',
   statusClassified: 'STATUS: KINDLY, FUCK OFF.',
   appeal: 'FILE AN APPEAL',
   caseLabel: 'CASE №:',

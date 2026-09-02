@@ -28,10 +28,10 @@ export default function DeniedPage() {
   const [shake, setShake] = useState(false)
   const [showAppeal, setShowAppeal] = useState(false)
   const [reason, setReason] = useState<string | null>(null)
-  // Nothing-to-declare and CLASSIFIED denials show NO reason line at all
-  // (owner request) — `showReason` gates the line, and CLASSIFIED swaps the
-  // STATUS line for its own. Both start at SSR-safe defaults and are only
-  // set inside the effect, same as everything else here.
+  // A declined entry request and CLASSIFIED denial show NO reason line at
+  // all — `showReason` gates the line, and each swaps the STATUS line for
+  // its own. Both start at SSR-safe defaults and are only set inside the
+  // effect, same as everything else here.
   const [showReason, setShowReason] = useState(true)
   // Bribe denials show the reason but NO status line (owner request).
   const [showStatus, setShowStatus] = useState(true)
@@ -46,9 +46,10 @@ export default function DeniedPage() {
     // effect — hydration-safe (this page is statically prerendered), and
     // avoids the Suspense boundary useSearchParams would demand.
     const via = new URLSearchParams(window.location.search).get('via')
-    if (via === 'nothing') {
-      // Declared nothing — no reason, the STATUS line says it all.
+    if (via === 'no-request') {
+      // They did not request entry, so the Ministry records exactly that.
       setShowReason(false)
+      setStatus(DENIAL.statusNoRequest)
     } else if (via === 'classified') {
       // CLASSIFIED gender — no reason, and the Ministry is direct about it.
       setShowReason(false)

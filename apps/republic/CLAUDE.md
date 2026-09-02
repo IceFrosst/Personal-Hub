@@ -335,7 +335,14 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — DATE confidence copy simplified; public Statistics removed:**
+**Latest pass — logical opening entry request:**
+- Landing now asks `ARE YOU REQUESTING PERMISSION TO ENTER?` instead of the
+  customs-specific `DO YOU HAVE SOMETHING TO DECLARE?`.
+- YES continues to follow-up questioning. NO routes via `?via=no-request`; the denial
+  screen shows no reason and the truthful `STATUS: ENTRY NOT REQUESTED.` rather than
+  the old `STATUS: WASTING OFFICER'S TIME.` used by the nothing-to-declare branch.
+
+**Previous pass — DATE confidence copy simplified; public Statistics removed:**
 - The DATE screening variant no longer renders the shared `SECONDARY SCREENING`
   heading or the old `CURRENT CONFIDENCE` label. Its sole heading is now exactly
   `HOW CONFIDENT DO YOU FEEL RIGHT NOW?` (`CONFIDENCE.label` in `lib/content.ts`).
