@@ -29,8 +29,8 @@ ENTRY DECLARATION (no-scroll landing: "do you have something to declare?")
 ```
 
 Every screen also has its own route (`/identity`, `/denied`, `/visa`, `/visa/[type]`,
-`/appointment`, `/biometric`, `/processing`, `/visa-issued`, `/statistics`, `/duty-free`,
-`/terms`) so screenshots and shares link somewhere sensible, but the funnel *state*
+`/appointment`, `/biometric`, `/processing`, `/visa-issued`, `/duty-free`, `/terms`)
+so screenshots and shares link somewhere sensible, but the funnel *state*
 (name, handle, visa choice, answers, slot, selfie, reference code) lives in one React
 context so it survives client-side navigation between them. Landing restarts the
 *application* on every visit but preserves identity already on file this session (real
@@ -213,10 +213,9 @@ in-app browser. Check the landing specifically at 390×660 (Instagram webview ch
 
 `lib/content.ts` — visa definitions, denial reasons, gag lines, interview questions,
 identity/passport-card labels (including the progress card's per-visa sub-step addendum
-labels), statistics placeholders (including the "one citizen" footnote), duty-free
-stock, terms paragraphs (including the paragraph 6 screenshot easter egg and the
-democracy clause), the DM handle/deep link, and the reference-line format. Edit copy
-there, not scattered across components. A few sub-step gag lines (preliminary rulings,
+labels), duty-free stock, terms paragraphs (including the paragraph 6 screenshot
+and the democracy clause), the DM handle/deep link, and the reference-line format.
+Edit copy there, not scattered across components. A few sub-step gag lines (preliminary rulings,
 the sworn-statement replies, the fiancé "vibe check passed" message, the old tourist
 notice) are still defined there but currently unused — they used to power an
 intermediate confirmation screen after each sub-step that's since been removed in favor

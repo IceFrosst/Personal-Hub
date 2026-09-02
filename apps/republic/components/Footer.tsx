@@ -12,10 +12,6 @@ export function Footer({ compact = false }: { compact?: boolean }) {
     >
       <p>{FOOTER}</p>
       <nav className={compact ? 'mt-0.5 flex flex-wrap justify-center gap-x-2 gap-y-0.5 uppercase tracking-wide' : 'mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 uppercase tracking-wide'}>
-        <Link href="/statistics" className="underline underline-offset-2 hover:text-navy">
-          {FOOTER_NAV.statistics}
-        </Link>
-        <span aria-hidden>·</span>
         <Link href="/duty-free" className="underline underline-offset-2 hover:text-navy">
           {FOOTER_NAV.dutyFree}
         </Link>

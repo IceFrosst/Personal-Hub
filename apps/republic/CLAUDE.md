@@ -40,7 +40,7 @@ the Dictatorship is also a full democracy.
 
 - Route-per-screen for shareability (`/`, `/identity`, `/denied`, `/visa`,
   `/visa/[type]`, `/appointment`, `/biometric`, `/processing`, `/visa-issued`,
-  `/statistics`, `/duty-free`, `/terms`), but the funnel's *data* lives in one client
+  `/duty-free`, `/terms`), but the funnel's *data* lives in one client
   context (`lib/applicationContext.tsx`, `ApplicationProvider` in `app/layout.tsx`) so
   it survives client-side navigation between those routes. Landing (`/`) resets the
   *application* fields on every visit but **preserves identity** (`applicantName` /
@@ -51,8 +51,8 @@ the Dictatorship is also a full democracy.
 - **All copy/config in `lib/content.ts`** — visa definitions, denial reasons, gag lines,
   fiancé interview questions, identity/passport-card labels (including the progress
   card's per-visa sub-step addendum labels — `DOCUMENT_PROGRESS.matterLabel`/
-  `.pitchLabel`/`.statementLabel`/`.interviewAnswersLabel`), statistics placeholders,
-  duty-free stock, terms paragraphs, officer moods, the DM handle + deep link, and the
+  `.pitchLabel`/`.statementLabel`/`.interviewAnswersLabel`), duty-free stock, terms
+  paragraphs, officer moods, the DM handle + deep link, and the
   reference-line format. Don't hardcode copy in components; add it here first. A handful
   of sub-step gag lines (`PRELIMINARY_RULINGS`, `SPECIAL_REPLIES`, `BUSINESS.receivedNote`,
   `FIANCE_RESULT`, `TOURIST_STEP`) are currently unused (they used to power an
@@ -335,7 +335,16 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — reviewer follow-up on the Ministry queue tabs/unique-visitor pass (below): always-visible queue controls, a live-updating draft-age clock, and hardened visitor-count parsing:**
+**Latest pass — DATE confidence copy simplified; public Statistics removed:**
+- The DATE screening variant no longer renders the shared `SECONDARY SCREENING`
+  heading or the old `CURRENT CONFIDENCE` label. Its sole heading is now exactly
+  `HOW CONFIDENT DO YOU FEEL RIGHT NOW?` (`CONFIDENCE.label` in `lib/content.ts`).
+  Non-DATE IQ screening keeps its existing heading and behavior.
+- Statistics was removed completely: no Footer link, no `/statistics` route, and no
+  dead Statistics copy/constants in `lib/content.ts`. Footer now contains only
+  DUTY-FREE and TERMS.
+
+**Previous pass — reviewer follow-up on the Ministry queue tabs/unique-visitor pass (below): always-visible queue controls, a live-updating draft-age clock, and hardened visitor-count parsing:**
 - **`/ministry` no longer has a global "desk is empty" branch that bypassed the queue
   controls.** Previously, when `rows` had loaded successfully but both `applications`
   and (non-submitted) draft groups were empty, the whole four-tab UI was skipped in
@@ -803,8 +812,8 @@ still skips IQ after submission.
   signature was kept (consultation was the only null — the appointment page's
   no-time-step branch is currently unreachable but harmless). `lib/api.ts` keeps the
   optional `matter` field in the record/table shape for forward-compat, just never
-  populates it. The fake "Consultation permits issued: 129" statistic stays — a permit
-  nobody can apply for anymore is in keeping with the Ministry.
+  populates it. At that time, the fake "Consultation permits issued: 129" statistic
+  was still present; it was subsequently removed with the public Statistics page.
 - **`VisaDocument size="full"` no longer stretches vertically** — it used to stack each
   label above its value with large row gaps; now both sizes share the exact compact
   arrangement (label + value on one line, `justify-between`, values `truncate` with a

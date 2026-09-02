@@ -72,9 +72,7 @@ export default function ScreeningPage() {
     return (
       <PageShell showProgress>
         <div className="paper-card p-5">
-          <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{SCREENING.heading}</h1>
-
-          <p className="mt-4 text-center text-[11px] uppercase tracking-[0.2em] text-navy">{CONFIDENCE.label}</p>
+          <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{CONFIDENCE.label}</h1>
           <p className="mt-3 text-center font-stamp text-3xl uppercase tracking-widest text-navy">{confidence}%</p>
           <input
             type="range"

@@ -505,12 +505,11 @@ export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
   },
 ]
 
-// Confidence meter — the DATE path's secondary-screening variant (it skips
-// IQ). Whatever the applicant declares, the passport prints it 15% lower,
-// "adjusted by officer."
+// Confidence meter — the DATE path's screening variant (it skips IQ).
+// Whatever the applicant declares, the passport prints it 15% lower.
 export const CONFIDENCE = {
-  label: 'CURRENT CONFIDENCE',
-  ariaLabel: 'Declare your current confidence',
+  label: 'HOW CONFIDENT DO YOU FEEL RIGHT NOW?',
+  ariaLabel: 'How confident do you feel right now?',
   min: 0,
   max: 100,
   default: 50,
@@ -828,13 +827,12 @@ export const IDLE_TIMEOUT_MS = 20_000
 export const FOOTER = '© Ministry of Interior, Dictatorship of Ignas. Unauthorized fun prohibited.'
 
 export const FOOTER_NAV = {
-  statistics: 'Statistics',
   dutyFree: 'Duty-Free',
   terms: 'Terms',
 }
 
-// Shared across not-found.tsx, /statistics, /duty-free, /terms — all four have
-// an identical "go back home" link at the bottom.
+// Shared across not-found.tsx, /duty-free, and /terms — all three have an
+// identical "go back home" link at the bottom.
 export const RETURN_TO_BORDER_CONTROL = 'RETURN TO BORDER CONTROL'
 
 export const NOT_FOUND = {
@@ -842,30 +840,6 @@ export const NOT_FOUND = {
   sub: 'THE MINISTRY APOLOGIZES FOR NOTHING. REF: 404',
   home: RETURN_TO_BORDER_CONTROL,
 }
-
-// ---------------------------------------------------------------------------
-// Statistics page (placeholder numbers — no fiancé counts, ever)
-// ---------------------------------------------------------------------------
-
-export const STATISTICS_HEADING = 'OFFICIAL MINISTRY STATISTICS'
-export const STATISTICS_SUBHEADING = 'FIGURES ARE ACCURATE AS OF WHENEVER THE MINISTRY LAST CHECKED.'
-export const STATISTICS_BRIBE_LABEL = 'Bribes attempted'
-
-export const STATISTICS_ROWS: { label: string; value: string }[] = [
-  { label: 'Entries denied', value: '812' },
-  { label: 'Tourist visas issued', value: '304' },
-  { label: 'Consultation permits issued', value: '129' },
-  { label: 'Business visas issued', value: '41' },
-  { label: 'Special purpose visas issued', value: '17' },
-  { label: 'Appeals filed', value: '596' },
-  { label: 'Appeals granted', value: '596' },
-  { label: 'Applications pending identity verification', value: '88' },
-  { label: 'Passport fraud detected', value: '3' },
-]
-export const STATISTICS_NOTE =
-  'NOTE: fiancé visa figures are withheld. The Ministry protects romantic privacy.'
-export const STATISTICS_FOOTNOTE = 'The Dictatorship has one (1) citizen and he is doing his best.'
-export const STATISTICS_BRIBE_BASE = 214
 
 // ---------------------------------------------------------------------------
 // Duty-free
