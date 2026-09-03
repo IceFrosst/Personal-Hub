@@ -377,6 +377,45 @@ export function isFreshApplicationState(state: ApplicationState): boolean {
 }
 
 /**
+ * True when `state` is a genuinely FINALIZED application — the same
+ * completeness guard `app/visa-issued/page.tsx` has always used to decide
+ * between showing the real final document and bouncing back into the live
+ * funnel (`visaType`/`serial`/`slot`/`issuedDate`/`referenceCode`/
+ * `selfieCaptured`, all present). Shared so every caller that wants to
+ * render the actual final passport — `/visa-issued` itself, and the
+ * landing's returning-applicant state (`app/page.tsx`) — applies the exact
+ * same bar, rather than each hand-rolling a slightly different subset of
+ * these checks (or, worse, none at all).
+ *
+ * This is stricter than `buildFinalPassportDocument`/`FinalPassport`'s own
+ * internal guard (which only checks `visaType`, since that's the one field
+ * it directly dereferences) — a record can have a `visaType` but still be
+ * genuinely incomplete (mid-funnel, or an old/corrupt local-log entry
+ * missing `slot`/`referenceCode`/`selfieCaptured`). Callers must run this
+ * check BEFORE rendering the final document, not rely on
+ * `buildFinalPassportDocument` returning null to catch it — otherwise a
+ * partial record renders a passport with blank/ruled rows instead of not
+ * rendering at all.
+ *
+ * `mapSubmittedApplication` above keeps this guard satisfiable for a
+ * genuinely complete legacy local record (one predating `serial`/
+ * `issuedDate` being stored) by synthesizing those two fields — so a
+ * legacy-complete record still passes this check, while a legacy-INcomplete
+ * one (genuinely missing `slot`/`referenceCode`/`selfieCaptured`) correctly
+ * does not.
+ */
+export function isFinalizedApplicationState(state: ApplicationState): boolean {
+  return Boolean(
+    state.visaType &&
+      state.serial &&
+      state.slot &&
+      state.issuedDate &&
+      state.referenceCode &&
+      state.selfieCaptured
+  )
+}
+
+/**
  * Pure exact-reference-code merge step behind lib/api.ts#persistApplicationThumbnail
  * — split out here (rather than left inline in that function) specifically
  * so it's unit-testable directly under plain Node ESM alongside this

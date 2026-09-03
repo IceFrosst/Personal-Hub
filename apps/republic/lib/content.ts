@@ -599,7 +599,6 @@ export const PROCESSING_TAIL_NOTE = '(this is normal. this is always normal.)'
 export const APPLICATION_STATUS_COPY = {
   pending: {
     landingHeading: 'APPLICATION UNDER REVIEW',
-    landingStatus: 'STATUS: PENDING APPROVAL.',
     landingNote: 'APPLICATION REVIEW TAKES 1–3 BUSINESS DAYS.',
     issuedHeading: 'APPLICATION SUBMITTED.',
     issuedStatus: 'STATUS: PENDING APPROVAL.',
@@ -609,7 +608,6 @@ export const APPLICATION_STATUS_COPY = {
   },
   approved: {
     landingHeading: 'APPLICATION APPROVED',
-    landingStatus: 'STATUS: APPROVED.',
     landingNote: 'ENTRY HAS BEEN GRANTED BY THE MINISTRY.',
     issuedHeading: 'APPLICATION APPROVED.',
     issuedStatus: 'STATUS: APPROVED.',
@@ -619,7 +617,6 @@ export const APPLICATION_STATUS_COPY = {
   },
   denied: {
     landingHeading: 'APPLICATION DENIED',
-    landingStatus: 'STATUS: DENIED.',
     landingNote: 'THE MINISTRY HAS REFUSED ENTRY.',
     issuedHeading: 'APPLICATION DENIED.',
     issuedStatus: 'STATUS: DENIED.',
@@ -768,11 +765,6 @@ export function getOfficerMood(hour = new Date().getHours()): OfficerMood {
 // ---------------------------------------------------------------------------
 
 export const PENDING_LANDING = {
-  heading: 'APPLICATION UNDER REVIEW',
-  referenceLabel: 'REFERENCE №:',
-  visaLabel: 'VISA:',
-  statusLine: 'STATUS: PENDING APPROVAL.',
-  viewFinalApplication: 'VIEW FINAL APPLICATION',
   submitAnother: 'SUBMIT ANOTHER APPLICATION',
 }
 

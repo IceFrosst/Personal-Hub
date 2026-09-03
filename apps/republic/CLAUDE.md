@@ -73,7 +73,9 @@ the Dictatorship is also a full democracy.
   slot and navigates to `/biometric`, with no confirmation screen. The old seeded
   `lib/slots.ts`/`getAvailableSlots` code is unused fallback/demo reference only.
 - Reusable primitives: `PageShell` (mobile-first max-w-md container + paper-slide-in;
-  `fullHeight` prop for the no-scroll landing, `showProgress` prop to mount
+  `fullHeight` prop for the vertically-centered landing (no-scroll only for the
+  fresh-applicant declare/follow-up/gender flow — the returning-applicant final-passport
+  render is allowed to scroll, see Gotchas), `showProgress` prop to mount
   `DocumentProgress`), `StampSlam` (the DENIED/APPROVED stamp visual), `Typewriter`
   (line reveal, respects `prefers-reduced-motion` by rendering instantly), `ProgressBar`,
   `Checkbox` (fully custom, see Gotchas), `RequireIdentity` (route guard, see below).
@@ -193,22 +195,25 @@ the Dictatorship is also a full democracy.
   This is why the `/identity`-skip-if-already-present behavior actually gets used, not
   just a defensive no-op.
 - **Landing is `<PageShell fullHeight>`, everything else is the default variant.**
-  `fullHeight` renders `min-h-[100dvh] flex flex-col justify-center` (no `showProgress`,
-  no natural-scroll assumption) instead of the normal `min-h-dvh` + top-anchored flow.
-  The landing's own content (crest, header, form-code/applicant-number lines, barcode,
-  the typewriter question, YES/NO, officer-mood badge, compact footer) is sized and
-  spaced specifically to fit inside
-  390×660 (the tightest realistic target — Instagram in-app webview chrome) with real
-  margin to spare. If you add anything to the landing (or lengthen `LANDING.title`,
-  which is now "DICTATORSHIP OF IGNAS" — longer than the old "REPUBLIC OF IGNAS"),
-  re-check the fit — **zero vertical scroll on `/` is a hard requirement**, not a
-  nice-to-have. (The longer title was checked against the available card width at build
-  time and still fits on one line with margin; redo that check if the title changes
-  again.) The landing used to also conditionally render a returning-visitor line, a
-  3rd-visit loyalty message, and a passport-stamps-on-file count — all removed per
-  owner feedback (the landing must never detect or display anything about repeat
-  visits, full stop); see the updated `lib/passport.ts` Convention entry above. That
-  removal only freed up more of the no-scroll budget, so no re-check was needed there.
+  `fullHeight` renders `min-h-[100dvh] flex flex-col justify-center` instead of the
+  normal `min-h-dvh` + top-anchored flow — it centers short content vertically, it does
+  NOT clip or hide overflow (see `components/PageShell.tsx`'s own doc comment). The
+  fresh-applicant flow's own content (crest, header, form-code/applicant-number lines,
+  barcode, the typewriter question, YES/NO, officer-mood badge, compact footer) is
+  sized and spaced specifically to fit inside 390×660 (the tightest realistic target —
+  Instagram in-app webview chrome) with real margin to spare, and **zero vertical
+  scroll for THAT declare/follow-up/gender flow is still a hard requirement** — if you
+  add anything to it (or lengthen `LANDING.title`, which is now "DICTATORSHIP OF
+  IGNAS" — longer than the old "REPUBLIC OF IGNAS"), re-check the fit. (The longer
+  title was checked against the available card width at build time and still fits on
+  one line with margin; redo that check if the title changes again.) The
+  returning-applicant `stage === 'pending'` state is a DIFFERENT budget: it renders the
+  actual final passport (`components/FinalPassport.tsx`) on top of the same shell, and
+  that content is allowed to make the page scroll — see Current state's latest pass.
+  The landing used to also conditionally render a returning-visitor line, a 3rd-visit
+  loyalty message, and a passport-stamps-on-file count — all removed per owner feedback
+  (the landing must never detect or display anything about repeat visits, full stop);
+  see the updated `lib/passport.ts` Convention entry above.
 - **Progress and final visa use the same readable document component.**
   `components/VisaDocument.tsx` renders the shared navy double-border, natural-ratio
   photo, true top-corner ISSUED/SERIAL row, remaining two-column fields, addenda, and
@@ -335,7 +340,78 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — simpler visitor language and visa-path stamps:**
+**Latest pass — landing renders the actual final passport instead of a boxed summary + VIEW FINAL APPLICATION button, via one shared presentation component:**
+- **The returning-applicant landing state (`app/page.tsx`, `stage === 'pending'`) no
+  longer shows the boxed REFERENCE №/VISA/STATUS summary or a VIEW FINAL APPLICATION
+  button that navigated to `/visa-issued`.** It still keeps the pending/approved/denied
+  heading (`statusCopy.landingHeading`) and note (`statusCopy.landingNote`), but now
+  renders the actual final passport — the real `VisaDocument`, with its current
+  decision `StampSlam` (PENDING/APPROVED/DENIED + issue date) and the applicant's own
+  photo/data — directly on the landing card, right above the still-present SUBMIT
+  ANOTHER APPLICATION button. `PENDING_LANDING.referenceLabel`/`.visaLabel`/
+  `.statusLine`/`.viewFinalApplication`/`.heading` were deleted from `lib/content.ts`
+  (all now-unused); `PENDING_LANDING` only holds `submitAnother`. A reviewer follow-up
+  in this same uncommitted work also deleted `APPLICATION_STATUS_COPY[*].landingStatus`
+  (the old boxed summary's STATUS line copy) — it had no remaining reader once the box
+  itself was removed.
+- **ONE shared presentation component now owns the whole final-passport render, not
+  just its field data — `components/FinalPassport.tsx`.** A reviewer follow-up found
+  that the first version of this pass only shared the `VisaDocumentField[]`/
+  `VisaDocumentAddendum[]` *data* (via `lib/finalPassportDocument.ts`, still used
+  internally by this component) while each page still hand-rolled its own copy of the
+  wrapper/`VisaDocument`/photo-source-selection/`StampSlam` JSX — so the two on-screen
+  documents could still drift in presentation even with identical data.
+  `FinalPassport` (`forwardRef<HTMLDivElement, { state, stampText, stampColor }>`) now
+  renders all of that in one place; both `/visa-issued` and the landing's
+  returning-applicant state render this exact component. It forwards its root DOM ref
+  so `/visa-issued`'s DOWNLOAD VISA capture (`documentRef` → `html-to-image`, see that
+  file's header comment) keeps capturing the exact node this shared component renders,
+  stamp overlay and all — `/visa-issued`'s off-screen downloadable-PNG canvas fallback
+  is untouched (out of scope, see that file's own comment).
+- **A shared finalized-state predicate now gates rendering, not just `pendingApp`
+  existing — `lib/applicationState.ts#isFinalizedApplicationState(state)`.** Another
+  reviewer finding: the landing used to render the final passport whenever
+  `buildFinalPassportDocument(state)` returned non-null, which only checks that
+  `state.visaType` resolves to a real visa — a partial/corrupt local record (e.g. one
+  missing `slot`/`referenceCode`/`selfieCaptured`) could still have a `visaType` and
+  would render a passport with blank/ruled rows instead of nothing.
+  `isFinalizedApplicationState` is the exact same completeness check
+  `/visa-issued` has always used (`visaType`/`serial`/`slot`/`issuedDate`/
+  `referenceCode`/`selfieCaptured`, all present) and both callers now share it —
+  `/visa-issued`'s route-guard effect and render guard call it directly instead of
+  repeating the six-field check inline, and the landing only renders `FinalPassport`
+  when it's true. A genuinely complete LEGACY local record (predating `serial`/
+  `issuedDate` being stored) still passes: `mapSubmittedApplication` synthesizes both
+  fields deterministically before this guard ever runs (unchanged from before this
+  pass) — only a genuinely incomplete record now correctly renders nothing on the
+  landing instead of a broken passport.
+- **Legacy local records are otherwise handled the same way as before, just earlier.**
+  The landing's mount effect calls the existing `restoreSubmittedApplication(last)`
+  immediately upon detecting a submitted local application, instead of only on a button
+  click — so `state` is populated in time to render the passport on the landing card
+  itself, not just after navigating to `/visa-issued`.
+- **`components/PageShell.tsx`'s `fullHeight` doc comment no longer claims a blanket
+  "no scroll" guarantee** — it now says what the prop actually does (vertically centers
+  content, never clips/hides overflow) since the returning-applicant state can now be
+  taller than the viewport once it renders a full passport. The Gotchas entry on
+  landing's no-scroll budget was narrowed to apply only to the fresh-applicant
+  declare/follow-up/gender flow, which still fits 390×660 with no scroll by design.
+- **Tests, updated for the shared component + predicate:** `test/finalPassportDocument.test.mjs`
+  (still source-text assertions — `lib/finalPassportDocument.ts`/`components/FinalPassport.tsx`
+  have runtime relative value imports that only resolve inside a bundler, not Node's
+  native ESM resolver this suite runs under, same documented constraint as
+  `test/api.test.mjs`) now also asserts `FinalPassport` forwards its ref
+  (`forwardRef<HTMLDivElement`), that both `/visa-issued` and the landing render
+  `<FinalPassport` rather than their own inline `VisaDocument`/`StampSlam` JSX, that
+  `/visa-issued` passes `ref={documentRef}`, and that both callsites gate on
+  `isFinalizedApplicationState`. `test/applicationState.test.mjs` gained executable
+  (not just source-text) coverage of `isFinalizedApplicationState` itself: true for a
+  complete state, true for a legacy-complete state once run through
+  `mapSubmittedApplication` (serial/issuedDate synthesized), and false for each of the
+  six individual missing-field cases plus a `null`/empty state. `npm test` (77 tests),
+  `npm run typecheck`, `npm run lint`, and `npm run build` all pass clean.
+
+**Previous pass — simpler visitor language and visa-path stamps:**
 - The handle field now says `INSTAGRAM HANDLE: @` instead of disguising it as a passport number.
 - The calendar screen now leads with `SELECT DAY`, then `SELECT TIME OF DAY` after a date is chosen, instead of the broader `APPOINTMENT` heading. A reviewer follow-up in this same uncommitted work fixed a misleading state: `/appointment`'s loading and no-appointments-available states now show a neutral `APPOINTMENT` heading (`APPOINTMENT.neutralHeading`) instead of prematurely claiming `SELECT DAY` before it's even known a day can be picked, and the day/time subcopy line (`SELECT AN AVAILABLE DAY.` / the time-sub line) is suppressed entirely until the calendar is actually ready, instead of duplicating/contradicting the heading. All three headings (`neutralHeading`/`dayHeading`/`timeHeading`) live in `lib/content.ts`.
 - The alarm follow-up now asks `WHAT DO YOU DO FIRST?` instead of the less familiar `FIRST OFFICIAL ACT?`; Sidequest copy now says `SIDEQUEST SUPPLIES` instead of `EXPEDITION SUPPLIES` (including the code comments/field docs describing those supplies).
@@ -1076,7 +1152,8 @@ Verified: `npm test` (66 tests), `npm run typecheck`, `npm run build`, and
   genuinely empty desk, and confirm approving/denying a pending case updates
   PENDING/DECIDED counts live without a page reload. Migration 0009 is already applied
   and its anonymous/ministry smoke checks passed.
-- **Earlier in-flight item still stands:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal. Earlier in-flight item still stands: same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
+- **Earlier in-flight item still stands:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal.
+- **Owner should manually eyeball the new landing returning-applicant passport render** (see Current state's latest pass — the boxed REFERENCE №/VISA/STATUS summary and VIEW FINAL APPLICATION button are gone; the shared `FinalPassport` component — real `VisaDocument` + decision `StampSlam` — now renders directly on `/`) at real 390px width, for a pending, an approved, and a denied application, confirming the passport photo/fields/addenda and decision stamp match what `/visa-issued` shows for the same application (both now render the literal same component), that the page is allowed to scroll for this state (see the updated PageShell/Gotchas wording), and that SUBMIT ANOTHER APPLICATION still works. Also re-run the legacy-record check with sessionStorage cleared and a genuinely old local log entry missing `serial`/`issuedDate`/`selfieThumbnailUrl` (e.g. hand-edited into `localStorage['republic:applications-log']` in devtools) — the same-device legacy-record fix (`mapSubmittedApplication` synthesizing `serial`/`issuedDate`) is unchanged, only now it's applied earlier (on landing mount, via `restoreSubmittedApplication`, rather than only on a button click) and gated through the shared `isFinalizedApplicationState` predicate, so confirm the landing still renders a complete passport for that legacy-complete record, and confirm a genuinely INCOMPLETE local record (missing `slot`/`referenceCode`/`selfieCaptured` outright, not just predating serial/issuedDate) correctly renders nothing on the landing rather than a broken/partial passport. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
 - **Applicant-facing status synchronization is now built:** the landing card and `/visa-issued` call the narrow lookup by exact reference code + normalized handle, poll every 7 seconds, recheck after focus/visibility, and stop after a terminal decision. No public application SELECT was added.
 - **Owner must smoke-test /ministry sign-in on production** (Google OAuth redirect —
   can't be automated headlessly).

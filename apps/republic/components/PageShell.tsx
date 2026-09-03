@@ -7,7 +7,11 @@ export function PageShell({
   showProgress = false,
 }: {
   children: React.ReactNode
-  /** Landing only: fits entirely within one viewport, no scroll — see app/page.tsx. */
+  /** Landing only: vertically centers content within the viewport instead of
+   *  starting at the top — see app/page.tsx. Content that's genuinely taller
+   *  than the viewport (e.g. the returning-applicant state's full final
+   *  passport, once rendered) still scrolls normally; this never clips or
+   *  hides overflow. */
   fullHeight?: boolean
   /** Every funnel page from /identity onward: the persistent mini visa/progress card. */
   showProgress?: boolean

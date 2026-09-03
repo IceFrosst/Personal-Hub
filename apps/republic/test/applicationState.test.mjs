@@ -6,6 +6,7 @@ import test from 'node:test'
 const {
   EMPTY_STATE,
   claimProviderHydration,
+  isFinalizedApplicationState,
   isFreshApplicationState,
   mapSubmittedApplication,
   mergeSelfieThumbnail,
@@ -332,6 +333,62 @@ test('mergeSelfieThumbnail is a same-reference no-op when the matching row alrea
   const log = [{ referenceCode: 'RIG-ABCD', selfieThumbnailUrl: 'data:image/jpeg;base64,same' }]
   const next = mergeSelfieThumbnail(log, 'RIG-ABCD', 'data:image/jpeg;base64,same')
   assert.equal(next, log)
+})
+
+test('isFinalizedApplicationState is true for a genuinely complete application state', () => {
+  const complete = {
+    ...EMPTY_STATE,
+    visaType: 'tourist',
+    serial: 'SN-123456',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    issuedDate: '13/09/2026',
+    referenceCode: 'RIG-ABCD',
+    selfieCaptured: true,
+  }
+  assert.equal(isFinalizedApplicationState(complete), true)
+})
+
+test('isFinalizedApplicationState is true for a legacy-complete record once mapSubmittedApplication synthesizes serial/issuedDate', () => {
+  const legacyComplete = mapSubmittedApplication({
+    applicantName: 'Old Timer',
+    visaType: 'tourist',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    referenceCode: 'RIG-OLDX',
+    selfieCaptured: true,
+    submittedAt: '2026-09-01T12:00:00.000Z',
+    // No serial, no issuedDate on the record itself — mapSubmittedApplication
+    // synthesizes both (see the dedicated mapper test above), and this
+    // predicate must accept the synthesized result exactly like a
+    // genuinely-issued one.
+  })
+  assert.equal(isFinalizedApplicationState(legacyComplete), true)
+})
+
+test('isFinalizedApplicationState is false for a genuinely incomplete/corrupt local record — one missing field at a time', () => {
+  const complete = {
+    ...EMPTY_STATE,
+    visaType: 'tourist',
+    serial: 'SN-123456',
+    slot: 'SUN, 13 SEPT 2026 — AFTERNOON',
+    issuedDate: '13/09/2026',
+    referenceCode: 'RIG-ABCD',
+    selfieCaptured: true,
+  }
+  for (const field of ['visaType', 'serial', 'slot', 'issuedDate', 'referenceCode']) {
+    assert.equal(isFinalizedApplicationState({ ...complete, [field]: null }), false, `expected false with ${field} missing`)
+  }
+  assert.equal(isFinalizedApplicationState({ ...complete, selfieCaptured: false }), false)
+  // A record whose visaType survived (e.g. mid-funnel, or a corrupt local
+  // log entry) but genuinely never finished — same shape
+  // mapSubmittedApplication's own "otherwise incomplete" branch leaves null
+  // for serial/issuedDate — must also fail closed, not just the individual
+  // deletions above.
+  const midFunnel = mapSubmittedApplication({ applicantName: 'Mid Funnel', visaType: 'tourist' })
+  assert.equal(isFinalizedApplicationState(midFunnel), false)
+})
+
+test('isFinalizedApplicationState is false for the empty/fresh state', () => {
+  assert.equal(isFinalizedApplicationState(EMPTY_STATE), false)
 })
 
 test('isFreshApplicationState is false once any other field diverges from EMPTY_STATE', () => {

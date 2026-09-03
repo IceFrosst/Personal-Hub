@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Crest } from '@/components/Crest'
+import { FinalPassport } from '@/components/FinalPassport'
 import { Footer } from '@/components/Footer'
 import { OfficerMoodBadge } from '@/components/OfficerMoodBadge'
 import { PageShell } from '@/components/PageShell'
@@ -10,7 +11,11 @@ import { Typewriter } from '@/components/Typewriter'
 import { addStamp } from '@/lib/passport'
 import { getApplicantNumber, getLastApplication, type ApplicationRecord } from '@/lib/api'
 import { collectIntel } from '@/lib/intel'
-import { isFreshApplicationState } from '@/lib/applicationState'
+import {
+  isFinalizedApplicationState,
+  isFreshApplicationState,
+  mapSubmittedApplication,
+} from '@/lib/applicationState'
 import { clearAnimatedFields } from '@/lib/formProgress'
 import {
   APPLICATION_STATUS_COPY,
@@ -18,10 +23,8 @@ import {
   LANDING,
   PENDING_LANDING,
   SCREENING_QUESTIONS,
-  VISA_BY_SLUG,
   formatApplicantNumber,
   type ScreeningQuestion,
-  type VisaType,
 } from '@/lib/content'
 import { playStampThunk } from '@/lib/sound'
 import { useApplication } from '@/lib/applicationContext'
@@ -110,6 +113,19 @@ export default function EntryDeclarationPage() {
       : decisionStatus === 'denied'
         ? 'border-stamp/60 text-stamp'
         : 'border-[#d97706]/60 text-[#d97706]'
+  // Renders the actual final passport (components/FinalPassport.tsx — the
+  // same shared wrapper/VisaDocument/photo/StampSlam presentation
+  // /visa-issued uses) directly on this returning-applicant landing state.
+  // Gated on `isFinalizedApplicationState` (the same completeness guard
+  // /visa-issued has always used), NOT merely on `pendingApp` existing —
+  // otherwise a partial/corrupt local record (e.g. missing slot/
+  // referenceCode/selfieCaptured) would render a passport with blank/ruled
+  // rows instead of nothing. A genuinely complete legacy record (predating
+  // serial/issuedDate) still passes, because `restoreSubmittedApplication`
+  // below synthesizes those two fields via `mapSubmittedApplication`.
+  // `state` itself is populated from `pendingApp` via
+  // `restoreSubmittedApplication` in the mount effect below.
+  const isFinalized = isFinalizedApplicationState(state)
 
   useEffect(() => {
     // `ApplicationProvider`'s own hydration effect (reading sessionStorage,
@@ -128,8 +144,17 @@ export default function EntryDeclarationPage() {
     // application — localStorage log.) Show the pending-review card instead
     // of restarting the funnel; a new application is one tap away.
     const last = getLastApplication()
-    if (last) {
+    const restoredLast = last ? mapSubmittedApplication(last) : null
+    if (last && restoredLast && isFinalizedApplicationState(restoredLast)) {
       setPendingApp(last)
+      // Hydrates context `state` from the local record (existing legacy-safe
+      // mapping helper — synthesizes serial/issuedDate for older records
+      // missing them) so the SAME buildFinalPassportDocument() output that
+      // /visa-issued renders can be rendered directly on this landing state
+      // too, without navigating away. Incomplete/corrupt local records fail
+      // the shared finalized-state check above and restart the funnel rather
+      // than showing an empty pending state with no passport.
+      restoreSubmittedApplication(last)
       setStage('pending')
     } else if (isFreshApplicationState(state)) {
       // The provider's hydration effect already minted a brand-new draftId
@@ -228,37 +253,22 @@ export default function EntryDeclarationPage() {
             <p className={`text-center font-stamp text-base uppercase tracking-wide ${statusTone}`}>
               {statusCopy.landingHeading}
             </p>
-            <div className={`mx-auto mt-3 w-fit border-2 bg-paper-dark px-4 py-2 text-left text-[11px] uppercase tracking-wide text-navy ${statusTone}`}>
-              <p>
-                {PENDING_LANDING.referenceLabel} <span className="font-bold">{pendingApp.referenceCode}</span>
-              </p>
-              <p>
-                {PENDING_LANDING.visaLabel}{' '}
-                <span className="font-bold">
-                  {VISA_BY_SLUG[pendingApp.visaType as VisaType]?.name ?? pendingApp.visaType.toUpperCase()}
-                </span>
-              </p>
-              <p className={`mt-1 font-bold ${statusTone}`}>{statusCopy.landingStatus}</p>
-            </div>
-            <p className="mt-2 text-center text-[10px] uppercase text-navy/60">{statusCopy.landingNote}</p>
-            <button
-              type="button"
-              onClick={() => {
-                playStampThunk()
-                restoreSubmittedApplication(pendingApp)
-                router.push('/visa-issued')
-              }}
-              className="mt-3 min-h-11 w-full border-2 border-approve bg-approve py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
-            >
-              {PENDING_LANDING.viewFinalApplication}
-            </button>
+            <p className="mt-1 text-center text-[10px] uppercase text-navy/60">{statusCopy.landingNote}</p>
+            {/* The shared final-passport presentation (components/FinalPassport.tsx)
+                — the same wrapper/VisaDocument/photo/decision-stamp
+                /visa-issued renders, so this can never drift from the real
+                final document. Only rendered for a genuinely finalized
+                state (see the `isFinalized` guard above) — no
+                download/DM here — that behavior stays exclusive to
+                /visa-issued. */}
+            {isFinalized && <FinalPassport state={state} stampText={statusCopy.stamp} stampColor={statusCopy.stampColor} />}
             <button
               type="button"
               onClick={() => {
                 playStampThunk()
                 beginNewApplication()
               }}
-              className="mt-2 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
+              className="mt-4 min-h-11 w-full border-2 border-navy bg-navy py-3 font-stamp text-sm uppercase tracking-widest text-paper transition-all hover:opacity-90 active:scale-[0.97]"
             >
               {PENDING_LANDING.submitAnother}
             </button>

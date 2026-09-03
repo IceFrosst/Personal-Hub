@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { toPng } from 'html-to-image'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
-import { StampSlam } from '@/components/StampSlam'
-import { VisaDocument, type VisaDocumentAddendum, type VisaDocumentField } from '@/components/VisaDocument'
+import { FinalPassport } from '@/components/FinalPassport'
 import { useApplication } from '@/lib/applicationContext'
+import { isFinalizedApplicationState } from '@/lib/applicationState'
 import {
   APPROVED,
   APPLICATION_STATUS_COPY,
@@ -25,7 +25,6 @@ import {
   buildReferenceLine,
   formatPassportDate,
   formatPassportVisaName,
-  iqFaceFor,
   isFullyEquipped,
   passportPhotoNote,
 } from '@/lib/content'
@@ -84,14 +83,7 @@ export default function VisaIssuedPage() {
     // must survive a refresh and stay on this page; only a genuinely
     // incomplete/invalid session bounces back to /visa.
     if (!hydrated) return
-    if (
-      !state.visaType ||
-      !state.serial ||
-      !state.slot ||
-      !state.issuedDate ||
-      !state.referenceCode ||
-      !state.selfieCaptured
-    ) {
+    if (!isFinalizedApplicationState(state)) {
       router.replace('/visa')
       return
     }
@@ -496,85 +488,7 @@ export default function VisaIssuedPage() {
     }
   }
 
-  if (
-    !hydrated ||
-    !visa ||
-    !state.serial ||
-    !state.slot ||
-    !state.issuedDate ||
-    !state.referenceCode ||
-    !state.selfieCaptured
-  )
-    return null
-
-  // Same sticker fields, same order, as components/DocumentProgress.tsx —
-  // every one of them is guaranteed complete by the guard above, so nothing
-  // here ever renders a blank/ruled row (unlike the mid-funnel progress
-  // card, which shows blanks for fields not filled in yet).
-  const fields: VisaDocumentField[] = [
-    { key: 'name', label: STICKER_LABELS.name, value: state.applicantName.toUpperCase() || STICKER_LABELS.unknownName },
-    // Label is "IG @:" so the value is the bare handle — no doubled @.
-    { key: 'passport', label: STICKER_LABELS.passport, value: state.instagramHandle },
-    { key: 'visaType', label: 'VISA:', value: formatPassportVisaName(visa.name) },
-    { key: 'other', label: STICKER_LABELS.other, value: passportPhotoNote(visa.slug) },
-    { key: 'sex', label: STICKER_LABELS.sex, value: state.gender ?? '—' },
-    ...(state.declaredIq !== null
-      ? [{
-          key: 'iq',
-          label: 'IQ:',
-          value: String(state.declaredIq),
-          imageSrc: iqFaceFor(state.declaredIq).src,
-          imageAlt: iqFaceFor(state.declaredIq).alt,
-        }]
-      : []),
-    ...(state.declaredConfidence !== null
-      ? [{
-          key: 'confidence',
-          label: CONFIDENCE.passportLabel,
-          value: `${adjustedConfidence(state.declaredConfidence)}${CONFIDENCE.adjustedSuffix}`,
-        }]
-      : []),
-    {
-      key: 'appointment',
-      label: DOCUMENT_PROGRESS.appointmentLabel,
-      value: formatPassportDate(state.slot),
-      span: true,
-    },
-  ]
-  const addenda: VisaDocumentAddendum[] = []
-  if (state.visaType === 'special' && state.specialOtherness) {
-    addenda.push({
-      key: 'otherness',
-      label: DOCUMENT_PROGRESS.othernessLabel,
-      value: state.specialOtherness,
-    })
-  }
-  if (visaAddendum) {
-    addenda.push({ key: 'subStep', label: visaAddendum.label, value: visaAddendum.value })
-  }
-  // IQ is beside SEX in the field grid; only non-image screening content
-  // remains below as an addendum.
-  screeningAddenda.filter((item) => !item.imageSrc).forEach((item, index) => {
-    addenda.push({
-      key: `screening-${index}`,
-      label: item.label,
-      value: item.value,
-    })
-  })
-  if (state.visaType === 'fiance' && state.dateDecisionSeconds !== null) {
-    addenda.push({
-      key: 'decisionTime',
-      label: DECISION_TIME_LABEL,
-      value: formatDecisionTime(state.dateDecisionSeconds),
-    })
-  }
-  if (state.dutyFreeItems.length) {
-    addenda.push({
-      key: 'duty-free',
-      label: DOCUMENT_PROGRESS.dutyFreeLabel,
-      value: state.dutyFreeItems.join(' · '),
-    })
-  }
+  if (!hydrated || !visa || !isFinalizedApplicationState(state)) return null
 
   return (
     // Deliberately no `showProgress` here — the final document is the payoff
@@ -601,33 +515,14 @@ export default function VisaIssuedPage() {
           <p className="text-[10px] uppercase text-navy/50">{statusCopy.issuedNote}</p>
         </div>
 
-        {/* pt-5/pr-1 keep the overhanging stamp inside this node's bounds so
-            the DOM-capture download never clips it. */}
-        <div ref={documentRef} className="relative mt-4 pt-5 pr-1">
-          <VisaDocument
-            size="full"
-            photoUrl={state.selfieDataUrl ?? state.selfieThumbnailUrl}
-            fields={fields}
-            addenda={addenda}
-            cornerStamp={
-              state.visaType === 'tourist' && isFullyEquipped(state.sidequestSupplies)
-                ? FULLY_EQUIPPED_STAMP
-                : undefined
-            }
-          />
-          <div className="pointer-events-none absolute right-0 top-0">
-            {/* 50% larger text than the old !text-sm version; border thinned
-                30% and the ghost strike removed (owner requests). */}
-            <StampSlam
-              text={statusCopy.stamp}
-              subtext={issueDate}
-              color={statusCopy.stampColor}
-              rotate={10}
-              ghost={false}
-              className="!border-[4px] !px-[18px] !py-1.5 !text-[21px]"
-            />
-          </div>
-        </div>
+        {/* The shared final-passport presentation (components/FinalPassport.tsx)
+            — wrapper, VisaDocument, photo selection and the decision
+            StampSlam all in one place, also used by the landing's
+            returning-applicant state (app/page.tsx). `documentRef` forwards
+            to its root node so DOWNLOAD VISA's DOM capture (html-to-image,
+            see the file header comment) keeps capturing the exact document
+            rendered here, stamp overlay and all. */}
+        <FinalPassport ref={documentRef} state={state} stampText={statusCopy.stamp} stampColor={statusCopy.stampColor} />
 
         {/* Off-screen — used only to produce the DOWNLOAD VISA PNG, see the
             file header comment. Not part of the on-screen document. */}
