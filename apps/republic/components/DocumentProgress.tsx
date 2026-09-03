@@ -184,7 +184,7 @@ export function DocumentProgress() {
     })
   }
 
-  // Every canonical expedition supply declared → FULLY EQUIPPED corner stamp.
+  // Every canonical sidequest supply declared → FULLY EQUIPPED corner stamp.
   const fullyEquipped = state.visaType === 'tourist' && isFullyEquipped(state.sidequestSupplies)
 
   return (

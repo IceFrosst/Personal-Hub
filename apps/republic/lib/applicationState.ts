@@ -54,7 +54,7 @@ export interface ApplicationState {
   sidequestIdea: string
   /** Set only when the idea screen is submitted; text alone may be partial. */
   sidequestIdeaSubmitted: boolean
-  /** Declared expedition supplies (sidequest) — all four earns the FULLY EQUIPPED stamp. */
+  /** Declared sidequest supplies — all four earns the FULLY EQUIPPED stamp. */
   sidequestSupplies: string[]
   /** True once the supply declaration screen was submitted (even with zero
    *  boxes checked) — distinguishes "declared nothing" from "not asked yet"

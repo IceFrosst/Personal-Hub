@@ -7,7 +7,6 @@ import { useApplication } from '@/lib/applicationContext'
 import {
   FIANCE_INTRO,
   FIANCE_QUESTIONS,
-  FIANCE_HIGH_RISK,
   FIANCE_SECRET_OPTION,
   FIANCE_SECRET_REMOVED,
   VISA_BY_SLUG,
@@ -78,10 +77,6 @@ export function FianceStep() {
 
   return (
     <StepShell visa={visa}>
-      <span className="mx-auto -mt-1 mb-3 block w-fit rotate-[6deg] border-2 border-stamp px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-stamp">
-        {FIANCE_HIGH_RISK}
-      </span>
-
       <div key={questionIndex} className={questionIndex > 0 ? 'animate-fade-in' : undefined}>
         <p className="text-center text-[11px] uppercase tracking-wide text-navy/70">{FIANCE_INTRO}</p>
         <p className="mt-4 text-center font-stamp text-base uppercase tracking-wide text-navy">

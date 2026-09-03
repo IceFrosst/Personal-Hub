@@ -188,9 +188,20 @@ export default function AppointmentPage() {
   return (
     <PageShell showProgress>
       <div className="paper-card p-5">
-        <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">{APPOINTMENT.heading}</h1>
+        <h1 className="text-center font-stamp text-lg uppercase tracking-wide text-navy">
+          {loadState === 'ready'
+            ? selectedDate
+              ? APPOINTMENT.timeHeading
+              : APPOINTMENT.dayHeading
+            : APPOINTMENT.neutralHeading}
+        </h1>
+        {/* Day/time subcopy only ever applies once a day is actually pickable
+            — showing it during loading/unavailable would duplicate the
+            heading's claim ("SELECT DAY"/"SELECT AN AVAILABLE DAY") while the
+            calendar hasn't confirmed one is selectable yet. */}
         <p className="mt-1 text-center text-[10px] uppercase text-navy/60">
-          {visa.name} — {selectedDate ? APPOINTMENT.timeSub : APPOINTMENT.daySub}
+          {visa.name}
+          {loadState === 'ready' ? ` — ${selectedDate ? APPOINTMENT.timeSub : APPOINTMENT.daySub}` : ''}
         </p>
 
         {loadState === 'loading' && (

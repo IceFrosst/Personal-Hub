@@ -335,7 +335,13 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — logical opening entry request:**
+**Latest pass — simpler visitor language and visa-path stamps:**
+- The handle field now says `INSTAGRAM HANDLE: @` instead of disguising it as a passport number.
+- The calendar screen now leads with `SELECT DAY`, then `SELECT TIME OF DAY` after a date is chosen, instead of the broader `APPOINTMENT` heading. A reviewer follow-up in this same uncommitted work fixed a misleading state: `/appointment`'s loading and no-appointments-available states now show a neutral `APPOINTMENT` heading (`APPOINTMENT.neutralHeading`) instead of prematurely claiming `SELECT DAY` before it's even known a day can be picked, and the day/time subcopy line (`SELECT AN AVAILABLE DAY.` / the time-sub line) is suppressed entirely until the calendar is actually ready, instead of duplicating/contradicting the heading. All three headings (`neutralHeading`/`dayHeading`/`timeHeading`) live in `lib/content.ts`.
+- The alarm follow-up now asks `WHAT DO YOU DO FIRST?` instead of the less familiar `FIRST OFFICIAL ACT?`; Sidequest copy now says `SIDEQUEST SUPPLIES` instead of `EXPEDITION SUPPLIES` (including the code comments/field docs describing those supplies).
+- Visa badges are data-driven on `VisaDefinition` and render both on selection cards and inside each path: BUSINESS is stamped `SMART` in green, SIDEQUEST is stamped `QUESTIONABLE CHOICE` in red, and DATE keeps `HIGH RISK` in red. Special Purpose has no badge. The long `QUESTIONABLE CHOICE` stamp on the selection card is `whitespace-nowrap` and the card's icon/name row reserves right-side padding (`pr-16`) so the corner stamp can't overlap the visa name at narrow widths; the in-path (`StepShell`) stamp is also `whitespace-nowrap`.
+
+**Previous pass — logical opening entry request:**
 - Landing now asks `ARE YOU REQUESTING PERMISSION TO ENTER?` instead of the
   customs-specific `DO YOU HAVE SOMETHING TO DECLARE?`.
 - YES continues to follow-up questioning. NO routes via `?via=no-request`; the denial
@@ -1056,37 +1062,21 @@ per-route OG images, real Supabase persistence for applications/appointments/bri
 (still stubbed to localStorage) — the applicant-number counter is the one narrow
 exception, backed by a real migration/RPC; see the dedicated Gotcha above.
 
-Verified: `npm test` (43 tests — calendar boundary/overlap/fail-closed coverage, draft-audit
-whitelist/size/cap/batch-budget and all-data-URI behavior, migration SQL guard coverage,
-provider hydration-claim and `isFreshApplicationState` classification, and status
-normalization/parser coverage), `npm run typecheck`, `npm run build`, and `npm run lint`
-all pass clean from this folder (one pre-existing, unrelated
-`react-hooks/exhaustive-deps` warning on `/visa-issued`).
+Verified: `npm test` (66 tests), `npm run typecheck`, `npm run build`, and
+`npm run lint` all pass clean from this folder.
 
 ## Next
 
-- **Handoff:** Ministry queue tabs (ABANDONED/IN PROGRESS/PENDING/DECIDED, default
-  PENDING) and the officer-only IP-based UNIQUE VISITORS counter are implemented —
-  `lib/ministryDrafts.ts` (queue classification/counts + `buildQueueTabs`),
-  `lib/ministryVisitors.ts` (RPC fetch/hardened parse), `app/ministry/page.tsx` (tabs
-  UI always rendered post-load, incl. all-zero-counts + live `nowMs` clock, + counter
-  readout), migration `0009_ministry_unique_visitors.sql`
-  (`republic.count_unique_visitor_ips()`). A reviewer follow-up pass (see Current
-  state's latest entry) fixed three issues in this same uncommitted work: the queue
-  controls no longer disappear on an all-empty desk, draft age classification now
-  advances on a live-updating clock instead of only on unrelated re-renders, and
-  `parseUniqueVisitorCount` is hardened against blank numeric strings, multi-row
-  arrays, and unsafe-precision integers. Tests (66, including new regressions for the
-  all-zero-counts render helper and the threshold-crossing reclassification)/
-  typecheck/build/lint all pass. **Migration 0009 is applied remotely.** Live smoke
-  checks confirmed anonymous execution receives HTTP 401 while the exact ministry JWT
-  receives one bigint count and no IP values. `fetchUniqueVisitorCount` still fails
-  closed to "UNAVAILABLE" on transient errors without denying the desk. Also manually eyeball the 2×2 tab grid at real 390px width (per
-  this app's usual zoom-emulation gotcha, see below), including with a genuinely empty
-  desk (all four tabs at `(0)`, selected queue's panel reading "NO CASES IN THIS
-  QUEUE."), and confirm approving/denying a pending case updates PENDING/DECIDED
-  counts live without a page reload.
-- **Earlier in-flight item still stands:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Not committed. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal. Earlier in-flight item still stands: same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
+- **Handoff:** the visitor-language cleanup and data-driven BUSINESS `SMART`, SIDEQUEST
+  `QUESTIONABLE CHOICE`, and DATE `HIGH RISK` stamps are implemented and automated
+  validation passes. Reviewer fixes keep loading/unavailable calendar states neutral,
+  avoid duplicate day instructions, and prevent the long SIDEQUEST stamp from wrapping.
+  Still eyeball the visa card/path stamp and calendar states at real 390px width.
+- Manually eyeball the Ministry 2×2 tab grid at real 390px width, including with a
+  genuinely empty desk, and confirm approving/denying a pending case updates
+  PENDING/DECIDED counts live without a page reload. Migration 0009 is already applied
+  and its anonymous/ministry smoke checks passed.
+- **Earlier in-flight item still stands:** the new Border Control emblem (seal + boom gate) is implemented in `components/Crest.tsx` + `public/favicon.svg` with identical geometry and an updated `CREST_ARIA_LABEL`; tests/typecheck/build/lint pass. Owner should eyeball it on the live landing at 390px (h-10 w-10) and as a browser-tab favicon on dark chrome; if the 16px favicon reads too mushy, the one lever is dropping the inner ring (`r=39`) so the outer ring alone carries the seal. Earlier in-flight item still stands: same-device final application restore is implemented, including the legacy-record fix (missing `serial`/`issuedDate` on an older local log entry no longer bounces VIEW FINAL APPLICATION through `/visa` → `/appointment`; see Current state's latest pass) and the same-device thumbnail rescue (`persistApplicationThumbnail`). Run the production/manual browser check with sessionStorage cleared and a local application log present — including a genuinely old entry missing `serial`/`issuedDate`/`selfieThumbnailUrl`, e.g. hand-edited into `localStorage['republic:applications-log']` in devtools — confirming VIEW FINAL APPLICATION reaches `/visa-issued` directly every time, preserves status polling/download, and back-navigation stays locked. Applicant status synchronization and migration 0008 remain live; the anonymous RPC smoke test returned only `status`/`decided_at` for a real approved row.
 - **Applicant-facing status synchronization is now built:** the landing card and `/visa-issued` call the narrow lookup by exact reference code + normalized handle, poll every 7 seconds, recheck after focus/visibility, and stop after a terminal decision. No public application SELECT was added.
 - **Owner must smoke-test /ministry sign-in on production** (Google OAuth redirect —
   can't be automated headlessly).

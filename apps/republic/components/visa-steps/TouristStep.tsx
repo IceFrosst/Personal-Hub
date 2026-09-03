@@ -84,7 +84,7 @@ export function TouristStep() {
       sidequestSupplies: SIDEQUEST.supplies.filter((s) => supplies.includes(s)),
       sidequestSuppliesDeclared: true,
     })
-    addStamp('EXPEDITION SUPPLIES DECLARED')
+    addStamp('SIDEQUEST SUPPLIES DECLARED')
     // Navigates straight to /appointment — no confirmation screen, per the
     // standing flow rule.
     router.push('/appointment')

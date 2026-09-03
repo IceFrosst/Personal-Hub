@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/PageShell'
 import { Footer } from '@/components/Footer'
 import { RequireIdentity } from '@/components/RequireIdentity'
-import { VISAS, VISA_SELECTION, FIANCE_HIGH_RISK } from '@/lib/content'
+import { VISAS, VISA_SELECTION } from '@/lib/content'
 import { useApplication } from '@/lib/applicationContext'
 import { addStamp } from '@/lib/passport'
 import { playBeep } from '@/lib/sound'
@@ -75,12 +75,16 @@ export default function VisaSelectionPage() {
                     : 'transition-transform hover:-translate-y-0.5 hover:shadow-[5px_5px_0_rgba(26,42,74,0.2)] active:scale-[0.97]'
                 }`}
               >
-                {visa.slug === 'fiance' && (
-                  <span className="absolute -right-2 -top-2 rotate-[10deg] border-2 border-stamp bg-paper px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-stamp">
-                    {FIANCE_HIGH_RISK}
+                {visa.badge && (
+                  <span
+                    className={`absolute -right-2 -top-1 z-10 rotate-[8deg] whitespace-nowrap border-2 bg-paper px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
+                      visa.badgeTone === 'approve' ? 'border-approve text-approve' : 'border-stamp text-stamp'
+                    }`}
+                  >
+                    {visa.badge}
                   </span>
                 )}
-                <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-2 ${visa.badge ? 'pr-16' : ''}`}>
                   <span className="text-xl" aria-hidden>
                     {visa.icon}
                   </span>

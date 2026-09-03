@@ -12,12 +12,14 @@ export interface VisaDefinition {
   name: string
   tagline: string
   lines: string[]
+  badge?: string
+  badgeTone?: 'stamp' | 'approve'
 }
 
-// Trimmed per owner feedback: each card is now icon + name + at most one
-// flavor line (fiancé gets neither, just the HIGH RISK stamp rendered
-// separately in app/visa/page.tsx). Empty `tagline`/`lines` are hidden
-// entirely by that page, not rendered as empty quotes/an empty list.
+// Trimmed per owner feedback: each card is icon + name + at most one
+// flavor line, with a short path-specific stamp where configured. Empty
+// `tagline`/`lines` are hidden entirely by the visa page, not rendered as
+// empty quotes/an empty list.
 // Business visa is listed first per owner request; the rest keep their prior
 // relative order (tourist, fiance, special). The SEEK ADVICE PERMIT
 // (consultation) card was removed entirely — see the VisaType note above.
@@ -28,6 +30,8 @@ export const VISAS: VisaDefinition[] = [
     name: 'BUSINESS VISA',
     tagline: '',
     lines: ['Purpose: money talk, projects'],
+    badge: 'SMART',
+    badgeTone: 'approve',
   },
   {
     slug: 'tourist',
@@ -35,15 +39,19 @@ export const VISAS: VisaDefinition[] = [
     name: 'SIDEQUEST VISA',
     tagline: '',
     lines: ['Reward: infinite memories'],
+    badge: 'QUESTIONABLE CHOICE',
+    badgeTone: 'stamp',
   },
   {
     slug: 'fiance',
     icon: '💌',
     name: 'DATE VISA',
     tagline: '',
-    // Got its flavor line back per owner feedback — it was the only card
-    // without one (it used to carry nothing but the HIGH RISK stamp).
+    // Got its flavor line back per owner feedback after previously carrying
+    // only the HIGH RISK stamp.
     lines: ['Purpose: heart-related business'],
+    badge: 'HIGH RISK',
+    badgeTone: 'stamp',
   },
   {
     slug: 'special',
@@ -163,7 +171,7 @@ export const IDENTITY = {
 export const HANDLE_STEP = {
   heading: 'PASSPORT REGISTRY',
   note: 'THE MINISTRY REQUIRES YOUR INSTAGRAM FOR PASSPORT ISSUANCE. THIS IS NORMAL.',
-  handleLabel: 'PASSPORT №: @',
+  handleLabel: 'INSTAGRAM HANDLE: @',
   handlePlaceholder: 'instagram_handle',
   handleRequiredError: 'INSTAGRAM HANDLE REQUIRED. NO HANDLE, NO PASSPORT, NO ENTRY.',
   continue: 'CONTINUE',
@@ -221,13 +229,13 @@ export const SIDEQUEST = {
   submit: 'SUBMIT IDEA',
   // Customs-form supply declaration — all optional; checking ALL of them
   // earns the FULLY EQUIPPED stamp on the passport documents.
-  suppliesHeading: 'DECLARE EXPEDITION SUPPLIES:',
+  suppliesHeading: 'DECLARE SIDEQUEST SUPPLIES:',
   supplies: ['Snacks', 'Playlist', 'Questionable plan', 'Bail money'],
   suppliesSubmit: 'DECLARE SUPPLIES',
 }
 
 // Stamped on the passport (progress + final + PNG) when a sidequest
-// applicant declares every expedition supply.
+// applicant declares every sidequest supply.
 export const FULLY_EQUIPPED_STAMP = 'FULLY EQUIPPED'
 
 /** True only when EVERY canonical supply was declared — membership, not
@@ -264,8 +272,6 @@ export const FIANCE_QUESTIONS: InterviewQuestion[] = [
     options: ['A normal amount', 'The number is classified', 'I am the unread message'],
   },
 ]
-
-export const FIANCE_HIGH_RISK = 'HIGH RISK'
 
 // The withdrawn option — a phantom third answer on the interview. Tapping it
 // removes it and logs nothing anywhere except the applicant's dignity.
@@ -319,12 +325,21 @@ export const SPECIAL_REPLIES = [
 // ---------------------------------------------------------------------------
 
 // "Consulate" was dropped from every user-facing appointment string per
-// owner feedback (unclear word) — the heading is just APPOINTMENT and the
-// calendar copy refers to "the calendar" / "the Ministry" instead.
+// owner feedback (unclear word) — the calendar copy refers to "the calendar"
+// / "the Ministry" instead. The heading itself is state-dependent, not a
+// single fixed string: `neutralHeading` covers the loading/unavailable
+// states (before it's known whether picking a day is even possible),
+// `dayHeading` (SELECT DAY) applies once the calendar has loaded and no day
+// is picked yet, and `timeHeading` (SELECT TIME OF DAY) applies after a day
+// is picked — see app/appointment/page.tsx, which also suppresses the
+// day/time subcopy below entirely until a day is actually selectable, so
+// the loading/unavailable states never claim "SELECT AN AVAILABLE DAY."
 export const APPOINTMENT = {
-  heading: 'APPOINTMENT',
-  daySub: 'SELECT AN AVAILABLE DAY.',
-  timeSub: 'SELECT A TIME OF DAY. EXACT HOURS ARE ASSIGNED BY THE MINISTRY.',
+  neutralHeading: 'APPOINTMENT',
+  dayHeading: 'SELECT DAY',
+  timeHeading: 'SELECT TIME OF DAY',
+  daySub: 'AVAILABLE DAYS ARE HIGHLIGHTED.',
+  timeSub: 'EXACT HOURS ARE ASSIGNED BY THE MINISTRY.',
   loadingDays: 'CHECKING THE CALENDAR…',
   unavailableHeading: 'NO APPOINTMENTS AVAILABLE.',
   unavailableNote:
@@ -339,7 +354,7 @@ export const APPOINTMENT = {
 // available — deliberately vague day-parts, never clock hours (owner
 // request), and no per-period unavailability logic, unlike the old joke slot
 // pool further down this file. Per-visa rules: only the SIDEQUEST VISA
-// (tourist) additionally offers FULL DAY and MULTI-DAY expedition durations.
+// (tourist) additionally offers FULL DAY and MULTI-DAY sidequest durations.
 // (The removed SEEK ADVICE PERMIT used to skip the time step entirely — the
 // null return below is kept in the signature for that case ever returning.)
 const BASE_APPOINTMENT_PERIODS: string[] = ['MORNING', 'AFTERNOON', 'EVENING']
@@ -492,7 +507,7 @@ export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
     options: ['YOU KILL IT.', 'CATCH AND RELEASE. I AM MERCIFUL.', 'WE HAVE A ROOMMATE AGREEMENT.'],
   },
   {
-    question: 'YOUR ALARM RINGS. FIRST OFFICIAL ACT?',
+    question: 'YOUR ALARM RINGS. WHAT DO YOU DO FIRST?',
     options: [
       'SNOOZE. WE NEGOTIATE DAILY.',
       'STAND UP IMMEDIATELY LIKE A PSYCHOPATH.',
