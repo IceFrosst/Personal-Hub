@@ -2,18 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { GroupPhotoQuestion } from './GroupPhotoQuestion'
 import { StepShell } from './StepShell'
 import { Checkbox } from '@/components/Checkbox'
 import { useApplication } from '@/lib/applicationContext'
-import { SIDEQUEST, VISA_BY_SLUG } from '@/lib/content'
+import { GROUP_PHOTO_QUESTION, SIDEQUEST, VISA_BY_SLUG } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep } from '@/lib/sound'
 
 const visa = VISA_BY_SLUG.tourist
 
-// TWO screens (owner request): first "WHAT'S THE IDEA?" alone, then the
-// customs supply declaration on its own screen. The supplies remain
-// optional; declaring all four earns the FULLY EQUIPPED passport stamp.
+// Three screens: "WHAT'S THE IDEA?", the path-specific group-photo
+// question, then the supply declaration. The supplies remain optional;
+// declaring all four earns the FULLY EQUIPPED passport stamp.
 export function TouristStep() {
   const router = useRouter()
   const { state, update, selectVisa, hydrated } = useApplication()
@@ -23,7 +24,7 @@ export function TouristStep() {
   // it directly would silently discard persisted values on resubmit.
   const [idea, setIdea] = useState('')
   const [supplies, setSupplies] = useState<string[]>([])
-  const [stage, setStage] = useState<'idea' | 'supplies'>('idea')
+  const [stage, setStage] = useState<'idea' | 'photo' | 'supplies'>('idea')
   const seededRef = useRef(false)
 
   useEffect(() => {
@@ -38,10 +39,11 @@ export function TouristStep() {
     // `prev ||` so anything typed before hydration finished wins.
     setIdea((prev) => prev || state.sidequestIdea)
     setSupplies((prev) => (prev.length ? prev : state.sidequestSupplies))
-    // Idea already filed — resume at the supply declaration, don't re-ask.
-    if (state.sidequestIdeaSubmitted) setStage('supplies')
+    const photoAnswered = state.screeningQuestion === GROUP_PHOTO_QUESTION.question && Boolean(state.screeningAnswer)
+    // Resume at the first incomplete screen without re-opening earlier answers.
+    if (state.sidequestIdeaSubmitted) setStage(photoAnswered ? 'supplies' : 'photo')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.sidequestIdea, state.sidequestIdeaSubmitted, state.sidequestSupplies, state.sidequestSuppliesDeclared])
+  }, [hydrated, state.sidequestIdea, state.sidequestIdeaSubmitted, state.sidequestSupplies, state.sidequestSuppliesDeclared, state.screeningQuestion, state.screeningAnswer])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
@@ -73,6 +75,13 @@ export function TouristStep() {
     playBeep()
     update({ sidequestIdea: idea.trim(), sidequestIdeaSubmitted: true })
     addStamp('SIDEQUEST IDEA FILED')
+    setStage('photo')
+  }
+
+  function answerPhotoQuestion(answer: string) {
+    playBeep()
+    update({ screeningQuestion: GROUP_PHOTO_QUESTION.question, screeningAnswer: answer })
+    addStamp('GROUP PHOTO QUESTION CLEARED')
     setStage('supplies')
   }
 
@@ -91,6 +100,14 @@ export function TouristStep() {
   }
 
   if (hydrated && state.sidequestSuppliesDeclared) return null
+
+  if (stage === 'photo') {
+    return (
+      <StepShell visa={visa}>
+        <GroupPhotoQuestion onAnswer={answerPhotoQuestion} />
+      </StepShell>
+    )
+  }
 
   if (stage === 'supplies') {
     return (

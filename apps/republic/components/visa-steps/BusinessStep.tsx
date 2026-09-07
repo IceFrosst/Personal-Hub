@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { GroupPhotoQuestion } from './GroupPhotoQuestion'
 import { StepShell } from './StepShell'
 import { useApplication } from '@/lib/applicationContext'
-import { BUSINESS, VISA_BY_SLUG } from '@/lib/content'
+import { BUSINESS, GROUP_PHOTO_QUESTION, VISA_BY_SLUG } from '@/lib/content'
 import { addStamp } from '@/lib/passport'
 import { playBeep } from '@/lib/sound'
 
@@ -17,19 +18,23 @@ export function BusinessStep() {
   // review found in TouristStep/SpecialStep existed here too: initializing
   // from context during the first render reads EMPTY_STATE on a refresh.
   const [pitch, setPitch] = useState('')
+  const [stage, setStage] = useState<'proposal' | 'photo'>('proposal')
   const seededRef = useRef(false)
 
   useEffect(() => {
     if (!hydrated || seededRef.current) return
     seededRef.current = true
-    // Forward-lock: an already-filed pitch cannot be changed (owner rule).
-    if (state.businessPitchSubmitted) {
+    const photoAnswered = state.screeningQuestion === GROUP_PHOTO_QUESTION.question && Boolean(state.screeningAnswer)
+    // Forward-lock only after both the proposal and path-specific question
+    // are complete. A refresh between them resumes at the photo question.
+    if (state.businessPitchSubmitted && photoAnswered) {
       router.replace('/appointment')
       return
     }
     setPitch((prev) => prev || state.businessPitch)
+    if (state.businessPitchSubmitted) setStage('photo')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, state.businessPitch, state.businessPitchSubmitted])
+  }, [hydrated, state.businessPitch, state.businessPitchSubmitted, state.screeningQuestion, state.screeningAnswer])
 
   useEffect(() => {
     // `selectVisa` (not a bare `update`) so a direct/deep link straight into
@@ -45,15 +50,24 @@ export function BusinessStep() {
     playBeep()
     update({ businessPitch: pitch.trim(), businessPitchSubmitted: true })
     addStamp('BUSINESS VISA PITCH FILED')
-    // Navigates straight to /appointment — no intermediate "received" screen
-    // or confirmation button anymore (owner flow change).
+    setStage('photo')
+  }
+
+  function answerPhotoQuestion(answer: string) {
+    playBeep()
+    update({ screeningQuestion: GROUP_PHOTO_QUESTION.question, screeningAnswer: answer })
+    addStamp('GROUP PHOTO QUESTION CLEARED')
     router.push('/appointment')
   }
 
-  if (!hydrated || state.businessPitchSubmitted) return null
+  const photoAnswered = state.screeningQuestion === GROUP_PHOTO_QUESTION.question && Boolean(state.screeningAnswer)
+  if (!hydrated || (state.businessPitchSubmitted && photoAnswered)) return null
 
   return (
     <StepShell visa={visa}>
+      {stage === 'photo' ? (
+        <GroupPhotoQuestion onAnswer={answerPhotoQuestion} />
+      ) : (
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <label htmlFor="pitch" className="text-[11px] uppercase tracking-wide text-navy">
           {BUSINESS.prompt}
@@ -78,6 +92,7 @@ export function BusinessStep() {
           {BUSINESS.submit}
         </button>
       </form>
+      )}
     </StepShell>
   )
 }

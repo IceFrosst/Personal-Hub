@@ -514,11 +514,14 @@ export const SCREENING_QUESTIONS: ScreeningQuestion[] = [
       'MATH: \u201CIF I SKIP BREAKFAST AND TELEPORT…\u201D',
     ],
   },
-  {
-    question: 'A GROUP PHOTO IS BEING TAKEN. WHERE ARE YOU?',
-    options: ['MIDDLE. NATURAL LEADER.', 'EDGE, FOR EASY CROPPING.', 'HOLDING THE PHONE. UNCROPPABLE. IMMORTAL.'],
-  },
 ]
+
+// Path-specific follow-up shown only after the main BUSINESS proposal or
+// SIDEQUEST idea. It deliberately does not belong to the landing rotation.
+export const GROUP_PHOTO_QUESTION: ScreeningQuestion = {
+  question: 'A GROUP PHOTO IS BEING TAKEN. WHERE ARE YOU?',
+  options: ['MIDDLE. NATURAL LEADER.', 'EDGE, FOR EASY CROPPING.', 'HOLDING THE PHONE. UNCROPPABLE. IMMORTAL.'],
+}
 
 // Confidence meter — the DATE path's screening variant (it skips IQ).
 // Whatever the applicant declares, the passport prints it 15% lower.
