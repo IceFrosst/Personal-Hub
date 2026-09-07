@@ -1158,8 +1158,8 @@ Next-generated `.next` types with pre-existing generated-file violations.
 
 ## Next
 
-- **Handoff:** the group-photo/NATURAL LEADER question is removed from the landing rotation and now appears only after the BUSINESS proposal or SIDEQUEST idea (before supplies). Validate both paths plus refresh-resume, then deploy from `main`.
-- The draft-audit INSERT fix uses `Prefer: return=minimal` with duplicate-safe bounded retries, and owner-authorized cleanup is complete (storage and four archive tables verified at zero). After rollout, verify a `draft_started` write, a mixed/replay batch, and the backgrounded-tab/keepalive path without logging visitor content. Do not grant anon SELECT or repeat cleanup unless a separately reported concurrent reinsertion is confirmed.
+- **Handoff:** the group-photo/NATURAL LEADER question is removed from the landing rotation and now appears only after the BUSINESS proposal or SIDEQUEST idea (before supplies). It is live on `ignas.wtf`; manually validate both paths plus refresh-resume.
+- The draft-audit INSERT fix uses `Prefer: return=minimal` with duplicate-safe bounded retries and is also live on `ignas.wtf`; owner-authorized cleanup is complete (storage and four archive tables verified at zero). Verify a real `draft_started` write and the backgrounded-tab/keepalive path through the normal applicant flow without logging visitor content. Do not grant anon SELECT or repeat cleanup unless a separately reported concurrent reinsertion is confirmed.
 - Manually eyeball the Ministry 2×2 tab grid at real 390px width, including with a
   genuinely empty desk, and confirm approving/denying a pending case updates
   PENDING/DECIDED counts live without a page reload. Migration 0009 is already applied
