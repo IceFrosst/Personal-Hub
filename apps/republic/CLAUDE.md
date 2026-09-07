@@ -340,7 +340,11 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — group-photo question moved out of the opening rotation:**
+**Latest operational cleanup — Ministry queues reset for a fresh owner test:**
+- At owner request, all entries currently classified as ABANDONED and DECIDED were removed with bounded predicates; PENDING and IN PROGRESS were not targeted.
+- Deleted 18 abandoned draft groups (73 events) plus the decided application's 12 linked draft events, one decided application, its one appointment, and its one private selfie object via the Storage API. Post-cleanup counts are ABANDONED 0 / IN PROGRESS 0 / PENDING 0 / DECIDED 0, and `republic-selfies` contains 0 objects.
+
+**Previous pass — group-photo question moved out of the opening rotation:**
 - `A GROUP PHOTO IS BEING TAKEN. WHERE ARE YOU?` (including `MIDDLE. NATURAL LEADER.`) no longer appears among the landing's random opening questions.
 - The question is now path-specific: BUSINESS asks it after the proposal and before `/appointment`; SIDEQUEST asks it after the idea and before the supplies screen. DATE and SPECIAL never receive it.
 - `components/visa-steps/GroupPhotoQuestion.tsx` is the shared renderer. BUSINESS and SIDEQUEST resume at the first incomplete screen after refresh/back-navigation. The answer continues to use the existing audited/persisted `screeningQuestion`/`screeningAnswer` fields, so no schema change was needed.
@@ -1158,7 +1162,7 @@ Next-generated `.next` types with pre-existing generated-file violations.
 
 ## Next
 
-- **Handoff:** the group-photo/NATURAL LEADER question is removed from the landing rotation and now appears only after the BUSINESS proposal or SIDEQUEST idea (before supplies). It is live on `ignas.wtf`; manually validate both paths plus refresh-resume.
+- **Handoff:** all four Ministry queues are empty for a fresh end-to-end owner test. Start a new application, abandon it before submission, confirm IN PROGRESS first and ABANDONED after 30 minutes; then complete a separate application and confirm PENDING → DECIDED. The group-photo/NATURAL LEADER question is live only after the BUSINESS proposal or SIDEQUEST idea (before supplies).
 - The draft-audit INSERT fix uses `Prefer: return=minimal` with duplicate-safe bounded retries and is also live on `ignas.wtf`; owner-authorized cleanup is complete (storage and four archive tables verified at zero). Verify a real `draft_started` write and the backgrounded-tab/keepalive path through the normal applicant flow without logging visitor content. Do not grant anon SELECT or repeat cleanup unless a separately reported concurrent reinsertion is confirmed.
 - Manually eyeball the Ministry 2×2 tab grid at real 390px width, including with a
   genuinely empty desk, and confirm approving/denying a pending case updates
