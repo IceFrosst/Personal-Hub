@@ -248,8 +248,30 @@ function wireEvent(event: DraftAuditEvent): Record<string, unknown> {
   }
 }
 
-async function send(batch: DraftAuditEvent[], keepalive: boolean): Promise<boolean> {
-  if (!SUPABASE_URL || !ANON_KEY || !batch.length) return true
+type SendResult = 'ok' | 'duplicate' | 'retry'
+
+/**
+ * A plain INSERT has no upsert's duplicate tolerance because upsert would
+ * require anonymous SELECT. Only the event_id unique violation is safe to
+ * consume: another 409 (or another 23505) must remain retryable.
+ */
+async function isEventIdDuplicate(response: Response): Promise<boolean> {
+  if (response.status !== 409) return false
+  try {
+    const body = (await response.json()) as unknown
+    if (!body || typeof body !== 'object' || (body as { code?: unknown }).code !== '23505') return false
+    const details = body as { constraint?: unknown; details?: unknown; message?: unknown }
+    const text = [details.constraint, details.details, details.message]
+      .filter((part): part is string => typeof part === 'string')
+      .join(' ')
+    return /draft_events_event_id_key|key\s*\(\s*event_id\s*\)\s*=/i.test(text)
+  } catch {
+    return false
+  }
+}
+
+async function send(batch: DraftAuditEvent[], keepalive: boolean): Promise<SendResult> {
+  if (!SUPABASE_URL || !ANON_KEY || !batch.length) return 'ok'
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/draft_events`, {
       method: 'POST',
@@ -257,16 +279,35 @@ async function send(batch: DraftAuditEvent[], keepalive: boolean): Promise<boole
         'Content-Type': 'application/json',
         apikey: ANON_KEY,
         Authorization: `Bearer ${ANON_KEY}`,
-        Prefer: 'resolution=ignore-duplicates,return=minimal',
+        // This is intentionally a plain INSERT. `resolution=ignore-duplicates`
+        // turns the request into an upsert, which makes PostgREST require
+        // SELECT on the table; anonymous applicants are deliberately INSERT-only.
+        Prefer: 'return=minimal',
         'Content-Profile': 'republic',
       },
       body: JSON.stringify(batch.map(wireEvent)),
       ...(keepalive ? { keepalive: true } : {}),
     })
-    return response.ok
+    if (response.ok) return 'ok'
+    return (await isEventIdDuplicate(response)) ? 'duplicate' : 'retry'
   } catch {
-    return false
+    return 'retry'
   }
+}
+
+/**
+ * Duplicate fallback work is deliberately capped. A keepalive flush normally
+ * uses one request; if that request contains a replayed event, retry at most
+ * one ordinary batch's worth individually so a pagehide cannot fan out into
+ * unbounded network work. Any untouched events remain queued for a later
+ * foreground/interval flush.
+ */
+const MAX_DUPLICATE_FALLBACK_EVENTS = BATCH_SIZE
+
+function removeCompleted(events: DraftAuditEvent[]): void {
+  if (!events.length) return
+  const completed = new Set(events.map((event) => event.eventId))
+  queue = queue.filter((event) => !completed.has(event.eventId))
 }
 
 /** Pure query over the current outbox — exported for tests
@@ -295,9 +336,22 @@ export async function flush(keepalive = false): Promise<void> {
   flushing = true
   try {
     const batch = requestBatch(keepalive)
-    if (!(await send(batch, keepalive))) return
-    if (queue.slice(0, batch.length).every((event, index) => event.eventId === batch[index].eventId)) {
-      queue.splice(0, batch.length)
+    const result = await send(batch, keepalive)
+    if (result === 'ok') {
+      if (queue.slice(0, batch.length).every((event, index) => event.eventId === batch[index].eventId)) {
+        queue.splice(0, batch.length)
+      }
+    } else if (result === 'duplicate') {
+      // A mixed INSERT batch fails atomically on one duplicate. Retry a bounded
+      // prefix individually so duplicates are consumed without dropping NEW
+      // events; failures and any untouched suffix stay in the outbox.
+      const fallback = batch.slice(0, MAX_DUPLICATE_FALLBACK_EVENTS)
+      const completed: DraftAuditEvent[] = []
+      for (const event of fallback) {
+        const eventResult = await send([event], keepalive)
+        if (eventResult === 'ok' || eventResult === 'duplicate') completed.push(event)
+      }
+      removeCompleted(completed)
     }
     if (queue.length) schedule()
   } finally {

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://audit-test.invalid'
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+
 globalThis.window = {
   crypto: { randomUUID: () => `event-${Math.random()}` },
   addEventListener() {},
@@ -33,6 +36,201 @@ test('image and blob-like fields/values never enter the queue', () => {
   audit.recordDraftFieldChange('draft-image', 'businessPitch', null, { blobPayload: 'raw bytes' })
   assert.equal(audit.pendingDraftEventCount(), 0)
   audit.stopDraftAuditForTests()
+})
+
+function response(status, body = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return body
+    },
+  }
+}
+
+test('draft event writes use INSERT-only preferences and preserve new events in a mixed duplicate batch', async () => {
+  audit.stopDraftAuditForTests()
+  const originalFetch = globalThis.fetch
+  const calls = []
+  globalThis.fetch = async (_url, init) => {
+    const rows = JSON.parse(init.body)
+    calls.push({ rows, init })
+    if (rows.length > 1) return response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "draft_events_event_id_key"',
+      details: `Key (event_id)=(${rows[0].event_id}) already exists.`,
+    })
+    return rows[0].event_id === calls[0].rows[0].event_id ? response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "draft_events_event_id_key"',
+      details: 'Key (event_id) already exists.',
+    }) : response(201)
+  }
+  try {
+    audit.recordDraftFieldChange('mixed', 'businessPitch', '', 'old')
+    audit.recordDraftFieldChange('mixed', 'businessPitch', 'old', 'new')
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+    assert.equal(calls.length, 3, 'one batch plus one request per mixed-batch event')
+    assert.ok(calls.every(({ init }) => init.headers.Prefer === 'return=minimal'))
+
+    audit.recordDraftFieldChange('mixed', 'businessPitch', 'new', 'later')
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+    assert.equal(calls.length, 4, 'a later event is not blocked behind a duplicate')
+  } finally {
+    globalThis.fetch = originalFetch
+    audit.stopDraftAuditForTests()
+  }
+})
+
+test('details-only event_id duplicates are consumed while unrelated constraints remain retryable', async () => {
+  audit.stopDraftAuditForTests()
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async (_url, init) => {
+    calls += 1
+    const rows = JSON.parse(init.body)
+    if (calls === 1) return response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "draft_events_pkey"',
+      details: `Key (event_id)=(${rows[0].event_id}) already exists.`,
+    })
+    if (calls === 2) return response(201)
+    if (calls === 3) return response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "another_unique_key"',
+      details: 'Key (other_column)=(x) already exists.',
+    })
+    return response(201)
+  }
+  try {
+    audit.recordDraftStarted('details-only')
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+
+    audit.recordDraftStarted('unrelated-constraint')
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 1)
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+    assert.equal(calls, 4, 'details-only duplicate fallback, then retryable conflict and success')
+  } finally {
+    globalThis.fetch = originalFetch
+    audit.stopDraftAuditForTests()
+  }
+})
+
+test('a lost response can replay as a duplicate without wedging subsequent events', async () => {
+  audit.stopDraftAuditForTests()
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async (_url, init) => {
+    calls += 1
+    const rows = JSON.parse(init.body)
+    if (calls === 1) throw new Error('response lost after server commit')
+    if (calls === 2) return response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "draft_events_event_id_key"',
+      details: `Key (event_id)=(${rows[0].event_id}) already exists.`,
+    })
+    return response(201)
+  }
+  try {
+    audit.recordDraftStarted('replay')
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 1)
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+    audit.recordDraftIntel('replay', { connection: 'wifi' })
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+    assert.equal(calls, 4, 'lost response, replay, duplicate fallback, then subsequent event')
+  } finally {
+    globalThis.fetch = originalFetch
+    audit.stopDraftAuditForTests()
+  }
+})
+
+test('a 500 and a non-event-id 409 remain retryable', async () => {
+  audit.stopDraftAuditForTests()
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls += 1
+    if (calls === 1) return response(500)
+    if (calls === 2) return response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "another_unique_key"',
+      details: 'Key (other_column) already exists.',
+    })
+    return response(201)
+  }
+  try {
+    audit.recordDraftStarted('retry')
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 1)
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 1)
+    await audit.flush()
+    assert.equal(audit.pendingDraftEventCount(), 0)
+    assert.equal(calls, 3)
+  } finally {
+    globalThis.fetch = originalFetch
+    audit.stopDraftAuditForTests()
+  }
+})
+
+test('keepalive flush sends one bounded request and leaves the suffix queued', async () => {
+  audit.stopDraftAuditForTests()
+  const originalFetch = globalThis.fetch
+  const calls = []
+  globalThis.fetch = async (_url, init) => {
+    calls.push(init)
+    return response(201)
+  }
+  try {
+    for (let i = 0; i < 50; i += 1) {
+      audit.recordDraftFieldChange('keepalive', 'businessPitch', String(i), 'x'.repeat(2000))
+    }
+    await audit.flush(true)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].keepalive, true)
+    assert.ok(new TextEncoder().encode(calls[0].body).byteLength <= audit.MAX_REQUEST_BYTES)
+    assert.ok(audit.pendingDraftEventCount() > 0)
+  } finally {
+    globalThis.fetch = originalFetch
+    audit.stopDraftAuditForTests()
+  }
+})
+
+test('duplicate keepalive fallback caps individual network work and preserves the untouched suffix', async () => {
+  audit.stopDraftAuditForTests()
+  const originalFetch = globalThis.fetch
+  const calls = []
+  globalThis.fetch = async (_url, init) => {
+    const rows = JSON.parse(init.body)
+    calls.push(init)
+    if (rows.length > 1) return response(409, {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "draft_events_event_id_key"',
+      details: `Key (event_id)=(${rows[0].event_id}) already exists.`,
+    })
+    return response(201)
+  }
+  try {
+    for (let i = 0; i < 50; i += 1) {
+      audit.recordDraftFieldChange('keepalive-duplicate', 'businessPitch', String(i), 'x'.repeat(100))
+    }
+    await audit.flush(true)
+    assert.equal(calls.length, 11, 'one keepalive batch plus at most one normal batch of individual fallbacks')
+    assert.equal(audit.pendingDraftEventCount(), 40)
+    assert.equal(calls[0].keepalive, true)
+    assert.ok(calls.slice(1).every((init) => init.keepalive === true))
+  } finally {
+    globalThis.fetch = originalFetch
+    audit.stopDraftAuditForTests()
+  }
 })
 
 test('draft lifecycle events use the same draft queue', () => {

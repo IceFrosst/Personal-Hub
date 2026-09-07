@@ -340,7 +340,14 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest pass — landing renders the actual final passport instead of a boxed summary + VIEW FINAL APPLICATION button, via one shared presentation component:**
+**Latest pass — production abandoned-draft audit INSERT fix and bounded archive cleanup:**
+- Production evidence confirmed four reported completed applications had `draft_id` values but zero matching `republic.draft_events`. Browser network capture showed audit POSTs received HTTP 401 with `permission denied for table draft_events` and a hint to grant SELECT to `anon`; the request used `Prefer: resolution=ignore-duplicates,return=minimal`. That preference makes PostgREST treat the write as an upsert and require SELECT, contradicting the migration's deliberate anonymous INSERT-only grant. The production bundle/config was otherwise correct: requests targeted the live Supabase project with the expected `Content-Profile: republic`; database read-only evidence found 4/4 matching draft links, 0 matching events, and 7 audit rows at diagnosis.
+- **Fix in `lib/draftAudit.ts`:** audit writes now use a plain `Prefer: return=minimal` INSERT and no upsert-resolution preference, preserving anonymous INSERT-only RLS. A 409 is consumed only when its PostgREST payload is code `23505` and identifies the `draft_events.event_id` unique constraint; mixed duplicate/new batches fall back to bounded per-event sends so NEW rows are preserved, while other conflicts and 500s remain queued for retry. No migration, grant, or auth change was made. Behavioral fetch tests cover the header, mixed batches, details-only event_id duplicate detection, lost-response replay, subsequent events, 500/non-event-id conflicts, and bounded keepalive flushing.
+- **Seven-row provenance investigation:** a narrow sanitized read-only aggregate showed the original seven rows all had `created_at` `2026-09-01 20:29:49.553295+00` and `client_at` values from `20:21:49.553+00` through `20:27:49.553+00`; their event types were one `draft_started`, one `intel_collected`, and five `field_changed`. Their provenance could not be established from these non-PII fields, so this does not support inferring that every historical write failed. Six later synthetic verification rows were known to be created by the prior local smoke flow and were included in cleanup.
+- **Owner-authorized bounded cleanup completed:** the 12 objects in ONLY private Storage bucket `republic-selfies` were removed through the Storage API (not SQL metadata deletion), then verified at zero. In the same bounded operation, only `republic.draft_events` (13), `republic.appointments` (19), `republic.applications` (20), and `republic.bribes` (4) rows were deleted; post-cleanup verification returned zero rows in all four tables. Cleanup SQL was prepared at UTC `2026-09-07T11:25:36.427Z` as the recorded cutoff marker. No other schema/table/account/config/sequence/bucket was changed, and no PII backup/export was made. No fresh production test rows were created in this pass. Concurrent genuine traffic after the cutoff may reinsert rows; report it rather than repeating unbounded deletion.
+- Management API had reported `walg_enabled: true`, `pitr_enabled: false`, `backups: []`, and empty `physical_backup_data`; no listed user-restorable backup/PITR is available. The applicant-number sequence was left intact.
+
+**Previous latest pass — landing renders the actual final passport instead of a boxed summary + VIEW FINAL APPLICATION button, via one shared presentation component:**
 - **The returning-applicant landing state (`app/page.tsx`, `stage === 'pending'`) no
   longer shows the boxed REFERENCE №/VISA/STATUS summary or a VIEW FINAL APPLICATION
   button that navigated to `/visa-issued`.** It still keeps the pending/approved/denied
@@ -1138,16 +1145,15 @@ per-route OG images, real Supabase persistence for applications/appointments/bri
 (still stubbed to localStorage) — the applicant-number counter is the one narrow
 exception, backed by a real migration/RPC; see the dedicated Gotcha above.
 
-Verified: `npm test` (66 tests), `npm run typecheck`, `npm run build`, and
-`npm run lint` all pass clean from this folder.
+Verified in this pass: `npm test` (83 tests), `npm run typecheck`, `npm run build`,
+`npm run lint`, and focused `npx eslint lib/draftAudit.ts test/draftAudit.test.mjs` all pass
+clean from this folder. `npm run lint` reports only Next's existing deprecation notice for
+`next lint`; a broad `npx eslint .` is not an authoritative check because it traverses
+Next-generated `.next` types with pre-existing generated-file violations.
 
 ## Next
 
-- **Handoff:** the visitor-language cleanup and data-driven BUSINESS `SMART`, SIDEQUEST
-  `QUESTIONABLE CHOICE`, and DATE `HIGH RISK` stamps are implemented and automated
-  validation passes. Reviewer fixes keep loading/unavailable calendar states neutral,
-  avoid duplicate day instructions, and prevent the long SIDEQUEST stamp from wrapping.
-  Still eyeball the visa card/path stamp and calendar states at real 390px width.
+- **Handoff:** the branch now uses plain INSERT-compatible `Prefer: return=minimal` with duplicate-safe bounded retries, and owner-authorized cleanup is complete (storage and four archive tables verified at zero). Approval for merge/deploy is recorded; parent coordinates commit/push/main merge/deploy only after review, and production is not yet deployed. After reviewed rollout, verify a `draft_started` write, a mixed/replay batch, and the backgrounded-tab/keepalive path without logging visitor content. Do not grant anon SELECT or repeat cleanup unless a separately reported concurrent reinsertion is confirmed.
 - Manually eyeball the Ministry 2×2 tab grid at real 390px width, including with a
   genuinely empty desk, and confirm approving/denying a pending case updates
   PENDING/DECIDED counts live without a page reload. Migration 0009 is already applied
