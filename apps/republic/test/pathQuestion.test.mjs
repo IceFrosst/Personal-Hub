@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { GROUP_PHOTO_QUESTION, SCREENING_QUESTIONS } from '../lib/content.ts'
+import { GROUP_PHOTO_QUESTION, LANDING, SCREENING_QUESTIONS } from '../lib/content.ts'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+
+test('opening asks the requested question without changing the yes/no paths', () => {
+  assert.equal(LANDING.question, 'DO YOU WANT SOMETHING?')
+  const source = read('app/page.tsx')
+  assert.match(source, /answer === 'no'[\s\S]*router\.push\('\/denied\?via=no-request'\)/)
+  assert.match(source, /setFollowUp\(SCREENING_QUESTIONS[\s\S]*setStage\('followUp'\)/)
+})
 
 test('group-photo question is excluded from the opening rotation', () => {
   assert.equal(SCREENING_QUESTIONS.some((item) => item.question === GROUP_PHOTO_QUESTION.question), false)
