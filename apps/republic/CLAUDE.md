@@ -340,7 +340,11 @@ the Dictatorship is also a full democracy.
 
 ## Current state
 
-**Latest operational cleanup — all Ignas.wtf entries reset again after successful owner testing:**
+**Latest pass — opening question simplified with flow unchanged:**
+- The first landing question is now `DO YOU WANT SOMETHING?`; link-preview metadata uses the same wording.
+- YES still opens the existing random follow-up question and continues through gender/identity. NO still routes to `/denied?via=no-request` with the existing `ENTRY NOT REQUESTED` status. A focused regression test locks both paths.
+
+**Previous operational cleanup — all Ignas.wtf entries reset again after successful owner testing:**
 - At owner request, a bounded snapshot cleanup removed every entry present at cutoff `2026-09-08 07:57:37.133941+00` while preserving the applicant-number sequence and all schema/configuration.
 - Deleted 31 draft events. Applications, appointments, bribes, and private `republic-selfies` objects were already at zero. Post-cleanup verification returned zero draft events, applications (PENDING and DECIDED), appointments, bribes, and selfie objects.
 
@@ -1162,7 +1166,7 @@ Next-generated `.next` types with pre-existing generated-file violations.
 
 ## Next
 
-- **Handoff:** owner reports the Ignas.wtf flow is working well; all four Ministry queues and related archive/storage entries were reset again and verified empty. The group-photo/NATURAL LEADER question remains live only after the BUSINESS proposal or SIDEQUEST idea (before supplies).
+- **Handoff:** the first question now reads `DO YOU WANT SOMETHING?`; YES/NO behavior is unchanged. Owner reports the rest of the Ignas.wtf flow is working well, and all four Ministry queues plus related archive/storage entries were reset and verified empty. The group-photo/NATURAL LEADER question remains live only after the BUSINESS proposal or SIDEQUEST idea (before supplies).
 - The draft-audit INSERT fix uses `Prefer: return=minimal` with duplicate-safe bounded retries and is live on `ignas.wtf`. The latest owner-authorized bounded cleanup removed 31 fresh draft events; storage and all four archive tables are verified at zero. Do not grant anon SELECT or repeat cleanup without a new owner request or separately confirmed concurrent reinsertion.
 - Manually eyeball the Ministry 2×2 tab grid at real 390px width, including with a
   genuinely empty desk, and confirm approving/denying a pending case updates

@@ -84,7 +84,7 @@ export function formatPassportVisaName(name: string): string {
 
 export const SITE_METADATA = {
   title: 'Dictatorship of Ignas — Border Control',
-  description: 'Do you have something to declare? Apply for a visa to enter the Dictatorship of Ignas.',
+  description: 'Do you want something? Apply for a visa to enter the Dictatorship of Ignas.',
   appName: 'Dictatorship of Ignas',
 }
 
@@ -113,7 +113,7 @@ export const LANDING = {
   // Shown until lib/api.ts#getApplicantNumber resolves inside a client effect
   // (never during render — see the hydration-safety Gotcha in CLAUDE.md).
   applicantNumberPlaceholder: '————',
-  question: 'ARE YOU REQUESTING PERMISSION TO ENTER?',
+  question: 'DO YOU WANT SOMETHING?',
   yes: 'YES',
   no: 'NO',
   genderQuestion: 'GENDER OF APPLICANT?',
