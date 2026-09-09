@@ -7,6 +7,8 @@ import { isDormantCircuit, matchDormantCircuit } from '@/lib/dormant-tier-a'
 import { isNewHackathon, NEW_BADGE_HOURS } from '@/lib/digest'
 import { selectNewArrivals } from '@/lib/new-arrivals'
 import { matchesFeedFilters, type FormatMode } from '@/lib/feed-filters'
+import { REGION_KEYS, REGION_LABELS, REGION_SHORT_LABELS, regionKeyOf, type RegionKey } from '@/lib/continents'
+import { coerceFeedPrefs, DEFAULT_FEED_PREFS, mergeFeedPrefs, type FeedPrefs } from '@/lib/feed-prefs'
 import {
   coerceHackathon,
   coerceNotificationSettings,
@@ -17,7 +19,7 @@ import {
 } from '@/lib/types'
 import HackathonCard from './HackathonCard'
 import DetailSheet from './DetailSheet'
-import { IconRadar2, IconSettings } from '@tabler/icons-react'
+import { IconRadar2, IconSettings, IconWorld } from '@tabler/icons-react'
 import Link from 'next/link'
 
 type ListMode = 'feed' | 'applied' | 'dormant' | 'new'
@@ -34,6 +36,15 @@ export default function Feed({ userId }: { userId: string }) {
   const [multiDayOnly, setMultiDayOnly] = useState(false)
   /** Travel ✓ on/off — only events whose travel policy is useful from home */
   const [travelOnly, setTravelOnly] = useState(false)
+  /**
+   * Regions switched off (continents + "unknown"). Unlike the other chips this
+   * one persists — it lives in user_preferences.filters so the phone and the
+   * laptop agree, and so "no US for now" survives a reload.
+   */
+  const [feedPrefs, setFeedPrefs] = useState<FeedPrefs>(DEFAULT_FEED_PREFS)
+  /** The whole jsonb as loaded, so a save never drops keys we don't know. */
+  const [rawFilters, setRawFilters] = useState<unknown>(null)
+  const [regionsOpen, setRegionsOpen] = useState(false)
   /** Applied / Dormant override the format + multi-day filters */
   const [listMode, setListMode] = useState<ListMode>('feed')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -54,7 +65,7 @@ export default function Feed({ userId }: { userId: string }) {
       supabase
         .schema('hackathon')
         .from('user_preferences')
-        .select('notification_settings')
+        .select('notification_settings, filters')
         .eq('user_id', userId)
         .maybeSingle(),
     ])
@@ -68,8 +79,38 @@ export default function Feed({ userId }: { userId: string }) {
       )
     )
     setPrefs(coerceNotificationSettings(prefRow?.notification_settings))
+    setFeedPrefs(coerceFeedPrefs(prefRow?.filters))
+    setRawFilters(prefRow?.filters ?? null)
     setLoading(false)
   }, [supabase, userId])
+
+  const toggleRegion = async (key: RegionKey) => {
+    const hidden = new Set(feedPrefs.hidden_regions)
+    if (hidden.has(key)) hidden.delete(key)
+    else hidden.add(key)
+    const next: FeedPrefs = { hidden_regions: [...hidden] }
+    const merged = mergeFeedPrefs(rawFilters, next)
+    setFeedPrefs(next)
+    setRawFilters(merged)
+    // Only `filters` is in the payload, so the settings panel's
+    // notification_settings column is untouched by this upsert.
+    await supabase
+      .schema('hackathon')
+      .from('user_preferences')
+      .upsert({ user_id: userId, filters: merged }, { onConflict: 'user_id' })
+  }
+
+  const showAllRegions = async () => {
+    if (feedPrefs.hidden_regions.length === 0) return
+    const next: FeedPrefs = { hidden_regions: [] }
+    const merged = mergeFeedPrefs(rawFilters, next)
+    setFeedPrefs(next)
+    setRawFilters(merged)
+    await supabase
+      .schema('hackathon')
+      .from('user_preferences')
+      .upsert({ user_id: userId, filters: merged }, { onConflict: 'user_id' })
+  }
 
   useEffect(() => {
     load()
@@ -157,9 +198,44 @@ export default function Feed({ userId }: { userId: string }) {
     }`
 
   const filters = useMemo(
-    () => ({ formatMode, multiDayOnly, travelOnly, homeBase: prefs.home_base }),
-    [formatMode, multiDayOnly, travelOnly, prefs.home_base]
+    () => ({
+      formatMode,
+      multiDayOnly,
+      travelOnly,
+      homeBase: prefs.home_base,
+      hiddenRegions: feedPrefs.hidden_regions,
+    }),
+    [formatMode, multiDayOnly, travelOnly, prefs.home_base, feedPrefs.hidden_regions]
   )
+  const hiddenRegionCount = feedPrefs.hidden_regions.length
+
+  /**
+   * How many feed-eligible events each region toggle governs, given the OTHER
+   * chips as they stand. Computed before the region filter itself so a
+   * switched-off region still shows what it is hiding — "North America 61" is
+   * the number that tells you the toggle did something.
+   */
+  const regionCounts = useMemo(() => {
+    const counts: Record<RegionKey, number> = {
+      europe: 0,
+      north_america: 0,
+      south_america: 0,
+      asia: 0,
+      africa: 0,
+      oceania: 0,
+      unknown: 0,
+    }
+    const noRegions = { ...filters, hiddenRegions: [] as RegionKey[] }
+    for (const h of hackathons) {
+      const status = statuses[h.id]
+      if (status === 'hidden' || status === 'applied') continue
+      if (h.format === 'online') continue
+      if (!isUpcomingAndOpen(h)) continue
+      if (!matchesFeedFilters(h, noRegions)) continue
+      counts[regionKeyOf(h)] += 1
+    }
+    return counts
+  }, [hackathons, statuses, filters])
 
   const visible = useMemo(() => {
     // Applied / Dormant override format + multi-day entirely
@@ -271,9 +347,11 @@ export default function Feed({ userId }: { userId: string }) {
     if (listMode === 'new') {
       const anyNew = hackathons.some((h) => isNewHackathon(h))
       return anyNew
-        ? `Nothing new matches these filters — ${formatMode === 'irl' ? 'try Online' : 'try IRL'}, or clear Multi-day/Travel.`
+        ? `Nothing new matches these filters — ${formatMode === 'irl' ? 'try Online' : 'try IRL'}, or clear Multi-day/Travel/Regions.`
         : `Nothing new in the last ${NEW_BADGE_HOURS} hours. Pull to refresh, or wait for the nightly sweep.`
     }
+    if (hiddenRegionCount > 0 && formatMode !== 'online')
+      return `Nothing left with ${feedPrefs.hidden_regions.map((k) => REGION_LABELS[k]).join(', ')} switched off — turn a region back on.`
     if (travelOnly)
       return 'No events with confirmed travel cover from your home base right now.'
     if (formatMode === 'online') return 'No open online events right now.'
@@ -346,6 +424,20 @@ export default function Feed({ userId }: { userId: string }) {
 
         <button
           type="button"
+          onClick={() => {
+            keepListMode()
+            setRegionsOpen((v) => !v)
+          }}
+          className={`${chipClass(chipsApply && (regionsOpen || hiddenRegionCount > 0))} flex items-center gap-1`}
+          aria-expanded={regionsOpen}
+          title="Switch whole continents on or off"
+        >
+          <IconWorld size={16} stroke={1.5} />
+          Regions{hiddenRegionCount > 0 ? ` · ${hiddenRegionCount} off` : ''}
+        </button>
+
+        <button
+          type="button"
           onClick={() => setListMode(listMode === 'new' ? 'feed' : 'new')}
           className={chipClass(listMode === 'new')}
           title={`Everything ingested in the last ${NEW_BADGE_HOURS} hours, newest first`}
@@ -368,6 +460,50 @@ export default function Feed({ userId }: { userId: string }) {
         </button>
       </div>
 
+      {regionsOpen && chipsApply && (
+        <div className="mb-4 flex flex-col gap-2 rounded-2xl bg-surface p-3">
+          <div className="flex flex-wrap gap-1.5">
+            {REGION_KEYS.map((key) => {
+              const on = !feedPrefs.hidden_regions.includes(key)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleRegion(key)}
+                  aria-pressed={on}
+                  className={`min-h-11 rounded-md border px-3 text-sm transition-colors duration-150 ease-out ${
+                    on
+                      ? 'border-purple/50 bg-purple/15 text-purple'
+                      : 'border-border text-text-low line-through decoration-text-low/60'
+                  }`}
+                  title={REGION_LABELS[key]}
+                >
+                  {REGION_SHORT_LABELS[key]}
+                  <span className="ml-1 tabular-nums opacity-70">{regionCounts[key]}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-text-low">
+            {formatMode === 'online'
+              ? 'Online events have no region — these toggles only affect IRL.'
+              : 'Tap a region to hide it. Counts are open in-person events under the current chips. Unknown = no readable location yet.'}
+            {hiddenRegionCount > 0 && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={showAllRegions}
+                  className="text-text-muted underline underline-offset-2"
+                >
+                  Show all
+                </button>
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       {listMode === 'new' && newTotal > 0 && (
         <p className="mb-3 text-xs text-text-low">
           {newCount === newTotal ? (
@@ -381,6 +517,7 @@ export default function Feed({ userId }: { userId: string }) {
                 formatMode === 'irl' ? 'IRL' : 'Online',
                 multiDayOnly ? 'Multi-day' : null,
                 travelOnly ? 'Travel' : null,
+                hiddenRegionCount > 0 ? 'Regions' : null,
               ]
                 .filter(Boolean)
                 .join(' + ')}{' '}

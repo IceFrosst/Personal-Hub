@@ -124,8 +124,8 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, startuplithuania, allhackathons, hacktrack (`lib/ingest/*.ts`),
-  plus known/watch.
+  taikai, dorahacks, startuplithuania, allhackathons, hacktrack, eventbrite
+  (`lib/ingest/*.ts`), plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
@@ -202,6 +202,40 @@
     do not). This exists because of a real misread: a short event sitting under
     New looks like a broken Multi-day filter, when in fact Multi-day was simply
     off. Filter state has to be legible on screen, not inferred from the results.
+  - **Regions** (`lib/continents.ts`, `lib/feed-prefs.ts`): a chip that opens a row of
+    toggles — Europe · N. America · S. America · Asia · Africa · Oceania · Unknown — each
+    with a live count of open in-person events under the other chips. Off = hidden.
+    Rules that matter:
+    - **Online events are never touched by Regions.** A region is where you would fly;
+      a US-hosted remote jam is as reachable from Vilnius as from anywhere.
+    - **Unknown is its own toggle, not folded into a continent.** 52 of 434 upcoming IRL
+      rows (2026-09-09) have no readable geography — Devpost venue names like
+      "Mitchell Park Community Center", Luma rows with an empty location. Hiding
+      North America must not hide those (they are not evidence of anything), and
+      the user must be able to hide them deliberately.
+    - **Classification is layered because `country` is null on most rows** (971 of
+      ~1500; 146 of 380 upcoming in-person). Order: `country` column → country names in
+      `city`/`location_raw` → US-state / CA-province codes and names ("Austin, TX",
+      "Burnaby, British Columbia") → known city names in the place fields → known city
+      names in the *title* ("Munich Hub – Hack Nation" has no location at all). Whole
+      words after lowercasing + diacritic stripping (Zürich = Zurich, Türkiye = Turkiye).
+      **Georgia** is resolved separately: Georgian cities → Europe, US cities / a state
+      code → North America, bare `country = 'Georgia'` → Europe (matches
+      `travel-for-me.ts`), bare `"City, Georgia"` in free text → US (MLH's convention).
+      Ambiguous city names are deliberately absent (Cambridge, Santiago, Cordoba, York,
+      Phoenix, Split, "mit"…); they resolve through country/state or stay unknown.
+      Measured on the live catalog: 217 NA · 110 EU · 46 Asia · 6 Africa · 3 Oceania ·
+      52 unknown, samples spot-checked correct.
+    - **Persisted per user**, unlike the other chips, in `user_preferences.filters`
+      (jsonb, reserved since 0001, first use — no migration). Stored as
+      `hidden_regions` (what is OFF), so a new key or a fresh user defaults to visible.
+      The feed upserts only the `filters` column and the settings panel only
+      `notification_settings`; PostgREST upsert writes just the columns in the payload,
+      so neither clobbers the other. `mergeFeedPrefs` keeps unknown keys on write.
+    - The predicate lives in `matchesFeedFilters` like every other chip, so New + Regions
+      means exactly what feed + Regions means. The New-tab "is hiding the rest" line and
+      the empty state name Regions when they are the reason.
+    - Not applied to the daily digest (server-side). See Next.
   - `status === 'applied'` and `status === 'hidden'` are **excluded from main feed**
     (Applied only in Applied tab; hidden nowhere)
 
@@ -226,7 +260,8 @@ The live tables, all from 0001:
   `notified_at` markers.
 - `user_hackathon_status` — PK `(user_id, hackathon_id)`, status
   `interested|applying|applied|hidden`, optional `notes`.
-- `user_preferences` — `filters` jsonb (reserved), `notification_settings` jsonb
+- `user_preferences` — `filters` jsonb (**now used**: `{hidden_regions: RegionKey[]}` for
+  the feed's Regions toggles — see `lib/feed-prefs.ts`), `notification_settings` jsonb
   (`{enabled, min_score, priority_countries: string[], home_base, last_digest_at}`,
   default threshold 60). `last_digest_at` is **state, not a preference** — it rides in
   the jsonb so the once-per-day digest gate needs no migration; `coerceNotificationSettings`
@@ -240,10 +275,25 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 - **Egress varies by session type.** Interactive Claude Code sessions only reach
   allowlisted domains (devpost/mlh 403 through the egress proxy), but scheduled/cloud
-  sessions can have open egress — probe with curl before assuming scrapers are untestable.
-  Caveat: Node `fetch` does NOT use the session's HTTPS proxy, so a WAF can 403 direct
-  requests while curl (proxied) succeeds — HackerEarth does exactly this. Production
-  Vercel has open egress with different IPs again.
+  sessions can have open egress — probe with curl before assuming scrapers are untestable
+  (the 2026-09-09 session reached Eventbrite, Meetup, lablab.ai and Agorize outright).
+  Caveat: Node `fetch` does NOT use the session's HTTPS proxy by default, so a WAF can 403
+  direct requests while curl (proxied) succeeds — HackerEarth does exactly this. **To run
+  a real `fetchX()` from the sandbox:** `env -u HTTP_PROXY NODE_USE_ENV_PROXY=1 npx tsx
+  script.mts` (Node ≥ 22.21; the `.mts` extension is needed for top-level await). A bare
+  `405` from every host means the proxy saw a non-CONNECT request — that flag is the fix.
+  Production Vercel has open egress with different IPs again.
+- **Eventbrite** (`lib/ingest/eventbrite.ts`): the per-country search page's JSON-LD
+  gives **calendar days, not instants** ("2026-09-21"). Parsed naively, a two-day event
+  is exactly 24 h and fails the Multi-day chip's `> 24h`, and a one-day event is 0 h.
+  `dayBounds` sets start = 00:00Z of the first day and end = 23:59:59Z of the last, so
+  two days ≈ 48 h (multi-day) and one day ≈ 24 h (not). The card's `addressCountry` is
+  noisy (Vienna tagged `AU`, Berlin `NL`) — the queried country wins. Search is fuzzy
+  and relevance-ranked: page 2 was dry for every country measured, so paging stops on
+  the first page with nothing kept, and `HackerX` / `WomenHack` "Employer Ticket" hiring
+  fairs are excluded by name (40 of 95 name matches). A 200 with zero JSON-LD events is
+  markup drift, not "no events" — Eventbrite always pads a country page with fuzzy
+  matches; the source throws only if that happens for *every* country.
 - **allhackathons.com** (`lib/ingest/allhackathons.ts`): Bootstrap job-board
   template — cards are `<!-- Job -->` blocks; dates are Django's AP-style `N`
   filter ("Sept. 12, 2026", but "March"/"April"/"May"/"June"/"July" spelled out
@@ -351,6 +401,21 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
+- **Regions toggles (branch `claude/event-radar-continent-toggle-t6t1sh`).** New chip in
+  the feed opens Europe / N. America / S. America / Asia / Africa / Oceania / Unknown
+  toggles with live counts; off = hidden; persisted in `user_preferences.filters`.
+  Online events are exempt. Classifier in `lib/continents.ts` (layered: country column →
+  place text → state codes → cities → title cities), validated on the live catalog:
+  217 NA · 110 EU · 46 Asia · 52 unknown of 434 upcoming IRL rows. 19 new tests.
+- **Eventbrite EU live as an ingest source** (`eventbrite`, label "Eventbrite EU"): 30
+  per-country JSON-LD search pages; live run from the sandbox returned **51 upcoming
+  in-person EU hackathons in 11.6 s, 46 of them new to the catalog** — Germany 11, UK 15,
+  Italy 7, Spain 5, Netherlands 5, Belgium 2, Switzerland 2, France 2, Austria 1,
+  Ireland 1. Zero for Poland and the Baltics (not where they list). No deadline in the
+  payload → rows surface once enrichment fills `registration_deadline`. Other EU
+  candidates probed and ruled out with reasons in `SOURCES.md` (Meetup = meetups,
+  Cerebral Valley = US, Agorize = JS bundle, techeurope/CASSINI = already via Luma/Taikai).
+
 - **Ingest 504s fixed (deployment-audit branch).** The intermittent "Event Radar ingest"
   Action failures were `FUNCTION_INVOCATION_TIMEOUT`: the route capped itself at 60s
   while measured runs took 58.5s. Fix: `maxDuration = 300` (Fluid Compute is on),
@@ -442,6 +507,25 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 ## Next
 
+- **After this branch deploys: hit Refresh once and check `eventbrite` in the summary.**
+  Expect ~50 rows on the first run (`inserted` jumps), then the enrichment queue fills
+  their deadlines over the next few runs (30 rows/run cap) — the Eventbrite rows will
+  appear in the feed gradually, not all at once. If the source reports `error`, read the
+  message: "every country page failed" = Vercel egress blocked (unlikely — the sandbox
+  reached it), "carry no JSON-LD" = Eventbrite changed markup.
+- **Regions vs the daily digest.** The toggles apply to the feed only; a US event can
+  still count toward "5 new hackathons" in the push. If that grates, `buildDigestPayload`
+  can read `filters.hidden_regions` alongside `notification_settings` — the classifier is
+  pure and already importable server-side. Not done yet because it changes what a
+  notification means (a per-user hide becomes a per-user silence); decide first.
+- **Unknown bucket is 12% and mostly Devpost venue names** ("Johns Hopkins University",
+  "WPI - Campus Center"). Two cheap reductions if it bothers: a short list of well-known US
+  university names in `lib/continents.ts`, or having enrichment write `country` more often
+  (it already sees the venue). Neither is urgent — the Unknown toggle makes them hideable.
+- **Agorize** is the one remaining EU source with real volume (French corporate
+  hackathons) and no free path: 727 KB JS bundle, no JSON-LD, no embedded state found on
+  2026-09-09. Would need its API lifted from the bundle, HackQuest-style. Only worth it
+  if the Eventbrite France yield (2) stays low.
 - **After the timeout fix deploys: watch the next 2–3 "Event Radar ingest" Action runs.**
   Expect HTTP 200 with `elapsed_ms` up to ~240000 (bigger than before is *correct* — the
   run now uses its Fluid window), a `digest` field present in the JSON again, and the

@@ -14,6 +14,7 @@ import { fetchDoraHacks } from './dorahacks'
 import { fetchStartupLithuania } from './startuplithuania'
 import { fetchAllHackathons } from './allhackathons'
 import { fetchHackTrack } from './hacktrack'
+import { fetchEventbrite } from './eventbrite'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
 import { buildSeedPatch, type ExistingRow } from './seed-upgrade'
@@ -192,6 +193,7 @@ export async function runIngest({
     ['startuplithuania', () => fetchStartupLithuania()],
     ['allhackathons', () => fetchAllHackathons()],
     ['hacktrack', () => fetchHackTrack()],
+    ['eventbrite', () => fetchEventbrite()],
     ['known', async () => fetchKnownEvents()],
     ['watch', async () => watchesToRows()],
   ]

@@ -21,9 +21,11 @@ high-match appears.
 - **Manual source refresh** for the app owner in Settings, with per-source results and no
   test-run push notifications
 - **New tab**: everything ingested in the last 72h, newest first — see what a refresh found
+- **Regions**: switch whole continents on or off (Europe, North America, Asia, …, plus
+  "Unknown" for rows with no readable location). Saved per user, so "no US for now" sticks
 - **Sources**: Devpost, MLH, ETHGlobal, Hack Club, HackerEarth, Luma, HackQuest, Devfolio,
-  Taikai, DoraHacks, Startup Lithuania, All Hackathons, HackTrack EU — enriched via Groq/Gemini
-  (all free tiers)
+  Taikai, DoraHacks, Startup Lithuania, All Hackathons, HackTrack EU, Eventbrite EU — enriched
+  via Groq/Gemini (all free tiers)
 
 Applying is entirely on you — Event Radar finds and ranks events, it does not fill in or
 submit anything.
