@@ -18,6 +18,10 @@ const probes = [
     url: 'https://api.lu.ma/discover/get-paginated-events?query=hackathon',
   },
   {
+    id: 'eventbrite-germany',
+    url: 'https://www.eventbrite.com/d/germany/hackathon/',
+  },
+  {
     id: 'luma-singapore',
     url: 'https://api.lu.ma/discover/get-paginated-events?query=hackathon%20Singapore',
   },

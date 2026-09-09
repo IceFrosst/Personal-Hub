@@ -1,6 +1,7 @@
 import type { Hackathon } from './types'
 import { durationHours } from './scoring'
 import { hasUsefulTravel } from './digest'
+import { regionKeyOf, type RegionKey } from './continents'
 
 export type FormatMode = 'irl' | 'online'
 
@@ -12,6 +13,11 @@ export type FeedFilters = {
   /** Travel ✓ — confirmed-useful travel only, same predicate as the card tag. */
   travelOnly: boolean
   homeBase: string
+  /**
+   * Regions switched OFF. Keyed by continent plus `'unknown'` for rows whose
+   * geography does not resolve (see lib/continents.ts). Empty = show all.
+   */
+  hiddenRegions: RegionKey[]
 }
 
 /**
@@ -37,6 +43,14 @@ export function matchesFeedFilters(h: Hackathon, f: FeedFilters): boolean {
   // Same predicate as the solid "Travel" tag on the card — filter and tag can
   // never disagree about what counts as covered.
   if (f.travelOnly && !hasUsefulTravel(h, f.homeBase)) return false
+
+  // Regions are about where you would have to fly. An online event has no
+  // "where", so the toggles never touch it — switching North America off is
+  // meant to drop Austin and Philadelphia, not a US-hosted remote jam that is
+  // as reachable from Vilnius as from anywhere.
+  if (f.hiddenRegions.length > 0 && h.format !== 'online') {
+    if (f.hiddenRegions.includes(regionKeyOf(h))) return false
+  }
 
   return true
 }

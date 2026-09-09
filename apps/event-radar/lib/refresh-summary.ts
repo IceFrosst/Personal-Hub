@@ -19,6 +19,7 @@ const SOURCE_LABELS: Record<string, string> = {
   startuplithuania: 'Startup Lithuania',
   allhackathons: 'All Hackathons',
   hacktrack: 'HackTrack EU',
+  eventbrite: 'Eventbrite EU',
   known: 'Known',
   watch: 'Watches',
 }

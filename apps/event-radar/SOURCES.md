@@ -28,6 +28,7 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 | Domain(s) | Status | How it's reached / why not |
 |---|---|---|
 | `lu.ma` · `api.lu.ma` · `luma.com` | ✅ Live | `GET api.lu.ma/discover/get-paginated-events?query=hackathon`, cursor-paginated, **no auth**. Implemented in `lib/ingest/luma.ts` — **92 hackathons mapped live** (Austin, London, Bengaluru, São Paulo, Berlin…). Global breadth, many short community events. `luma.com` just redirects to `lu.ma`. |
+| `eventbrite.com` · `eventbrite.<cc>` | ✅ Live | Per-country search pages `GET www.eventbrite.com/d/<country>/hackathon/?page=N` are server-rendered with a schema.org `ItemList` of `Event`s (name, date-only start/end, `Place`/`PostalAddress`, attendance mode, URL) — public, no auth, 20 a page, relevance-ranked. Implemented in `lib/ingest/eventbrite.ts` for 30 European countries — **51 upcoming in-person hackathons on 2026-09-09, 46 of them new to the catalog** (Cumulocity AIoT, Healthcare Hackathon Bayern, Eclipse SDV, Odoo Hackathon, Recharge Eindhoven, TechEx Amsterdam, herHACK, SIKA, Liverpool City Region…). Corporate/municipal/university hackathons that never reach Devpost, MLH or Luma. Search is fuzzy, so the Luma name filter applies plus an exclusion for HackerX/WomenHack "Employer Ticket" hiring fairs (40 of 95 name matches). Paging stops on the first page with nothing kept. No registration deadline in the payload → rows wait on enrichment. |
 | `startuplithuania.com` · `www.` | ✅ Live | WordPress site; events are the `cpstart_events` custom post type, listed via the public WP REST API (`GET /wp-json/wp/v2/cpstart_events?per_page=100`, no auth). Implemented in `lib/ingest/startuplithuania.ts` — name-filtered to hackathons (mostly conferences/meetups otherwise). REST carries no structured event date, so each hackathon's yearless `listing__date` (in the detail page's `single-article__title`) is fetched and the year inferred from the REST publish date. The hackathon filter also catches "-athon" names without "hack" (e.g. "Portathon", a 48h maritime hackathon) while excluding running/charity marathons. Lithuania = home base + top-priority country. |
 | `hackquest.io` · `api.hackquest.io` · `www.hackquest.io` | ✅ Live | GraphQL introspection is disabled, so the `getAllHackathonInfo` / `listHackathons` operation was **lifted verbatim from the frontend bundle** (`_next/static` chunks) and replayed against `POST api.hackquest.io/graphql` — public, no auth. Implemented in `lib/ingest/hackquest.ts` — **111 hackathons mapped live**, all with source-provided `registration_deadline`, prizes, and ecosystem themes (Web3/AI buildathons: Injective, Arbitrum, 0G, OKX…). |
 | `akindo.io` · `api.akindo.io` · `www.akindo.io` | ❌ blocked | The hackathon ("wave") listing lives on **`app.akindo.io`**, which is **not allowlisted** (`000`). The marketing site (`akindo.io`) bundle carries no listing endpoint; `api.akindo.io` is a live NestJS host but every guessed path (`/waves`, `/hackathons`, `/products/`, `/graphql`, …) 404s. **To unblock: allowlist `app.akindo.io`**, then lift its API paths the same way HackQuest was done. |
@@ -76,7 +77,24 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
   deadline, and an empty `upcoming` list is normal off-season, so it does **not**
   throw on zero — only on a malformed response.
 
-Both are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
+- **Eventbrite EU** (`lib/ingest/eventbrite.ts`, unit test `test/eventbrite.test.ts`).
+  Thirty per-country "hackathon" search pages read through their JSON-LD. The
+  2026-09-09 probe from this sandbox (which turned out to have open egress —
+  worth re-checking each session before assuming a source is untestable) put
+  the first page of each priority country side by side: Germany 12 genuine
+  hackathons, UK 16, Italy 7, Spain 6, Netherlands 5, Belgium 3, Switzerland 2,
+  France 2, Ireland 1, Austria 1 — versus 0 for Poland, Latvia and Lithuania
+  (Eventbrite is simply not where the Baltics or Poland list). Live run:
+  **51 rows in 11.6 s** across all 30 countries (concurrency 4, ~700 KB a
+  page), 46 not already in the catalog by title. Dates are calendar days, so
+  the source widens them to day bounds (`dayBounds`) — a two-day event reads
+  as ~48 h and passes the Multi-day chip, a one-day one does not. The queried
+  country is trusted over the card's own country code, which is noisy in the
+  cases that matter (a Vienna hackathon tagged `AU`, a Berlin one `NL`).
+  Fails only if every country page fails or every page carries zero JSON-LD
+  events; a dry country is normal.
+
+All of the above are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
 The shared fail-closed eligibility rule (`isUpcomingAndOpen`) drops the many
 already-started / closed-registration entries either source returns.
 
@@ -121,6 +139,27 @@ shell that plain fetch cannot read.
 | `mita.gov.mt/events/` | 404. |
 
 
+## EU candidates — probed 2026-09-09 (sandbox, open egress)
+
+Reachability differed from the 2026-07 probes: this session could reach nearly
+everything, so each candidate was judged on its **data**, not its HTTP status.
+
+| Site | Result |
+|---|---|
+| `eventbrite.com/d/<country>/hackathon/` | **✅ Implemented** — see the matrix row and the entry above. |
+| `meetup.com/find/?keywords=hackathon&location=…` | 200, JSON-LD with 12 `Event`s per city page and `__NEXT_DATA__`/`__APOLLO_STATE__` present — but the results are meetups (AWS Community Day, Python Users Berlin, React Berlin), not hackathons. Per-city queries, fuzzy, low precision. **Skip.** |
+| `cerebralvalley.ai/events` | 200, JSON-LD with 20 `Event`s (4 typed `Hackathon`). US-centric (NYC, SF, Boston); its European entries carry `location: Other` with no address. **Skip for EU.** |
+| `agorize.com/en/challenges` | 200 but a 727 KB JS bundle with 709 rendered words, no JSON-LD, no embedded state found. Hosts many French corporate hackathons; would need its API lifted from the bundle (HackQuest-style). **Candidate, not free.** |
+| `techeurope.io` | 200, 449 words, no structured data; its hackathons are announced on Luma and already arrive that way. **Covered.** |
+| `hackathons.org.uk` / `hackuk.org` | 200, Organization JSON-LD only, no event list in markup. **Skip.** |
+| `lablab.ai/event` | 200 from here (403 from a GitHub runner in July — reachability is session-dependent). 26 `ListItem`s, overwhelmingly online. Online scores zero on travel. **Skip.** |
+| `cassini.eu/hackathons` | 200, 809 words, no JSON-LD; editions already reach the catalog via Taikai (`CASSINI Hackathons - Space for Peace and Resilience`). **Covered.** |
+| `hackathon.com/city/germany/berlin` | 200 but 67 rendered words — JS shell. Consistent with the July verdict. **Skip.** |
+| `hackalist.org/api/1.0/…` | 404 — the old GitHub-backed JSON is gone. |
+| `app.hackjunction.com/api/events`, `hackevents.co`, `hackathons.de/.eu/.se/.nl`, `hackfinder.eu` | Do not resolve / no such feed. |
+| `eu-startups.com/events`, `hackathon.fr` | 403 Cloudflare. |
+| `f6s.com/programs?type=hackathon` | 200 but a 7 KB interstitial — bot-gated. |
+
 ## Pagination is a coverage decision, not a detail
 
 **Devpost was returning 16% of its list.** `fetchDevpost` defaulted to 3 pages ×
@@ -162,6 +201,7 @@ The question asked is deliberately not "does this source return rows" but
 | mlh | n/a | 61, single unpaginated payload | ✅ n/a |
 | startuplithuania | MAX_PAGES 3 × 100 | breaks early when a page is short | ✅ clears |
 | hacktrack | single request | one call, whole archive | ✅ n/a |
+| eventbrite | MAX_PAGES 3 per country | stops on first dry page (page 2 is already dry for every country measured) | ✅ relevance-ranked, cap never binds |
 | **luma (primary query)** | **PAGES_PER_QUERY 2** | **7 pages / 290 entries** | **❌ TRUNCATED → primary raised to 10** |
 | luma (rotation queries) | PAGES_PER_QUERY 2 | all exhaust on page 1 | ✅ never binds |
 | unstop | MAX_PAGES 3 × 100 | `last_page` stop sits in front | ✅ clears |

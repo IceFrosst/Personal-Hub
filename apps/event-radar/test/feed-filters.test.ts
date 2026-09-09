@@ -13,6 +13,7 @@ const BASE: FeedFilters = {
   multiDayOnly: false,
   travelOnly: false,
   homeBase: 'lithuania',
+  hiddenRegions: [],
 }
 
 function row(over: Record<string, unknown> = {}) {
@@ -112,4 +113,43 @@ test('with no chips on, everything passes', () => {
   assert.equal(matchesFeedFilters(row(), permissive), true)
   assert.equal(matchesFeedFilters(row({ ends_at: null }), permissive), true)
   assert.equal(matchesFeedFilters(row({ travel_covered: null }), permissive), true)
+})
+
+// ─── Regions ────────────────────────────────────────────────────────────────
+
+test('a hidden region drops IRL events located there and nothing else', () => {
+  const filters: FeedFilters = { ...BASE, hiddenRegions: ['north_america'] }
+  const austin = row({ id: 'us', location_raw: 'Austin, TX' })
+  const berlin = row({ id: 'de', location_raw: 'Berlin, Germany' })
+  const usaColumn = row({ id: 'usa', country: 'USA', location_raw: null })
+
+  assert.equal(matchesFeedFilters(austin, filters), false)
+  assert.equal(matchesFeedFilters(usaColumn, filters), false)
+  assert.equal(matchesFeedFilters(berlin, filters), true)
+})
+
+test('online events ignore the region toggles entirely', () => {
+  // Regions are about where you would fly. A US-hosted remote jam is as
+  // reachable from Vilnius as from anywhere, so hiding North America must not
+  // take it away from the Online tab.
+  const filters: FeedFilters = { ...BASE, formatMode: 'online', hiddenRegions: ['north_america'] }
+  const remote = row({ id: 'o', format: 'online', location_raw: 'San Francisco, CA' })
+  assert.equal(matchesFeedFilters(remote, filters), true)
+})
+
+test('rows with no readable location fall under the Unknown toggle, not a continent', () => {
+  const venueOnly = row({ id: 'v', location_raw: 'Mitchell Park Community Center', country: null })
+  assert.equal(matchesFeedFilters(venueOnly, { ...BASE, hiddenRegions: ['north_america'] }), true)
+  assert.equal(matchesFeedFilters(venueOnly, { ...BASE, hiddenRegions: ['unknown'] }), false)
+})
+
+test('with every region hidden except Europe, only European IRL events survive', () => {
+  const filters: FeedFilters = {
+    ...BASE,
+    hiddenRegions: ['north_america', 'south_america', 'asia', 'africa', 'oceania', 'unknown'],
+  }
+  assert.equal(matchesFeedFilters(row({ location_raw: 'Vilnius, Lithuania' }), filters), true)
+  assert.equal(matchesFeedFilters(row({ location_raw: 'Bengaluru, India' }), filters), false)
+  assert.equal(matchesFeedFilters(row({ location_raw: 'Toronto, ON' }), filters), false)
+  assert.equal(matchesFeedFilters(row({ location_raw: null, title: 'Second Hackathon' }), filters), false)
 })
