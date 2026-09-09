@@ -24,8 +24,8 @@ high-match appears.
 - **Regions**: switch whole continents on or off (Europe, North America, Asia, …, plus
   "Unknown" for rows with no readable location). Saved per user, so "no US for now" sticks
 - **Sources**: Devpost, MLH, ETHGlobal, Hack Club, HackerEarth, Luma, HackQuest, Devfolio,
-  Taikai, DoraHacks, Startup Lithuania, All Hackathons, HackTrack EU, Eventbrite EU — enriched
-  via Groq/Gemini (all free tiers)
+  Taikai, DoraHacks, Startup Lithuania, All Hackathons, HackTrack EU, Eventbrite EU, Garage48 —
+  enriched via Groq/Gemini (all free tiers)
 
 Applying is entirely on you — Event Radar finds and ranks events, it does not fill in or
 submit anything.

@@ -20,6 +20,7 @@ const SOURCE_LABELS: Record<string, string> = {
   allhackathons: 'All Hackathons',
   hacktrack: 'HackTrack EU',
   eventbrite: 'Eventbrite EU',
+  garage48: 'Garage48',
   known: 'Known',
   watch: 'Watches',
 }

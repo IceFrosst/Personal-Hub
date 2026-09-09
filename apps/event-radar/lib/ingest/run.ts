@@ -15,6 +15,7 @@ import { fetchStartupLithuania } from './startuplithuania'
 import { fetchAllHackathons } from './allhackathons'
 import { fetchHackTrack } from './hacktrack'
 import { fetchEventbrite } from './eventbrite'
+import { fetchGarage48 } from './garage48'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
 import { buildSeedPatch, type ExistingRow } from './seed-upgrade'
@@ -194,6 +195,7 @@ export async function runIngest({
     ['allhackathons', () => fetchAllHackathons()],
     ['hacktrack', () => fetchHackTrack()],
     ['eventbrite', () => fetchEventbrite()],
+    ['garage48', () => fetchGarage48()],
     ['known', async () => fetchKnownEvents()],
     ['watch', async () => watchesToRows()],
   ]
