@@ -22,6 +22,10 @@ const probes = [
     url: 'https://www.eventbrite.com/d/germany/hackathon/',
   },
   {
+    id: 'garage48',
+    url: 'https://garage48.org/events',
+  },
+  {
     id: 'luma-singapore',
     url: 'https://api.lu.ma/discover/get-paginated-events?query=hackathon%20Singapore',
   },

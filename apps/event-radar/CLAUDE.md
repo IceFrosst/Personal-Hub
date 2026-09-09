@@ -124,7 +124,7 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, startuplithuania, allhackathons, hacktrack, eventbrite
+  taikai, dorahacks, startuplithuania, allhackathons, hacktrack, eventbrite, garage48
   (`lib/ingest/*.ts`), plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
@@ -401,7 +401,13 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
-- **Regions toggles (branch `claude/event-radar-continent-toggle-t6t1sh`).** New chip in
+- **Garage48 live as an ingest source** (`garage48`): Estonian 48h hackathon organiser,
+  server-rendered `/events`; 2 upcoming on 2026-09-09 (Future of Wood, Empowering Women —
+  both Oct 16–18, Estonia). Round-two probe of ~60 more EU candidates found nothing else
+  with a readable feed — table and reasons in `SOURCES.md`. **The remaining EU gap is Poland
+  and the Baltics, and it is an indexing gap** (Facebook / university portals), not a
+  reachability one.
+- **Regions toggles — merged to `main` 2026-09-09.** New chip in
   the feed opens Europe / N. America / S. America / Asia / Africa / Oceania / Unknown
   toggles with live counts; off = hidden; persisted in `user_preferences.filters`.
   Online events are exempt. Classifier in `lib/continents.ts` (layered: country column →
@@ -507,7 +513,7 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 ## Next
 
-- **After this branch deploys: hit Refresh once and check `eventbrite` in the summary.**
+- **Merged to `main`: hit Refresh once and check `eventbrite` and `garage48` in the summary.**
   Expect ~50 rows on the first run (`inserted` jumps), then the enrichment queue fills
   their deadlines over the next few runs (30 rows/run cap) — the Eventbrite rows will
   appear in the feed gradually, not all at once. If the source reports `error`, read the

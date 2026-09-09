@@ -29,6 +29,7 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 |---|---|---|
 | `lu.ma` · `api.lu.ma` · `luma.com` | ✅ Live | `GET api.lu.ma/discover/get-paginated-events?query=hackathon`, cursor-paginated, **no auth**. Implemented in `lib/ingest/luma.ts` — **92 hackathons mapped live** (Austin, London, Bengaluru, São Paulo, Berlin…). Global breadth, many short community events. `luma.com` just redirects to `lu.ma`. |
 | `eventbrite.com` · `eventbrite.<cc>` | ✅ Live | Per-country search pages `GET www.eventbrite.com/d/<country>/hackathon/?page=N` are server-rendered with a schema.org `ItemList` of `Event`s (name, date-only start/end, `Place`/`PostalAddress`, attendance mode, URL) — public, no auth, 20 a page, relevance-ranked. Implemented in `lib/ingest/eventbrite.ts` for 30 European countries — **51 upcoming in-person hackathons on 2026-09-09, 46 of them new to the catalog** (Cumulocity AIoT, Healthcare Hackathon Bayern, Eclipse SDV, Odoo Hackathon, Recharge Eindhoven, TechEx Amsterdam, herHACK, SIKA, Liverpool City Region…). Corporate/municipal/university hackathons that never reach Devpost, MLH or Luma. Search is fuzzy, so the Luma name filter applies plus an exclusion for HackerX/WomenHack "Employer Ticket" hiring fairs (40 of 95 name matches). Paging stops on the first page with nothing kept. No registration deadline in the payload → rows wait on enrichment. |
+| `garage48.org` | ✅ Live | Estonia's hackathon organiser (48h builds, Hack the Crisis). Voog CMS; `/events` server-renders an "Upcoming events" block of `.gr-event` cards with title, `/events/<slug>` link and `When`/`Where` lines — public, no auth. Implemented in `lib/ingest/garage48.ts`; live 2026-09-09: **2 upcoming** (Future of Wood 2026 makeathon, Väimela; kood/Garage48 Empowering Women Hackathon, Jõhvi — both Oct 16–18). Dates are free text in four shapes incl. yearless "New date! October 16-18"; venues omit the country, appended only when the continent classifier cannot place the string. Supersedes the approximate `watch` row (kept — additive). |
 | `startuplithuania.com` · `www.` | ✅ Live | WordPress site; events are the `cpstart_events` custom post type, listed via the public WP REST API (`GET /wp-json/wp/v2/cpstart_events?per_page=100`, no auth). Implemented in `lib/ingest/startuplithuania.ts` — name-filtered to hackathons (mostly conferences/meetups otherwise). REST carries no structured event date, so each hackathon's yearless `listing__date` (in the detail page's `single-article__title`) is fetched and the year inferred from the REST publish date. The hackathon filter also catches "-athon" names without "hack" (e.g. "Portathon", a 48h maritime hackathon) while excluding running/charity marathons. Lithuania = home base + top-priority country. |
 | `hackquest.io` · `api.hackquest.io` · `www.hackquest.io` | ✅ Live | GraphQL introspection is disabled, so the `getAllHackathonInfo` / `listHackathons` operation was **lifted verbatim from the frontend bundle** (`_next/static` chunks) and replayed against `POST api.hackquest.io/graphql` — public, no auth. Implemented in `lib/ingest/hackquest.ts` — **111 hackathons mapped live**, all with source-provided `registration_deadline`, prizes, and ecosystem themes (Web3/AI buildathons: Injective, Arbitrum, 0G, OKX…). |
 | `akindo.io` · `api.akindo.io` · `www.akindo.io` | ❌ blocked | The hackathon ("wave") listing lives on **`app.akindo.io`**, which is **not allowlisted** (`000`). The marketing site (`akindo.io`) bundle carries no listing endpoint; `api.akindo.io` is a live NestJS host but every guessed path (`/waves`, `/hackathons`, `/products/`, `/graphql`, …) 404s. **To unblock: allowlist `app.akindo.io`**, then lift its API paths the same way HackQuest was done. |
@@ -93,6 +94,13 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
   cases that matter (a Vienna hackathon tagged `AU`, a Berlin one `NL`).
   Fails only if every country page fails or every page carries zero JSON-LD
   events; a dry country is normal.
+
+- **Garage48** (`lib/ingest/garage48.ts`, unit test `test/garage48.test.ts`). One
+  request, one organiser, but the right one: Estonian 48-hour hackathons a bus
+  ride from Vilnius. Every dated upcoming card is kept — "Future of Wood 2026" is
+  a makeathon and would fail a title test; the organiser is the filter. Zero
+  upcoming is a quiet season; zero cards on the whole page (past block included)
+  is markup drift and throws.
 
 All of the above are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
 The shared fail-closed eligibility rule (`isUpcomingAndOpen`) drops the many
@@ -160,6 +168,27 @@ everything, so each candidate was judged on its **data**, not its HTTP status.
 | `eu-startups.com/events`, `hackathon.fr` | 403 Cloudflare. |
 | `f6s.com/programs?type=hackathon` | 200 but a 7 KB interstitial — bot-gated. |
 
+### Round two, same day — everything else that answered
+
+| Site | Result |
+|---|---|
+| `garage48.org/events` | **✅ Implemented** — see above. |
+| `startupestonia.ee/wp-json/wp/v2/events` | WP REST works like Startup Lithuania's and even exposes ACF `event_date`/`event_location` — but all 19 events are trade-fair stands, awards and sTARTUpDay side events. **Not a hackathon source.** Re-check if they start listing them. |
+| `dev.events/hackathons/EU` | Reachable from this sandbox (was Cloudflare-403 from a GitHub runner in July — reachability is session-dependent). Structured per-continent hackathon lists, but **3 European hackathons total** vs 14 online. Not worth a parser at that volume; the conference side (661 EU) is not hackathons. |
+| `gdg.community.dev/api/search/?result_types=upcoming_event&q=hackathon` | Public JSON with city + country per event, but the API **ignores `q`, `page` and `country_code`** — always the same 24 upcoming events worldwide, ~2 of them hackathons. **Skip.** |
+| `allevents.in/<city>/hackathon` | 1 JSON-LD event on Berlin, 0 on London; the list is JS-rendered. **Skip.** |
+| `billetto.co.uk` / `.dk` search | No JSON-LD, search results JS-rendered. **Skip.** |
+| `evenea.pl` search | Server-rendered, but the search ignores the keyword ("Strona 1 z 58" of everything). **Skip.** |
+| `crossweb.pl`, `labsoflatvia.com` | Cloudflare / JS-only shells. The Polish and Latvian scenes remain unindexed by anything we can read; Luma city queries stay the only path. |
+| `10times.com/hackathon` | 403. |
+| `ethrome.org`, `ethberlin.org`, `ethlisbon.org` | Reachable single-event sites, no structured data. ETHRome 26 is 11–13 Sep 2026 (already inside the 7-day lead window); ETHBerlin has no dates up; ETHLisbon still shows 2025. Candidates for the `watches` list, not sources. |
+| `hackathon.eu`, `hackathons.eu.com`, `hackathon.de`, `hackathons.fr`, `hackathonsuk.co.uk`, `hackathon-list.com`, `hackathon.ee`, `hack.ee`, `junction2026.com`, `hackathons.slush.org` | Do not resolve. |
+
+Net: after Eventbrite, the remaining European gap is **Poland and the Baltics**, and it is
+an indexing gap, not a reachability one — those scenes announce on Facebook and
+university portals that publish no feed. Startup Lithuania and Garage48 cover the
+organisers that do.
+
 ## Pagination is a coverage decision, not a detail
 
 **Devpost was returning 16% of its list.** `fetchDevpost` defaulted to 3 pages ×
@@ -201,6 +230,7 @@ The question asked is deliberately not "does this source return rows" but
 | mlh | n/a | 61, single unpaginated payload | ✅ n/a |
 | startuplithuania | MAX_PAGES 3 × 100 | breaks early when a page is short | ✅ clears |
 | hacktrack | single request | one call, whole archive | ✅ n/a |
+| garage48 | single request | one list page, both blocks | ✅ n/a |
 | eventbrite | MAX_PAGES 3 per country | stops on first dry page (page 2 is already dry for every country measured) | ✅ relevance-ranked, cap never binds |
 | **luma (primary query)** | **PAGES_PER_QUERY 2** | **7 pages / 290 entries** | **❌ TRUNCATED → primary raised to 10** |
 | luma (rotation queries) | PAGES_PER_QUERY 2 | all exhaust on page 1 | ✅ never binds |
