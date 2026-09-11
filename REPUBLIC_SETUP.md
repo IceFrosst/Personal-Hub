@@ -1,7 +1,14 @@
 # Republic of Ignas — launch checklist (what Ignas must provide/decide)
 
-> Companion to `SIDEQUEST_PLAN.md`. Code ships without these (stubs/localStorage),
-> but full implementation needs every box below.
+> **Status: the app launched — this checklist was never ticked off.** Every box below is
+> still unchecked, but the app is live at **https://ignas.wtf** with Supabase, Google
+> Calendar and selfie storage all wired up, so the boxes no longer reflect reality. Two
+> are demonstrably resolved in code: the domain (`ignas.wtf` + `www.`, both verified on
+> Vercel) and the consulate handle (`CONSULATE_HANDLE` in `apps/republic/lib/content.ts`,
+> with the copy-to-clipboard fallback the note below describes).
+>
+> **Do not use this as a to-do list.** `apps/republic/CLAUDE.md` → `Current state` / `Next`
+> is the live truth; this file is kept as the record of what launch originally required.
 
 ## 1. Identity & links (blocking for launch)
 - [ ] **Exact Instagram handle** — used for the `ig.me/m/<handle>` consulate deep link.

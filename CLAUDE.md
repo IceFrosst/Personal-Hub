@@ -5,7 +5,8 @@ This is **Ignas's personal app portfolio**. This repo is the **hub** — a launc
 > Read this whole file before doing anything. The rules below are not suggestions — they are the project's spine.
 
 > **Monorepo (since 2026-05-29):** the portfolio is one repo. Each app lives in
-> `apps/<name>/` (`apps/hub`, `apps/focus-gate`, `apps/lock-in`); shared docs live at the
+> `apps/<name>/` (`apps/hub`, `apps/focus-gate`, `apps/lock-in`, `apps/cookie-jar`,
+> `apps/event-radar`, `apps/republic`); shared docs live at the
 > root (`CLAUDE.md`, `SCHEMA_RULES.md`). Tooling is npm workspaces + Turborepo. A new app is
 > a new folder under `apps/` — no new GitHub repo, no new access grant. Each app is still its
 > own Vercel project (Root Directory `apps/<name>`); production ships from `main` for all
@@ -31,7 +32,10 @@ All cross-app and hub→app URLs live in that one file. This makes a future cust
 Add columns / tables / JSON fields. **Never rename, never delete, never narrow a type.** Users running older versions of an app must always be able to read/write data created by newer versions. The root `SCHEMA_RULES.md` is canonical; each app folder may add its own. Check before any migration.
 
 ### 3. One Supabase project for all apps
-Namespace tables per app via Postgres schemas: `focus_gate.tasks`, `workout.sessions`, etc. One Google login covers the whole portfolio. Never create a new Supabase project for a new app.
+Namespace tables per app via Postgres schemas — live today: `hub`, `focus_gate` (owned by
+Focus Gate, **also written by Lock In**), `lock_in`, `cookie_jar`, `hackathon` (Event Radar),
+`republic`. One Google login covers the whole portfolio. Never create a new Supabase project
+for a new app.
 
 ### 4. Row Level Security on every user-data table
 Users can only `SELECT/INSERT/UPDATE/DELETE` rows where `user_id = auth.uid()`. Every user-data table has `user_id uuid references auth.users not null` and RLS enabled. No exceptions.
@@ -69,6 +73,7 @@ All apps ship in lockstep from `main` (one monorepo). Each app's Vercel project 
       "name": "Focus Gate",
       "description": "Intentional Instagram replacement",
       "icon": "brain",
+      "iconImage": "/app-icons/focus-gate.png",
       "color": "purple",
       "versions": {
         "stable": "https://icefrosst-focus-gate-personal-app.vercel.app"
@@ -79,7 +84,7 @@ All apps ship in lockstep from `main` (one monorepo). Each app's Vercel project 
 }
 ```
 
-Field rules: `slug` is kebab-case and matches the app's folder name under `apps/`. `icon` is a Tabler icon name (no `Icon` prefix) — **and must be mapped in `apps/hub/src/lib/icons.ts`** or the tile falls back to a generic icon. `color` is one of: `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
+Field rules: `slug` is kebab-case and matches the app's folder name under `apps/`. `icon` is a Tabler icon name (no `Icon` prefix) — **and must be mapped in `apps/hub/src/lib/icons.ts`** or the tile falls back to a generic icon. `iconImage` is optional: a path under `apps/hub/public/app-icons/` to the app's real PWA icon, rendered instead of the Tabler glyph when present (all four current tiles use one). `color` is one of: `coral`, `teal`, `purple`, `amber`, `blue`, `pink`, `green`, `gray`.
 
 ### Hub-specific Supabase tables
 
@@ -267,6 +272,32 @@ Add these to the outbound allowlist in Claude Code environment settings:
 
 ---
 
+## Runtime env vars (Vercel project settings — not session env)
+
+The section above is the **Claude Code session** env panel: keys agents use to build and
+provision. Separate from those, each deployed app reads its own runtime vars from **its
+Vercel project's** Environment Variables. `setup-vercel-project.mjs` injects only the two
+Supabase ones; everything else is added by hand, per project. Verified against the code
+2026-09-11:
+
+| App | Runtime vars beyond `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` |
+|-----|--------------------------------------------------------------|
+| Hub | none |
+| Cookie Jar | none |
+| Focus Gate | `GEMINI_API_KEY` |
+| Lock In | `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` |
+| Event Radar | `GROQ_API_KEY`, `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `EVENT_RADAR_ADMIN_EMAIL` |
+| Republic | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `GOOGLE_CALENDAR_ID`, `GOOGLE_CALENDAR_TIME_ZONE` |
+
+`SUPABASE_SERVICE_ROLE_KEY` is server-only and bypasses RLS — never expose it to a browser
+bundle (no `NEXT_PUBLIC_` prefix, ever) and never commit it.
+
+**`turbo.json`'s `globalEnv` is not this list.** It exists so Turbo does not strip secrets
+at build time and so cache keys change when they do. Three entries there —
+`VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`, `EVENT_RADAR_CRON_SECRET` — are read by **no code**
+(the real names are `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `CRON_SECRET`);
+they are harmless leftovers, not requirements. Don't provision them expecting an effect.
+
 ## Full automation — new app checklist
 
 With all tokens set and both domains allowlisted, a new app goes from idea to live with no new repo:
@@ -388,9 +419,27 @@ Signs: patching the same file three times, re-discovering things already known, 
 
 ## Current phase
 
-**Monorepo consolidation done (2026-05-29).** All three apps live in this repo under `apps/` (git history preserved); the former `focus-gate-personal-app` and `lock-in-personal-app` repos are archived.
+**Six apps live** (verified 2026-09-11 — all six answer 200): Hub, Focus Gate, Lock In,
+Cookie Jar, Event Radar, Republic of Ignas. The monorepo consolidation (2026-05-29) is
+long done; the former `focus-gate-personal-app` and `lock-in-personal-app` repos are
+archived and their history lives under `apps/*`.
 
-- **Hub, Focus Gate, and Lock In** all deploy on Vercel from the monorepo — each its own project, Root Directory `apps/<name>`, `turbo-ignore` build-skipping, production branch `main`.
-- `api.vercel.com` and `api.supabase.com` are allowlisted; SQL migrations apply via the Management API.
+- **Five apps auto-deploy from `main`** — Hub, Focus Gate, Lock In, Cookie Jar and Event
+  Radar each have their own Vercel project with Root Directory `apps/<name>`,
+  `npx turbo-ignore` as the Ignored Build Step, and production branch `main`.
+- **Republic is the exception.** Its Vercel project (`republic-of-ignas`) has **no git
+  link and no production branch** — the API reports both as null — so a push to `main`
+  does *not* deploy it; it ships via the Vercel CLI from a checkout. It is also the first
+  app on a **custom domain** (`ignas.wtf` + `www.ignas.wtf`, both verified), which is the
+  migration iron rule #1 was written for. And it is deliberately **not** in
+  `apps/hub/config/apps.json`: it's a public Instagram bio link, not a personal tool.
+- **Four tiles in the hub** (`focus-gate`, `lock-in`, `cookie-jar`, `event-radar`); the
+  hub does not list itself.
+- `api.vercel.com` and `api.supabase.com` are allowlisted; SQL migrations apply via the
+  Management API.
 
-**Next:** a structure pass — a shared `packages/` for the Supabase client + `Task` type, unifying the hub's `src/`-vs-`app/` layout and ESLint config with the other apps, and a single committed root lockfile — deferred pending a discussion of how the apps should work together.
+**Next:** the structure pass is still outstanding and still deferred — a shared
+`packages/` for the Supabase client + `Task` type (there is no `packages/` directory yet,
+despite the workspace glob), unifying the hub's `src/`-vs-`app/` layout and ESLint config
+with the other apps, and a single committed root lockfile. Deferred pending a discussion
+of how the apps should work together.

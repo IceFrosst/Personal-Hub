@@ -1,8 +1,15 @@
 # Republic of Ignas — gamified Instagram bio link (plan)
 
-> Working name: **`apps/republic`** (or `apps/border-control`) · Domain idea: `republicofignas.com`,
-> `visa.ignas.lol`, or similar.
-> Status: PLANNED — concept locked (border-control theme), not scaffolded yet.
+> **Status: BUILT AND LIVE.** This is the original concept doc, written before the app
+> existed and kept for the reasoning behind the design. It is **not** current: the app
+> shipped as `apps/republic` and runs at **https://ignas.wtf** (custom domain, plus
+> `www.`), not on any of the domain ideas floated below, and the working name settled on
+> "Dictatorship of Ignas — Border Control".
+>
+> **For what the app actually is and does today, read `apps/republic/CLAUDE.md`** — its
+> `Current state` / `Next` sections are the live truth. Treat everything below as history:
+> some of it shipped as written, some changed, some was dropped.
+>
 > Mockups: `docs/mockups/sidequest-border-*.jpg`
 
 ## The idea
