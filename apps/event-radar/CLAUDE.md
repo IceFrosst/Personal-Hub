@@ -514,11 +514,14 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 ## Next
 
 - **Frontier-company hackathons: no company publishes a feed** (probed 2026-09-15, table in
-  `SOURCES.md`). Their hackathons already arrive via Luma/Devpost/Cerebral Valley. Two
-  actions on the table: (a) a ~12-query "frontier vendors" Luma pack — measured 28 new
-  future rows, 1 EU; (b) probe `openhackathons.org` (NVIDIA GPU hackathons at EU HPC
-  centres) from the GitHub runner — unreachable from the sandbox. Neither done; awaiting a
-  yes from Ignas.
+  `SOURCES.md`). Their hackathons already arrive via Luma/Devpost/Cerebral Valley. Both
+  follow-ups shipped: (a) `lib/frontier-vendors.ts` — 16 company-name Luma queries in the
+  rotation (measured 28 new future rows, 1 EU, before adding); (b) `openhackathons.org`
+  (NVIDIA GPU hackathons at EU HPC centres) added to `probe-sources.mjs`. **Read the
+  `openhackathons` line in the next *Event Radar source probe* run**: HTTP 200 with a
+  `salesforce-shell` hint means reachable-but-JS-only (no parser possible under the
+  no-headless rule); `plain` with event text means build a source; 0/000 means blocked
+  from runners too.
 - **Merged to `main`: hit Refresh once and check `eventbrite` and `garage48` in the summary.**
   Expect ~50 rows on the first run (`inserted` jumps), then the enrichment queue fills
   their deadlines over the next few runs (30 rows/run cap) — the Eventbrite rows will

@@ -96,6 +96,20 @@ const probes = [
     url: 'https://adventure-x.org/en',
   },
   {
+    // NVIDIA / OpenACC GPU hackathons at EU HPC centres. Unreachable from the
+    // sandbox on 2026-09-15 (TLS tunnel up, origin never answers — Salesforce
+    // Experience Cloud). This is the question: does it answer from a runner, and
+    // if so does the HTML carry event text or only a client-rendered shell?
+    id: 'openhackathons',
+    url: 'https://www.openhackathons.org/s/upcoming-events',
+    cards: (html) =>
+      `${(html.match(/hackathon/gi) ?? []).length} "hackathon" · ${(html.match(/20\d\d/g) ?? []).length} years · ${html.includes('aura') || html.includes('LWR') ? 'salesforce-shell' : 'plain'}`,
+  },
+  {
+    id: 'openhackathons-apex',
+    url: 'https://openhackathons.org/',
+  },
+  {
     id: 'allhackathons',
     url: 'https://allhackathons.com/hackathons/',
     // Count the card blocks the parser keys on, so a template change shows up

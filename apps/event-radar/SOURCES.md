@@ -219,7 +219,9 @@ already holds, by title: Cursor 23 · OpenAI 20 · AWS 12 · Gemini 12 · NVIDIA
 **28 future name-matched hackathons not yet in the catalog** — mostly US/online, with one EU
 hit (Light × Lovable × Grant Thornton Finance Hackathon, Stockholm). Adding a ~12-query
 "frontier vendors" pack to the rotation costs nothing (see the rotation note in `CLAUDE.md`)
-and is the only concrete action this probe supports. Not done yet — Ignas to confirm.
+and is the only concrete action this probe supports. **Done 2026-09-15** — 16 queries in
+`lib/frontier-vendors.ts`, in the rotation. `openhackathons.org` is in `probe-sources.mjs`
+(the nightly runner probe) as of the same date; read its line in the next run's log.
 
 ## Pagination is a coverage decision, not a detail
 
