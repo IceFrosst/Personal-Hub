@@ -517,12 +517,14 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   `SOURCES.md`). Their hackathons already arrive via Luma/Devpost/Cerebral Valley. Both
   follow-ups shipped: (a) `lib/frontier-vendors.ts` — 16 company-name Luma queries in the
   rotation (measured 28 new future rows, 1 EU, before adding); (b) `openhackathons.org`
-  (NVIDIA GPU hackathons at EU HPC centres) added to `probe-sources.mjs`. **Read the
-  `openhackathons` line in the next *Event Radar source probe* run**: HTTP 200 with a
-  `salesforce-shell` hint means reachable-but-JS-only (no parser possible under the
-  no-headless rule); `plain` with event text means build a source; 0/000 means blocked
-  from runners too.
-- **Merged to `main`: hit Refresh once and check `eventbrite` and `garage48` in the summary.**
+  (NVIDIA GPU hackathons at EU HPC centres) added to `probe-sources.mjs` — and the runner
+  probe answered `fetch failed` in ~300 ms for both `www` and apex. **Blocked from runners
+  too; dead lead** short of hand-seeding editions read in a browser.
+- **Production confirmed for the two new sources** (ingest run 2026-09-15 17:37 UTC):
+  `eventbrite: 50`, `garage48: 2`, `luma_queries.blocked: 0`. Note the runner *probe* shows
+  `eventbrite-germany HTTP 405` — Eventbrite's WAF refuses GitHub runner IPs, Vercel's are
+  fine. Only the ingest summary is a production signal.
+- ~~Hit Refresh and check `eventbrite`/`garage48`~~ — confirmed live from the scheduled ingest (50 and 2). Watch `inserted` over the next few runs as their deadlines get enriched.
   Expect ~50 rows on the first run (`inserted` jumps), then the enrichment queue fills
   their deadlines over the next few runs (30 rows/run cap) — the Eventbrite rows will
   appear in the feed gradually, not all at once. If the source reports `error`, read the

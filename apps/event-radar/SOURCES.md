@@ -220,8 +220,18 @@ already holds, by title: Cursor 23 · OpenAI 20 · AWS 12 · Gemini 12 · NVIDIA
 hit (Light × Lovable × Grant Thornton Finance Hackathon, Stockholm). Adding a ~12-query
 "frontier vendors" pack to the rotation costs nothing (see the rotation note in `CLAUDE.md`)
 and is the only concrete action this probe supports. **Done 2026-09-15** — 16 queries in
-`lib/frontier-vendors.ts`, in the rotation. `openhackathons.org` is in `probe-sources.mjs`
-(the nightly runner probe) as of the same date; read its line in the next run's log.
+`lib/frontier-vendors.ts`, in the rotation. `openhackathons.org` went into `probe-sources.mjs`
+the same day and the runner answered within the hour: **`fetch failed` in ~300 ms from
+GitHub too, both `www` and apex** — a connection-level refusal, not a slow origin. Blocked
+from the sandbox *and* from runners; production Vercel is the only egress left untested and
+is the same class of datacenter IP. **Dead lead** unless someone reads the page in a browser
+and hand-seeds the EU editions into `known-events.ts`.
+
+Two things the same run taught about the probe itself: **`eventbrite-germany` shows
+`HTTP 405` from GitHub runners** — Eventbrite's WAF refuses runner IPs — while the same
+hour's production ingest returned `eventbrite: 50`. That FAIL line is expected and is not a
+production signal; only the ingest summary is. And `garage48` answered 200 from the runner
+(`garage48: 2` in production).
 
 ## Pagination is a coverage decision, not a detail
 
