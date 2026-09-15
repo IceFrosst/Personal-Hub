@@ -124,8 +124,8 @@
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
-  taikai, dorahacks, startuplithuania, allhackathons, hacktrack, eventbrite, garage48
-  (`lib/ingest/*.ts`), plus known/watch.
+  taikai, dorahacks, startuplithuania, allhackathons, hacktrack, eventbrite, garage48,
+  newsrss (`lib/ingest/*.ts`), plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
@@ -283,6 +283,14 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   script.mts` (Node ≥ 22.21; the `.mts` extension is needed for top-level await). A bare
   `405` from every host means the proxy saw a non-CONNECT request — that flag is the fix.
   Production Vercel has open egress with different IPs again.
+- **News rows never reach the main feed — by construction, not by accident.**
+  `lib/ingest/newsrss.ts` (Google News RSS, EN/LT queries) produces rows whose URL is a
+  `news.google.com` redirect that no server can resolve (post-mortem in `SOURCES.md`), so
+  `starts_at` is null and `isUpcomingAndOpen` is false forever. They live in the **New tab**
+  for 72 h (the one list that skips the date gate) as a press-mentions click-through
+  stream, and `run.ts` excludes `news.google.com` URLs from enrichment so they never burn
+  an LLM slot. Do not "fix" the null dates by guessing from the title. Language rule from
+  Ignas: **English and Lithuanian query words only** — a test enforces the character set.
 - **Eventbrite** (`lib/ingest/eventbrite.ts`): the per-country search page's JSON-LD
   gives **calendar days, not instants** ("2026-09-21"). Parsed naively, a two-day event
   is exactly 24 h and fails the Multi-day chip's `> 24h`, and a one-day event is 0 h.
@@ -401,6 +409,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
+- **News (LT/EN) live as an ingest source** (`newsrss`, label "News (LT/EN)"): Google News
+  RSS, five EN/LT queries over the Baltics, Poland and the Nordics. Live 2026-09-15: 3
+  announcements in 45 days (Cyber Arena šaulių hakatonas; University of Latvia EUDIS
+  Defence Hackathon 2026; Google's Warsaw student AI hackathon) — none carried by any
+  other source. Rows surface in the **New tab only** (no resolvable URL → no dates); the
+  full resolver post-mortem is in `SOURCES.md`.
 - **Garage48 live as an ingest source** (`garage48`): Estonian 48h hackathon organiser,
   server-rendered `/events`; 2 upcoming on 2026-09-09 (Future of Wood, Empowering Women —
   both Oct 16–18, Estonia). Round-two probe of ~60 more EU candidates found nothing else
@@ -531,6 +545,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   appear in the feed gradually, not all at once. If the source reports `error`, read the
   message: "every country page failed" = Vercel egress blocked (unlikely — the sandbox
   reached it), "carry no JSON-LD" = Eventbrite changed markup.
+- **Give news rows dates if Google's link resolver ever works again.** Watch the
+  `googlenewsdecoder` project; when its RPC payload succeeds, add a resolve step to
+  `newsrss.ts` and extend `enrich.ts` to extract `starts_at`/`ends_at` when null (it does
+  not today — enrichment fills format/city/country/deadline only). Until then the New tab
+  is the delivery surface; check it after the next few ingest runs to judge signal/noise.
 - **Regions vs the daily digest.** The toggles apply to the feed only; a US event can
   still count toward "5 new hackathons" in the push. If that grates, `buildDigestPayload`
   can read `filters.hidden_regions` alongside `notification_settings` — the classifier is

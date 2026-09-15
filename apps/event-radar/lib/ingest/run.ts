@@ -16,6 +16,7 @@ import { fetchAllHackathons } from './allhackathons'
 import { fetchHackTrack } from './hacktrack'
 import { fetchEventbrite } from './eventbrite'
 import { fetchGarage48 } from './garage48'
+import { fetchNewsRss } from './newsrss'
 import { fetchKnownEvents } from './known-events'
 import { watchesToRows } from './watches'
 import { buildSeedPatch, type ExistingRow } from './seed-upgrade'
@@ -119,6 +120,11 @@ async function raceSource<T>(promise: Promise<T>, ms: number): Promise<T> {
   }
 }
 
+/** Google News redirect pages carry no article text server-side. */
+function isUnreadableNewsLink(url: string): boolean {
+  return url.startsWith('https://news.google.com/')
+}
+
 async function fetchBestPageText(row: {
   url: string
   source: string
@@ -196,6 +202,7 @@ export async function runIngest({
     ['hacktrack', () => fetchHackTrack()],
     ['eventbrite', () => fetchEventbrite()],
     ['garage48', () => fetchGarage48()],
+    ['newsrss', () => fetchNewsRss()],
     ['known', async () => fetchKnownEvents()],
     ['watch', async () => watchesToRows()],
   ]
@@ -422,7 +429,13 @@ export async function runIngest({
   if (newlyInsertedIds.length > 0) {
     const { data: freshRows } = await db.from('hackathons').select('*').in('id', newlyInsertedIds)
     if (freshRows) {
-      toEnrich.push(...freshRows.map((r) => coerceHackathon(r as Record<string, unknown>)))
+      toEnrich.push(
+        ...freshRows
+          .map((r) => coerceHackathon(r as Record<string, unknown>))
+          // Google News links are JS shells: nothing to read, guaranteed null.
+          // Don't spend an LLM slot on them (see lib/ingest/newsrss.ts).
+          .filter((h) => !isUnreadableNewsLink(h.url))
+      )
     }
   }
 
@@ -430,6 +443,7 @@ export async function runIngest({
     .from('hackathons')
     .select('*')
     .or('enriched_at.is.null,and(travel_covered.is.null,format.is.null)')
+    .not('url', 'ilike', 'https://news.google.com/%')
     .order('created_at', { ascending: false })
     .limit(ENRICH_BATCH)
 

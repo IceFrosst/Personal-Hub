@@ -22,6 +22,11 @@ const probes = [
     url: 'https://www.eventbrite.com/d/germany/hackathon/',
   },
   {
+    id: 'newsrss-lt',
+    url: 'https://news.google.com/rss/search?q=hakatonas&hl=lt&gl=LT&ceid=LT:lt',
+    cards: (xml) => `${(xml.match(/<item>/g) ?? []).length} items`,
+  },
+  {
     id: 'garage48',
     url: 'https://garage48.org/events',
   },

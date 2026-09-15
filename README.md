@@ -18,7 +18,7 @@ else. If a feature needs a paid service, it doesn't get built until that's discu
 | **Focus Gate** | `apps/focus-gate` | The pause screen you hit when you reach for Instagram. Lock in, or take the break on purpose | [icefrosst-focus-gate-personal-app.vercel.app](https://icefrosst-focus-gate-personal-app.vercel.app) |
 | **Lock In** | `apps/lock-in` | Tasks, prioritised. Voice in, lock in — plus an AI day-scheduler that writes blocks into Google Calendar | [icefrosst-lock-in.vercel.app](https://icefrosst-lock-in.vercel.app) |
 | **Cookie Jar** | `apps/cookie-jar` | Bank the hard things you've already conquered, reach in for fuel when you're hurting | [icefrosst-cookie-jar.vercel.app](https://icefrosst-cookie-jar.vercel.app) |
-| **Event Radar** | `apps/event-radar` | Hackathons worth travelling to, swept from 15 free sources daily and ranked for a Lithuanian student | [icefrosst-event-radar.vercel.app](https://icefrosst-event-radar.vercel.app) |
+| **Event Radar** | `apps/event-radar` | Hackathons worth travelling to, swept from 16 free sources daily and ranked for a Lithuanian student | [icefrosst-event-radar.vercel.app](https://icefrosst-event-radar.vercel.app) |
 | **Republic of Ignas** | `apps/republic` | Deadpan border-control link-in-bio for Instagram — every social ask is a visa application | [ignas.wtf](https://ignas.wtf) |
 
 Focus Gate and Lock In are a pair: they read and write the **same** task table, so a task
