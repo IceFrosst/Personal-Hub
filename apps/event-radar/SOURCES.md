@@ -227,6 +227,21 @@ from the sandbox *and* from runners; production Vercel is the only egress left u
 is the same class of datacenter IP. **Dead lead** unless someone reads the page in a browser
 and hand-seeds the EU editions into `known-events.ts`.
 
+**Round two of names (2026-09-15, 145 companies).** Deep-tech labs (DeepMind, Mistral,
+Aleph Alpha, Black Forest Labs, Kyutai, Poolside, DeepSeek, Qwen), chips (AMD, Intel,
+Cerebras, Groq, SambaNova, Graphcore), dev tools (Cloudflare, GitHub, MongoDB, Figma, Replit,
+Windsurf, Devin…), crypto (Ethereum, Base, Polygon, Sui, Monad…), quantum (IQM, Pasqal,
+Qiskit…), Baltic/Nordic unicorns (Vinted, Nord Security, Revolut, Wise, Bolt, Pipedrive,
+Spotify, Klarna, Wolt, Supercell) and EU industrials (SAP, Siemens, Bosch, BMW, Airbus,
+Helsing). Same method: `"<name> hackathon"` on the Luma discover API, keep only future
+events whose *title* carries the name, check against the catalog. **22 of 145 had any
+branded future hackathon; 14 added** to `frontier-vendors.ts`. Best EU find: **AMD
+Developer Hackathon ACT III** — Milan, Rome (already in) and Imperia (new). Everything else
+new was US/Asia/Oceania. **123 names returned nothing branded**, including every Baltic and
+Nordic company and every EU industrial — they don't run public hackathons on Luma. The pack
+is now 30 queries; the rotation (window 35, ~5 sweeps/day) still cycles the full list about
+twice a day.
+
 Two things the same run taught about the probe itself: **`eventbrite-germany` shows
 `HTTP 405` from GitHub runners** — Eventbrite's WAF refuses runner IPs — while the same
 hour's production ingest returned `eventbrite: 50`. That FAIL line is expected and is not a

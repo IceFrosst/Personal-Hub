@@ -515,8 +515,9 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 - **Frontier-company hackathons: no company publishes a feed** (probed 2026-09-15, table in
   `SOURCES.md`). Their hackathons already arrive via Luma/Devpost/Cerebral Valley. Both
-  follow-ups shipped: (a) `lib/frontier-vendors.ts` — 16 company-name Luma queries in the
-  rotation (measured 28 new future rows, 1 EU, before adding); (b) `openhackathons.org`
+  follow-ups shipped: (a) `lib/frontier-vendors.ts` — 30 company-name Luma queries in the
+  rotation (16 measured 28 new future rows, 1 EU; a second sweep of 145 more names added
+  14 — AMD Italy the only EU find; all Baltic/Nordic/EU-industrial names returned zero); (b) `openhackathons.org`
   (NVIDIA GPU hackathons at EU HPC centres) added to `probe-sources.mjs` — and the runner
   probe answered `fetch failed` in ~300 ms for both `www` and apex. **Blocked from runners
   too; dead lead** short of hand-seeding editions read in a browser.

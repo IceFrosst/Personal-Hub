@@ -35,4 +35,27 @@ export const LUMA_FRONTIER_VENDOR_QUERIES = [
   'Cohere hackathon',
   'Vercel hackathon',
   'Solana hackathon',
+  // Round two (2026-09-15): 145 more names measured the same way — deep-tech,
+  // chips, dev tools, crypto, quantum, Baltic unicorns, EU champions. Only the
+  // 14 below had a *branded* future hackathon on Luma (company name in the
+  // event title) that the queries above did not already reach. Notable zeros:
+  // every Baltic/Nordic company tried (Vinted, Nord Security, Revolut, Wise,
+  // Bolt, Pipedrive, Spotify, Klarna, Wolt, Supercell), every EU industrial
+  // (SAP, Siemens, Bosch, BMW, Airbus, Helsing), every quantum lab, and all of
+  // Mistral / Aleph Alpha / Black Forest Labs / DeepSeek. They do not run
+  // public hackathons on Luma; re-measure before adding any of them.
+  'AMD hackathon',
+  'Monad hackathon',
+  'Replit hackathon',
+  'Figma hackathon',
+  'DeepMind hackathon',
+  'Qwen hackathon',
+  'SambaNova hackathon',
+  'Ethereum hackathon',
+  'LangChain hackathon',
+  'Qiskit hackathon',
+  'Apple hackathon',
+  'Cisco hackathon',
+  'Devin hackathon',
+  'Tencent hackathon',
 ] as const
