@@ -189,6 +189,38 @@ an indexing gap, not a reachability one — those scenes announce on Facebook an
 university portals that publish no feed. Startup Lithuania and Garage48 cover the
 organisers that do.
 
+## Frontier-company hackathons — probed 2026-09-15 (sandbox, open egress)
+
+Question asked: do NVIDIA, Google, OpenAI, Anthropic, Meta, Microsoft, AWS, xAI, Mistral,
+SpaceX publish a hackathon feed we are missing? **Answer: no company does.** Their
+hackathons are run *through* aggregators we already ingest — Luma (in-person, incl. EU),
+Devpost (online challenges), Cerebral Valley (SF/NYC) and lablab.ai (online). The catalog
+already holds, by title: Cursor 23 · OpenAI 20 · AWS 12 · Gemini 12 · NVIDIA 11 · Lovable 8
+· Claude 7 · Google 6 · Anthropic 2. What each company's own site offers:
+
+| Company / site | Result |
+|---|---|
+| **Anthropic** `anthropic.com/events` | Server-rendered Webflow list, 23 items with type · format · date · city — parseable. Content is **Claude Founder Houses** (Stockholm Oct 14, London Sep 23, Paris, Berlin), Code with Claude, AWS Summit booths. **Zero hackathons.** Their hackathons ("Claude Code Hackathon Madrid", "[SEA AI WEEK] Anthropic Hackathon") live on Luma. Not a radar source; a decent *founder-event* watch if ever wanted. |
+| **OpenAI** `openai.com/events` | 403 Cloudflare. `academy.openai.com/public/events` is a client-rendered Gradual page — nothing in HTML. Hackathons reach us via Luma ("Sea x OpenAI Regional Codex Hackathon"), Cerebral Valley and Devpost (open-model hackathons). |
+| **Google** `developers.google.com/events` | Server-rendered `<table>`, 285 rows across 2016–2026, 25 hackathon/challenge-titled. Nearly all **Global/online** (Gemma 4 Good Challenge, Chrome Built-in AI, Cloud Run hackathon). In-person exceptions: Google Cloud Hack Challenge **Zurich** (Sep 2025) and **Munich** (Jun 2025). Parseable in an hour; yield ≈2–3 EU in-person events a year, all of which also hit Devpost/Luma. `?type=hackathon` is ignored. Low priority. |
+| **NVIDIA** | `developer.nvidia.com/events` 404; `nvidia.com/en-us/events` is the investor calendar. The real programme is **`openhackathons.org`** (OpenACC/NVIDIA GPU hackathons at EU HPC centres) — **unreachable from this egress**: TLS tunnel establishes, origin never answers (Salesforce Experience Cloud). **Best remaining lead; needs the GitHub-runner probe** (`probe-sources.mjs`). NVIDIA-sponsored hackathons otherwise arrive via Luma ("Dell x NVIDIA") and Devpost ("Nebius x NVIDIA", online). |
+| **Meta** | `llama.meta.com/hackathons` 404, `ai.meta.com/events` is a 9-word JS shell. Llama hackathons run via Cerebral Valley / lablab / Devpost. |
+| **Microsoft** | Reactor is JS-only with no discoverable events API (both guessed endpoints 404); Imagine Cup is behind Microsoft auth. Sponsored hackathons appear on Devpost ("Seattle GiveCamp @ Microsoft Building 122"). |
+| **AWS** `aws.amazon.com/events` | Marketing page. AWS hackathons arrive via Devpost (online) and Luma ("Hackathon @ AWS Loft", "Zaro's BizOps @ AWS London"). |
+| **xAI** `x.ai/events` | 403. Hackathons via Cerebral Valley (SF). |
+| **Mistral** | `lu.ma/mistral` 404; last hackathon on `mistral.ai/news` is the Fine-tuning Hackathon, **June 2024**. Paris hackathons surface via Luma. |
+| **Hugging Face** `huggingface.co/events` | A private org page ("Request to join"). No feed. |
+| **SpaceX** | Does not run hackathons. Careers page only; the one catalog "SpaceX" row was an unrelated "SpaceXAI CXO" event. |
+| **Cerebral Valley** `cerebralvalley.ai/events` | JSON-LD with events typed **`["Event","Hackathon"]`** — the cleanest hackathon flag anywhere. But: 20 events per page, `?type=` and `?page=` ignored, "load more" is a React server action, so only the first 20 are readable without JS; 4 were hackathons (NYC, SF, SF, online); EU events carry `location: Other`. US-heavy, Regions toggle hides most of it. **Skip.** |
+| **Luma company calendars** `lu.ma/<company>` | Calendar pages (`lu.ma/cursor`, `lu.ma/genai-collective`) embed their events in `__NEXT_DATA__`; **profile pages** (`lu.ma/anthropic`, `lu.ma/openai`) do not — "51 hosted" renders client-side. Cursor's calendar is workshops, not hackathons. Not worth a second Luma path. |
+
+**The one cheap win: company names as Luma queries.** 25 queries ("hackathon Anthropic",
+"Claude hackathon", "hackathon OpenAI", "hackathon NVIDIA", "Lovable hackathon", …) returned
+**28 future name-matched hackathons not yet in the catalog** — mostly US/online, with one EU
+hit (Light × Lovable × Grant Thornton Finance Hackathon, Stockholm). Adding a ~12-query
+"frontier vendors" pack to the rotation costs nothing (see the rotation note in `CLAUDE.md`)
+and is the only concrete action this probe supports. Not done yet — Ignas to confirm.
+
 ## Pagination is a coverage decision, not a detail
 
 **Devpost was returning 16% of its list.** `fetchDevpost` defaulted to 3 pages ×

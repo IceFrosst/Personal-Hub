@@ -513,6 +513,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 ## Next
 
+- **Frontier-company hackathons: no company publishes a feed** (probed 2026-09-15, table in
+  `SOURCES.md`). Their hackathons already arrive via Luma/Devpost/Cerebral Valley. Two
+  actions on the table: (a) a ~12-query "frontier vendors" Luma pack — measured 28 new
+  future rows, 1 EU; (b) probe `openhackathons.org` (NVIDIA GPU hackathons at EU HPC
+  centres) from the GitHub runner — unreachable from the sandbox. Neither done; awaiting a
+  yes from Ignas.
 - **Merged to `main`: hit Refresh once and check `eventbrite` and `garage48` in the summary.**
   Expect ~50 rows on the first run (`inserted` jumps), then the enrichment queue fills
   their deadlines over the next few runs (30 rows/run cap) — the Eventbrite rows will
