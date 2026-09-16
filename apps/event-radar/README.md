@@ -11,7 +11,8 @@ high-match appears.
 
 ## What it does
 
-- **Ranked feed** limited to future hackathons with registration still open, with a
+- **Ranked feed** limited to upcoming hackathons whose registration has not closed (an
+  unknown deadline does not hide an event; a past one does), with a
   transparent score — every card shows *why* it ranks where it does (travel covered +40,
   online +35, dev-only −30, …)
 - **Detail sheet**: tap a card for the full picture — dates, deadline, score breakdown,

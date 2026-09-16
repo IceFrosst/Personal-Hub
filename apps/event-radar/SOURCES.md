@@ -31,7 +31,7 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 | `eventbrite.com` · `eventbrite.<cc>` | ✅ Live | Per-country search pages `GET www.eventbrite.com/d/<country>/hackathon/?page=N` are server-rendered with a schema.org `ItemList` of `Event`s (name, date-only start/end, `Place`/`PostalAddress`, attendance mode, URL) — public, no auth, 20 a page, relevance-ranked. Implemented in `lib/ingest/eventbrite.ts` for 30 European countries — **51 upcoming in-person hackathons on 2026-09-09, 46 of them new to the catalog** (Cumulocity AIoT, Healthcare Hackathon Bayern, Eclipse SDV, Odoo Hackathon, Recharge Eindhoven, TechEx Amsterdam, herHACK, SIKA, Liverpool City Region…). Corporate/municipal/university hackathons that never reach Devpost, MLH or Luma. Search is fuzzy, so the Luma name filter applies plus an exclusion for HackerX/WomenHack "Employer Ticket" hiring fairs (40 of 95 name matches). Paging stops on the first page with nothing kept. No registration deadline in the payload → rows wait on enrichment. |
 | `garage48.org` | ✅ Live | Estonia's hackathon organiser (48h builds, Hack the Crisis). Voog CMS; `/events` server-renders an "Upcoming events" block of `.gr-event` cards with title, `/events/<slug>` link and `When`/`Where` lines — public, no auth. Implemented in `lib/ingest/garage48.ts`; live 2026-09-09: **2 upcoming** (Future of Wood 2026 makeathon, Väimela; kood/Garage48 Empowering Women Hackathon, Jõhvi — both Oct 16–18). Dates are free text in four shapes incl. yearless "New date! October 16-18"; venues omit the country, appended only when the continent classifier cannot place the string. Supersedes the approximate `watch` row (kept — additive). |
 | `news.google.com/rss/search` | ❌ disabled by owner | Built 2026-09-15 as a press-mentions stream (EN/LT queries, rows in the New tab only because Google's redirect links cannot be resolved server-side — post-mortem below). **Ignas switched it off on 2026-09-16**: date-less rows in the New tab were not wanted. Module and test deleted (`git log -- apps/event-radar/lib/ingest/newsrss.ts` has them); the 4 production rows were removed. Do not re-add without dates. |
-| `hackathonhub.eu` | ✅ Live (English · prize-money) | Curated European directory (DACH-first), asked for by Ignas 2026-09-16. A Lovable React shell over Supabase: the `/events` page is client-rendered and the Markdown twins (`/events/<slug>.md`) carry no language — but the shell reads the public PostgREST view **`events_public`** with the anon key in its own bundle, and so do we (`lib/ingest/hackathonhub.ts`): one request, every field — exact start/end, **`application_deadline`** (the only aggregator that states a registration deadline, so rows pass the fail-closed gate on day one), `language`, `prize_money_eur`, `location_type`, city/state/country, organiser `url`, `travel_costs_covered`, `accommodation_provided`. Filters: published → future → type hackathon/gamejam or hack-titled → **`language = 'en'`** → **positive prize** (both Ignas's rules). Live 2026-09-16: 358 upcoming → 332 hackathon-shaped → 246 English → **62 rows in 1.1 s, 46 new to the catalog**, 19 countries (Germany 12, UK 10, Portugal 5, Switzerland 5, Finland 4…). Organiser URLs (`luma.com` → `lu.ma`) so rows merge with Luma/Eventbrite. **Their anon key can rotate**: a 401 in the summary means re-read the bundle constant, not a bug in our code. |
+| `hackathonhub.eu` | ✅ Live (English · prize or travel/accommodation support) | Curated European directory (DACH-first), asked for by Ignas 2026-09-16. A Lovable React shell over Supabase: the `/events` page is client-rendered and the Markdown twins (`/events/<slug>.md`) carry no language — but the shell reads the public PostgREST view **`events_public`** with the anon key in its own bundle, and so do we (`lib/ingest/hackathonhub.ts`): one request, every field — exact start/end, **`application_deadline`** (the only aggregator that states a registration deadline, so rows pass the fail-closed gate on day one), `language`, `prize_money_eur`, `location_type`, city/state/country, organiser `url`, `travel_costs_covered`, `accommodation_provided`. Filters: published → future → type hackathon/gamejam or hack-titled → **`language = 'en'`** → **positive prize OR `travel_costs_covered` / `accommodation_provided` / `accommodation_costs_covered`** (Ignas's rules; the support half mirrors the site's own "Travel & accommodation" filter, and the booleans are written into the row). Live 2026-09-16: 358 upcoming → 332 hackathon-shaped → 246 English → **72 rows in 1.3 s, 55 new to the catalog** (62 with prize, 17 with support, 10 support-only), Germany 14, UK 12, Switzerland 6, Portugal 6, Finland 4, Italy 4, Poland 3…; 33 of the 72 state a deadline. Organiser URLs (`luma.com` → `lu.ma`) so rows merge with Luma/Eventbrite. **Their anon key can rotate**: a 401 in the summary means re-read the bundle constant, not a bug in our code. |
 | `startuplithuania.com` · `www.` | ✅ Live | WordPress site; events are the `cpstart_events` custom post type, listed via the public WP REST API (`GET /wp-json/wp/v2/cpstart_events?per_page=100`, no auth). Implemented in `lib/ingest/startuplithuania.ts` — name-filtered to hackathons (mostly conferences/meetups otherwise). REST carries no structured event date, so each hackathon's yearless `listing__date` (in the detail page's `single-article__title`) is fetched and the year inferred from the REST publish date. The hackathon filter also catches "-athon" names without "hack" (e.g. "Portathon", a 48h maritime hackathon) while excluding running/charity marathons. Lithuania = home base + top-priority country. |
 | `hackquest.io` · `api.hackquest.io` · `www.hackquest.io` | ✅ Live | GraphQL introspection is disabled, so the `getAllHackathonInfo` / `listHackathons` operation was **lifted verbatim from the frontend bundle** (`_next/static` chunks) and replayed against `POST api.hackquest.io/graphql` — public, no auth. Implemented in `lib/ingest/hackquest.ts` — **111 hackathons mapped live**, all with source-provided `registration_deadline`, prizes, and ecosystem themes (Web3/AI buildathons: Injective, Arbitrum, 0G, OKX…). |
 | `akindo.io` · `api.akindo.io` · `www.akindo.io` | ❌ blocked | The hackathon ("wave") listing lives on **`app.akindo.io`**, which is **not allowlisted** (`000`). The marketing site (`akindo.io`) bundle carries no listing endpoint; `api.akindo.io` is a live NestJS host but every guessed path (`/waves`, `/hackathons`, `/products/`, `/graphql`, …) 404s. **To unblock: allowlist `app.akindo.io`**, then lift its API paths the same way HackQuest was done. |
@@ -64,8 +64,8 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
   `/hackathon/<slug>/`, an AP-style date range ("Sept. 12, 2026 - Sept. 13,
   2026") and a country as the tail text of the themes footer. Walks up to 5
   pages, drops past events, and throws with a structural fingerprint if a page
-  fetches OK but parses to zero cards. Supplies **no registration deadline**, so
-  rows wait on enrichment before the fail-closed feed will show them.
+  fetches OK but parses to zero cards. Supplies **no registration deadline**; since
+  2026-09-16 that no longer keeps rows out of the feed.
 
 - **HackTrack EU** (`lib/ingest/hacktrack.ts`, unit test `test/hacktrack.test.ts`).
   Community-run European hackathon index with a public, no-auth JSON API
@@ -106,14 +106,15 @@ egress** (2026-07-18). Keep this live: when a source is implemented, moved to
 
 - **Hackathon Hub** (`lib/ingest/hackathonhub.ts`, unit test `test/hackathonhub.test.ts`).
   Read through the site's own public Supabase view rather than its HTML — same class as
-  HackQuest's lifted GraphQL operation. Two hard rules from Ignas: English (`language`
-  exactly `en`; `mixed` does not count) and a stated prize (`prize_money_eur` or
-  `prize_money` > 0). The prize rule is the sharp one — it leaves ~180 English European
-  hackathons off this source; the number is in the code header so the trade stays
-  visible. Uniquely among aggregators it supplies `application_deadline`, so its rows are
-  feed-visible without waiting for enrichment. Its `travel_costs_covered` /
-  `accommodation_provided` booleans are **not yet carried** into rows (IngestRow has no
-  such fields) — see CLAUDE.md → Next.
+  HackQuest's lifted GraphQL operation. Rules from Ignas: English (`language` exactly
+  `en`; `mixed` does not count) and either a stated prize (`prize_money_eur` or
+  `prize_money` > 0) or travel/accommodation support (`travel_costs_covered`,
+  `accommodation_provided` or `accommodation_costs_covered` true — the site's own
+  filter). That still leaves ~174 English European hackathons off this source; the
+  number is in the code header so the trade stays visible. Uniquely among aggregators it
+  supplies `application_deadline` (on about half its rows). Its support booleans ride
+  into `travel_covered` / `accommodation_covered` at insert — a stated `true` only, so
+  enrichment can still read the organiser page for the rest.
 
 ### How much of Europe do we actually catch? (2026-09-16, measured against the Hub)
 
@@ -126,23 +127,24 @@ yardstick. Same day, upcoming events only, matched by organiser URL:
 | Hub: of which hackathon-shaped (type hackathon/gamejam or hack-titled) | 332 |
 | Hub: of which in-person or hybrid | 326 |
 | Hub: of which English | 246 |
-| Hub: English **and** prize money (what we ingest) | 62 |
+| Hub: English **and** (prize money or travel/accommodation support) — what we ingest | 72 |
 | **Ours**: upcoming rows in the catalog, all continents | 676 |
 | **Ours**: classified Europe by `continentOf` | 208 (207 non-online) |
-| **Ours**: Europe rows actually visible in the feed right now (`isUpcomingAndOpen`) | 106 |
+| **Ours**: Europe rows visible in the feed under the old "no deadline, no show" gate | 106 (all 207 since the gate opened) |
 | Overlap: Hub hackathons already in our catalog (by URL) | 86 of 332 |
 | Our European rows the Hub does not list | 121 of 207 |
 
 Read: before this source, we held **207** upcoming European in-person hackathons and the
 Hub **332**; the union is about **453**, so we were catching roughly **46 %** of Europe and
 the Hub roughly **73 %** — and neither is a superset of the other (121 of ours are not on
-the Hub, mostly Luma community events). Ingesting the Hub's English-with-prize slice adds
-46 rows; ingesting all its English hackathons would add ~160. That is the dial Ignas set
-to "prize only". Half of our European rows are invisible in the feed for lack of a
-registration deadline (106 of 207) — the Hub rows never have that problem.
+the Hub, mostly Luma community events). Ingesting the Hub's English prize-or-support
+slice adds 55 rows; ingesting all its English hackathons would add ~160 more. That is the
+dial Ignas set. Half of our European rows (106 of 207) were invisible in the feed for lack
+of a registration deadline — which is why, the same day, the eligibility gate stopped
+requiring one (`isUpcomingAndOpen`: unknown deadline now shows; a known past one hides).
 
 All of the above are wired into `lib/ingest/run.ts` and labelled in `lib/refresh-summary.ts`.
-The shared fail-closed eligibility rule (`isUpcomingAndOpen`) drops the many
+The shared eligibility rule (`isUpcomingAndOpen`) drops the many
 already-started / closed-registration entries either source returns.
 
 ## Ruled out by the 2026-07-26 open-egress probe

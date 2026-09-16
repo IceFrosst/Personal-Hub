@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   dayBounds,
+  hasSupport,
   isEnglish,
   isWanted,
   normaliseUrl,
@@ -73,6 +74,26 @@ test('prize money only: EUR-normalised first, raw amount second, zero and null d
   assert.equal(prizeLabel({ prize_money_eur: null, prize_money: 15000, prize_money_currency: 'PLN' }), '15,000 PLN')
   assert.equal(isWanted({ ...AALTO, prize_money: null, prize_money_eur: null }), false)
   assert.equal(isWanted(AALTO), true)
+})
+
+test('no prize but travel or accommodation support still qualifies, and the booleans ride into the row', () => {
+  const noPrize = { ...AALTO, prize_money: null, prize_money_eur: null }
+  assert.equal(hasSupport(noPrize), false)
+  assert.equal(isWanted({ ...noPrize, travel_costs_covered: true }), true, 'travel covered = the Hub\'s own filter')
+  assert.equal(isWanted({ ...noPrize, accommodation_provided: true }), true)
+  assert.equal(isWanted({ ...noPrize, accommodation_costs_covered: true }), true)
+  assert.equal(isWanted({ ...noPrize, travel_costs_covered: false, accommodation_provided: null }), false)
+
+  const row = toRow({ ...noPrize, travel_costs_covered: true, accommodation_provided: true })!
+  assert.equal(row.prize_pool, null)
+  assert.equal(row.travel_covered, true)
+  assert.equal(row.accommodation_covered, true)
+
+  // A stated "false" is NOT written: enrichment may still find reimbursement
+  // wording on the organiser page, and null is what lets it run.
+  const plain = toRow(AALTO)!
+  assert.equal(plain.travel_covered, null)
+  assert.equal(plain.accommodation_covered, null)
 })
 
 test('hackathon shape: type hackathon/gamejam, or a hack-titled challenge; accelerators and pitch competitions go', () => {

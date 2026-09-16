@@ -5,8 +5,9 @@ import { COUNTRY_NAMES } from './hacktrack'
  * Hackathon Hub (hackathonhub.eu) — curated directory of hackathons, challenges
  * and game jams across Europe, DACH-first.
  *
- * Asked for by Ignas on 2026-09-16, with two rules the same day: **English
- * only** and **prize money only**.
+ * Asked for by Ignas on 2026-09-16, with rules set the same day: **English
+ * only**, and **prize money — or travel / accommodation support** (the site
+ * has filters for both, so its curators record them per event).
  *
  * How it is read — and why not the HTML. The site is a Lovable-built React
  * shell over Supabase. Its `/events` page renders 45 rows and pages
@@ -17,9 +18,10 @@ import { COUNTRY_NAMES } from './hacktrack'
  * We read the same view the same way — one request, every field: exact
  * start/end instants, `application_deadline` (a real registration deadline,
  * which none of Luma/Eventbrite/HackTrack supply), `language`, `prize_money_eur`,
- * `location_type`, city/state/country, organiser `url`, and even
- * `travel_costs_covered` / `accommodation_provided` booleans (not yet carried —
- * see CLAUDE.md → Next).
+ * `location_type`, city/state/country, organiser `url`, and the curated
+ * `travel_costs_covered` / `accommodation_provided` booleans, which are carried
+ * into the row as `travel_covered` / `accommodation_covered` (true only — the
+ * Hub's `false` is its default for "not recorded", so it maps to null).
  *
  * Same class of source as HackQuest (whose GraphQL operation was lifted from
  * its bundle): public data through the site's own public read path. The anon
@@ -29,10 +31,11 @@ import { COUNTRY_NAMES } from './hacktrack'
  * update `ANON_KEY`, or drop the source.
  *
  * Filters, in order: published · starts in the future · type hackathon/gamejam
- * or a hack-titled challenge · `language === 'en'` · a positive prize. On
- * 2026-09-16 that was 358 → 332 → 246 → 62 rows. The prize rule is the sharp
- * one: it leaves ~180 English European hackathons on the table. Ignas chose
- * it; the count is here so the trade is visible.
+ * or a hack-titled challenge · `language === 'en'` · a positive prize OR travel
+ * costs covered OR accommodation provided/covered. On 2026-09-16 that was
+ * 358 → 332 → 246 → 72 rows (62 with prize, 10 more on support alone). ~175
+ * English European hackathons with neither stay off this source; the number
+ * is here so the trade stays visible.
  *
  * Rows use the organiser's `url` (Luma links normalised `luma.com` → `lu.ma`)
  * so they merge with Luma/Eventbrite rows under the URL-only dedupe.
@@ -70,12 +73,16 @@ export type HubEvent = {
   tags?: unknown
   status?: string | null
   level?: string | null
+  travel_costs_covered?: boolean | null
+  accommodation_provided?: boolean | null
+  accommodation_costs_covered?: boolean | null
 }
 
 const SELECT = [
   'id', 'slug', 'title', 'title_en', 'url', 'type', 'location_type', 'city', 'state', 'country',
   'start_date', 'end_date', 'application_deadline', 'prize_money', 'prize_money_currency',
   'prize_money_eur', 'language', 'tags', 'status', 'level',
+  'travel_costs_covered', 'accommodation_provided', 'accommodation_costs_covered',
 ].join(',')
 
 const num = (v: unknown): number | null => {
@@ -117,9 +124,20 @@ export function isEnglish(e: Pick<HubEvent, 'language'>): boolean {
   return (e.language ?? '').trim().toLowerCase() === 'en'
 }
 
+/** Travel costs covered, or a bed provided/paid — the Hub's own filter set. */
+export function hasSupport(
+  e: Pick<HubEvent, 'travel_costs_covered' | 'accommodation_provided' | 'accommodation_costs_covered'>
+): boolean {
+  return (
+    e.travel_costs_covered === true ||
+    e.accommodation_provided === true ||
+    e.accommodation_costs_covered === true
+  )
+}
+
 /** All of Ignas's rules plus the hackathon-shape test. */
 export function isWanted(e: HubEvent): boolean {
-  return isHackathonShaped(e) && isEnglish(e) && prizeEur(e) !== null
+  return isHackathonShaped(e) && isEnglish(e) && (prizeEur(e) !== null || hasSupport(e))
 }
 
 /** "Stubach", "Salzburg", "AT" → "Stubach, Salzburg, Austria" — names, because downstream checks are substring tests. */
@@ -198,6 +216,10 @@ export function toRow(e: HubEvent): IngestRow | null {
     // The one aggregator that states it — rows go straight past the fail-closed gate.
     registration_deadline:
       deadline && !Number.isNaN(Date.parse(deadline)) ? new Date(deadline).toISOString() : null,
+    // Curated booleans, true only: the Hub's false is "not recorded", not "no".
+    travel_covered: e.travel_costs_covered === true ? true : null,
+    accommodation_covered:
+      e.accommodation_provided === true || e.accommodation_costs_covered === true ? true : null,
     themes: tags,
   }
 }

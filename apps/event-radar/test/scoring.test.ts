@@ -75,8 +75,14 @@ test('fails closed when the start is missing', () => {
   assert.equal(isUpcomingAndOpen(hackathon({ starts_at: null }), NOW), false)
 })
 
-test('fails closed for non-Luma sources when registration deadline is missing', () => {
-  assert.equal(isUpcomingAndOpen(hackathon({ registration_deadline: null }), NOW), false)
+test('an unknown registration deadline does not hide an otherwise-upcoming event', () => {
+  // Ignas, 2026-09-16: a missing deadline is a fact about enrichment, not the event.
+  assert.equal(isUpcomingAndOpen(hackathon({ registration_deadline: null }), NOW), true)
+})
+
+test('dormant circuits and hand-seeded rows still need a real open deadline', () => {
+  assert.equal(isUpcomingAndOpen(hackathon({ source: 'known', registration_deadline: null }), NOW), false)
+  assert.equal(isUpcomingAndOpen(hackathon({ source: 'watch', registration_deadline: null }), NOW), false)
 })
 
 test('includes a Luma row with future start and no registration deadline', () => {
@@ -116,11 +122,11 @@ test('Luma with an explicit past deadline is still excluded', () => {
   )
 })
 
-test('fails closed when the start or registration deadline is malformed', () => {
+test('a malformed start fails closed; a malformed deadline counts as unknown', () => {
   assert.equal(isUpcomingAndOpen(hackathon({ starts_at: 'not-a-date' }), NOW), false)
   assert.equal(
     isUpcomingAndOpen(hackathon({ registration_deadline: 'not-a-date' }), NOW),
-    false
+    true
   )
 })
 
@@ -173,7 +179,11 @@ test('TreeHacks with future registration deadline is allowed', () => {
   )
 })
 
-test('travel-priority circuit without deadline is excluded (no bypass)', () => {
+test('travel-priority circuit without deadline shows like any other unknown-deadline event', () => {
+  // The Tier A prior used to be the one thing that could NOT bypass the deadline
+  // gate. Since the gate opened for unknown deadlines (2026-09-16) the circuit
+  // is treated like everyone else: a future start is enough. Dormant circuits
+  // (TreeHacks, PennApps…) are the exception and keep their own test above.
   assert.equal(
     isUpcomingAndOpen(
       hackathon({
@@ -184,7 +194,7 @@ test('travel-priority circuit without deadline is excluded (no bypass)', () => {
       }),
       NOW
     ),
-    false
+    true
   )
 })
 

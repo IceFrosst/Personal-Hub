@@ -14,6 +14,12 @@ export type IngestRow = {
   // Optional: most list sources don't know it (enrichment fills it later), but
   // some (ETHGlobal) provide an exact signup deadline up front.
   registration_deadline?: string | null
+  // Optional: a source that states them outright (Hackathon Hub's curated
+  // booleans). Written at insert; enrichment may confirm from the page, and a
+  // verified registry policy outranks both — never cleared back to null by a
+  // page that simply doesn't mention travel.
+  travel_covered?: boolean | null
+  accommodation_covered?: boolean | null
   themes: string[]
 }
 

@@ -27,13 +27,15 @@
   LT/LV/EE + PL, FI, DE, NL, SE, DK, NO, IT, CZ, UK, BE, AT, HU, GE (see flight screenshots
   in conversation history / settings defaults in types).
 - Feed and notification eligibility (`isUpcomingAndOpen` in `lib/scoring.ts`) is
-  **fail-closed** for most sources: both `starts_at` and `registration_deadline` must
-  parse as valid timestamps and must be strictly later than now; feed also requires
-  **≥7 days** until start. Missing, malformed, already-started, or closed-registration
-  rows never qualify.
-  **Luma exception:** the discovery API never supplies a registration deadline (RSVPs
-  stay open until the event starts). For `source === 'luma'` with a null deadline, a
-  strictly future `starts_at` is enough to qualify.
+  **fail-closed on the start, open on the deadline.** `starts_at` must parse, be
+  **≥7 days** out and inside the horizon; a `registration_deadline` that parses and is
+  already past hides the row. A **missing or malformed deadline does not hide anything**
+  (Ignas, 2026-09-16) — before that day the rule was "no deadline, no show", and it kept
+  half the catalog's European rows invisible for a fact about our enrichment, not about
+  the event. Two exceptions keep the old requirement: **dormant circuits**
+  (`isDormantCircuit`) and hand-seeded **`known`/`watch`** rows are placeholders until
+  someone records a real open deadline. The Luma-specific carve-out that used to live
+  here is gone — it is now the general rule.
 - **Dormant circuits** (`lib/dormant-tier-a.ts`): TreeHacks, PennApps, HackUPC, etc.
   Hidden from the main feed until registration is open — that gate lives **inside
   `isUpcomingAndOpen`** (dormant rows require a real future registration deadline), NOT
@@ -128,9 +130,13 @@
   hackathonhub (`lib/ingest/*.ts`), plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
-  `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
-  enrichment fills it elsewhere and never overwrites a source-provided value. Luma never
-  provides one (handled by the eligibility exception above).
+  `IngestRow.registration_deadline` is optional — ETHGlobal, HackQuest and Hackathon Hub
+  provide it; enrichment fills it elsewhere and never overwrites a source-provided value.
+  Luma never provides one; since the deadline gate opened that only affects the card's
+  deadline line, not visibility. `IngestRow.travel_covered` / `accommodation_covered` are
+  optional too (Hub only so far): written at insert, and enrichment's precedence is
+  **page extraction > circuit registry > source boolean**, so a source-stated `true`
+  survives an enrichment pass that found nothing.
 - The shared server runner (`lib/ingest/run.ts`) owns gather/enrich/notify. Newly inserted
   rows are enriched in the same run (priority), and rows that still have critical nulls
   (`format` / `travel_covered`) are also retried. Chunked `.in()` queries for DB stability.
@@ -184,13 +190,12 @@
     the same event would appear under one and not the other.
   - **New tab** (`lib/new-arrivals.ts`, chip shows a live count): everything
     ingested within `NEW_BADGE_HOURS` (72h), newest arrival first. It is the
-    one list that **deliberately skips `isUpcomingAndOpen`** — a row ingested
-    minutes ago has no `registration_deadline` yet (enrichment fills it on a
-    later pass) and the feed is fail-closed on that, so requiring eligibility
-    would leave the tab empty in exactly the minutes after a refresh when you
-    open it. Only the unknown-deadline gate is relaxed: already-started events
-    are still dropped, hidden rows stay hidden, and sorting is by arrival, not
-    score. Shares `isNewHackathon` with the card's blue New badge, so count,
+    one list that **deliberately skips `isUpcomingAndOpen`** — historically
+    because a row ingested minutes ago had no `registration_deadline` yet and the
+    feed hid it for that; the deadline gate has since opened, but New still
+    skips the 7-day lead-time and horizon rules so an arrival is visible the
+    minute it lands. Already-started events are still dropped, hidden rows stay
+    hidden, and sorting is by arrival, not score. Shares `isNewHackathon` with the card's blue New badge, so count,
     list and badges can never disagree. The chip count runs the **same** pipeline
     as the tab body (arrivals → chip filters), so it always equals the number of
     cards you get on tap — which means it moves as you toggle chips. That is
@@ -288,13 +293,17 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   and therefore no dates, so they could only ever live in the New tab. He did not want
   that. Rule going forward: a source that cannot supply `starts_at` (or a page enrichment
   can read to get it) is not a source. `SOURCES.md` keeps the resolver post-mortem.
-- **Hackathon Hub is read through its own public Supabase view, English + prize only**
-  (`lib/ingest/hackathonhub.ts`). The HTML is a client-rendered shell and the `.md` twins
-  lack the language, so the source queries `events_public` on the site's Supabase project
-  with the anon key from its bundle — the exact read every visitor's browser performs.
-  Ignas's rules: `language === 'en'` strictly (`mixed` fails) and `prize_money_eur`/
-  `prize_money` > 0. It is the only aggregator with `application_deadline`, so its rows
-  are feed-visible immediately. **Gotcha:** their anon key can rotate; a `401` from this
+- **Hackathon Hub is read through its own public Supabase view, English + (prize OR
+  travel/accommodation support)** (`lib/ingest/hackathonhub.ts`). The HTML is a
+  client-rendered shell and the `.md` twins lack the language, so the source queries
+  `events_public` on the site's Supabase project with the anon key from its bundle — the
+  exact read every visitor's browser performs. Ignas's rules: `language === 'en'` strictly
+  (`mixed` fails) and either `prize_money_eur`/`prize_money` > 0 or one of
+  `travel_costs_covered` / `accommodation_provided` / `accommodation_costs_covered` true —
+  the site's own "Travel & accommodation" filter. Those booleans ride into the row as
+  `travel_covered` / `accommodation_covered` (true only; a stated false stays null so
+  enrichment can still look). It is the only aggregator with `application_deadline`, but
+  only about half its rows carry one (33 of 72 on 2026-09-16). **Gotcha:** their anon key can rotate; a `401` from this
   source means re-read the bundle constant (`Nde` in `assets/index-*.js`) and update
   `ANON_KEY` — nothing else is wrong. Rows use the organiser URL (`luma.com` → `lu.ma`).
 - **Eventbrite** (`lib/ingest/eventbrite.ts`): the per-country search page's JSON-LD
@@ -314,7 +323,7 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   with no period); the country is the **tail text** of the themes footer, after
   the theme anchors. The `tr.` subdomain uses the same template with Turkish
   month names, which `parseListDate` deliberately does NOT parse — a null start
-  is dropped by the fail-closed feed rather than guessed. Supplies no
+  is dropped by the feed (no start = no row) rather than guessed. Supplies no
   registration deadline. Adds a second row for events already ingested
   elsewhere (dedupe is by URL alone) — the known aggregator trade-off.
   **Its page cap was the second Devpost-class bug** — `MAX_PAGES` was 5 while
@@ -375,8 +384,9 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 - **Dedupe is by URL ALONE, not `(source, url)`** — despite the table's unique constraint
   being `(source, url)`. The pre-insert filter in `run.ts` checks `.in('url', …)` with no
   source, so **the first source to claim a URL owns that row forever**. Aggregators (MLH,
-  Devpost) usually win the race and often carry no registration deadline, and eligibility
-  is fail-closed → the event is invisible in the feed permanently.
+  Devpost) usually win the race and often carry no registration deadline; while eligibility
+  was fail-closed on the deadline (until 2026-09-16) that made the event invisible in the
+  feed permanently.
   This silently defeated the `known`/`watch` seeds, whose entire job is to supply
   hand-verified deadlines for Tier A travel circuits: Hack the North and HackRice sat in
   the catalog as MLH rows with `registration_deadline = null`, and BigRed//Hacks with a
@@ -416,9 +426,10 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
 - **Hackathon Hub live as an ingest source** (`hackathonhub`, label "Hackathon Hub"):
-  the site's public `events_public` view, **English + prize-money events only** (Ignas,
-  2026-09-16). Live: 358 upcoming → 62 rows in ~1 s, 46 new to the catalog, all with
-  registration deadlines. Same day's yardstick (table in `SOURCES.md`): we held 207
+  the site's public `events_public` view, **English + (prize money OR travel/accommodation
+  support)** (Ignas, 2026-09-16). Live: 358 upcoming → 72 rows in ~1.3 s, 55 new to the
+  catalog; 17 carry a support boolean, 10 of those have no prize (incl. a travel-covered
+  BIO-RED hackathon in **Kaunas**); 33 state a deadline. Same day's yardstick (table in `SOURCES.md`): we held 207
   upcoming European in-person hackathons vs the Hub's 332, union ≈ 453 → we caught ~46 %,
   the Hub ~73 %, 121 of ours not on the Hub. **Google News source built and then
   disabled** the same week at Ignas's request (no dates → New tab only → not wanted).
@@ -552,17 +563,16 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   appear in the feed gradually, not all at once. If the source reports `error`, read the
   message: "every country page failed" = Vercel egress blocked (unlikely — the sandbox
   reached it), "carry no JSON-LD" = Eventbrite changed markup.
-- **After deploy: check `hackathonhub` in the ingest summary** — expect ~62 and
-  `inserted` in the forties on the first run; these rows appear in the feed immediately.
-- **Carry the Hub's travel/accommodation booleans.** `events_public` states
-  `travel_costs_covered` and `accommodation_provided` per event — exactly what enrichment
-  guesses from FAQ pages. Additive change: optional `travel_covered?` /
-  `accommodation_covered?` on `IngestRow`, written at insert when present, never
-  overwriting enrichment. Worth doing before widening this source.
-- **The prize dial.** 62 of the Hub's 246 English hackathons have a stated prize. If the
-  feed feels thin on Europe, the one-line change is dropping the prize rule in
-  `isWanted` (+~180 rows). Enrichment will take several runs to give them
-  deadlines (30 rows/run), so the feed fills over a few days, not at once.
+- **After deploy: check `hackathonhub` in the ingest summary** — expect ~72 and
+  `inserted` in the fifties on the first run; with the deadline gate open these rows
+  appear in the feed immediately, deadline or not.
+- **The feed just got denser — watch whether it got worse.** Opening the deadline gate
+  roughly doubles the visible European rows (106 → ~207 on the day). Every row without a
+  stated deadline now shows until 7 days before it starts, including ones whose
+  registration quietly closed. If closed-registration events start showing up, the fix is
+  more deadline *coverage* (enrichment reading the organiser page), not re-closing the gate.
+- **The prize/support dial.** 72 of the Hub's 246 English hackathons have a prize or
+  support; the other ~174 are one-line away (`isWanted`) if Europe still feels thin.
 - **Regions vs the daily digest.** The toggles apply to the feed only; a US event can
   still count toward "5 new hackathons" in the push. If that grates, `buildDigestPayload`
   can read `filters.hidden_regions` alongside `notification_settings` — the classifier is

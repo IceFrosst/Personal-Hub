@@ -242,14 +242,16 @@ export function isUpcomingAndOpen(h: Hackathon, now: Date = new Date()): boolean
     return registrationDeadline !== null && registrationDeadline > nowTimestamp
   }
 
-  if (h.source === 'luma' && registrationDeadline === null) {
-    return startsAt - nowTimestamp <= 120 * 86400000
-  }
-
+  // Deadline known and still open → in. Deadline unknown → ALSO in (Ignas,
+  // 2026-09-16): half the catalog's European rows were invisible only because
+  // no page had stated a deadline yet, which is a fact about our enrichment,
+  // not about the event. The start-date checks above (future, ≥7 days out,
+  // inside the horizon) remain the gate; a deadline is only ever a reason to
+  // hide, never a requirement to show. A malformed deadline counts as unknown.
+  // Dormant circuits and hand-seeded known/watch rows above are the exception:
+  // they are placeholders until someone records a real open deadline.
   if (registrationDeadline !== null) return registrationDeadline > nowTimestamp
 
-  // No more travel-priority bypass without deadline — was letting TreeHacks/PennApps through
   void isTravelPriority
-
-  return false
+  return true
 }

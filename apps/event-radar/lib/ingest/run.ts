@@ -268,6 +268,8 @@ export async function runIngest({
               format: row.format,
               prize_pool: row.prize_pool,
               registration_deadline: row.registration_deadline ?? null,
+              travel_covered: row.travel_covered ?? null,
+              accommodation_covered: row.accommodation_covered ?? null,
               themes: row.themes,
             })),
             { onConflict: 'source,url', ignoreDuplicates: true }
@@ -343,7 +345,9 @@ export async function runIngest({
         ? extracted.travel_covered
         : circuitPolicy
           ? circuitPolicy.scope !== 'none'
-          : circuitTravel
+          : // Registry prior, else whatever the source itself stated (Hackathon
+            // Hub's curated boolean). Page > registry > source > nothing.
+            (circuitTravel ?? row.travel_covered)
 
     // Precedence throughout: what the page said > what the registry verified >
     // nothing. The page is per-edition truth; the registry is a standing fact.
@@ -371,7 +375,7 @@ export async function runIngest({
     const basePatch: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
       travel_covered: travel,
-      accommodation_covered: extracted.accommodation_covered,
+      accommodation_covered: extracted.accommodation_covered ?? row.accommodation_covered,
       open_to_business_students: extracted.open_to_business_students,
       themes: themesWithPolicy,
     }
