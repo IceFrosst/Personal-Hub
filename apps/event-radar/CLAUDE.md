@@ -288,15 +288,15 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   and therefore no dates, so they could only ever live in the New tab. He did not want
   that. Rule going forward: a source that cannot supply `starts_at` (or a page enrichment
   can read to get it) is not a source. `SOURCES.md` keeps the resolver post-mortem.
-- **Hackathon Hub is a prize-money-only, English-page source** (`lib/ingest/hackathonhub.ts`).
-  Ignas's rules (2026-09-16): keep an event only when the Hub's `prize` field is a real
-  amount (`prizeAmount` parses €/£/$/CHF/PLN/CZK/RON with either decimal convention; N/A,
-  TBA and zero drop it), and fetch the `.md?lang=en` twin so copy is English. The Hub does
-  not record an event's *working* language — a German-run hackathon still arrives with an
-  English title — so do not claim more than page language. Rows use the organiser's URL,
-  with `luma.com` normalised to `lu.ma`, so they merge with Luma/Eventbrite rows under the
-  URL-only dedupe instead of doubling them. The `.md` twin per event is the whole source —
-  it throws if none fetch.
+- **Hackathon Hub is read through its own public Supabase view, English + prize only**
+  (`lib/ingest/hackathonhub.ts`). The HTML is a client-rendered shell and the `.md` twins
+  lack the language, so the source queries `events_public` on the site's Supabase project
+  with the anon key from its bundle — the exact read every visitor's browser performs.
+  Ignas's rules: `language === 'en'` strictly (`mixed` fails) and `prize_money_eur`/
+  `prize_money` > 0. It is the only aggregator with `application_deadline`, so its rows
+  are feed-visible immediately. **Gotcha:** their anon key can rotate; a `401` from this
+  source means re-read the bundle constant (`Nde` in `assets/index-*.js`) and update
+  `ANON_KEY` — nothing else is wrong. Rows use the organiser URL (`luma.com` → `lu.ma`).
 - **Eventbrite** (`lib/ingest/eventbrite.ts`): the per-country search page's JSON-LD
   gives **calendar days, not instants** ("2026-09-21"). Parsed naively, a two-day event
   is exactly 24 h and fails the Multi-day chip's `> 24h`, and a one-day event is 0 h.
@@ -416,11 +416,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
 - **Hackathon Hub live as an ingest source** (`hackathonhub`, label "Hackathon Hub"):
-  hackathonhub.eu's per-event Markdown twins via its sitemap, **prize-money events
-  only** (Ignas, same day). Live 2026-09-16: 130 upcoming hackathons on the site, 35 with
-  a stated prize → 35 rows in ~34 s, most new to the catalog. English pages via
-  `?lang=en`. Organiser URLs, so it merges with Luma/Eventbrite rows. **Google News source built and then disabled** the
-  same week at Ignas's request (no dates → New tab only → not wanted); rows deleted.
+  the site's public `events_public` view, **English + prize-money events only** (Ignas,
+  2026-09-16). Live: 358 upcoming → 62 rows in ~1 s, 46 new to the catalog, all with
+  registration deadlines. Same day's yardstick (table in `SOURCES.md`): we held 207
+  upcoming European in-person hackathons vs the Hub's 332, union ≈ 453 → we caught ~46 %,
+  the Hub ~73 %, 121 of ours not on the Hub. **Google News source built and then
+  disabled** the same week at Ignas's request (no dates → New tab only → not wanted).
 - **Garage48 live as an ingest source** (`garage48`): Estonian 48h hackathon organiser,
   server-rendered `/events`; 2 upcoming on 2026-09-09 (Future of Wood, Empowering Women —
   both Oct 16–18, Estonia). Round-two probe of ~60 more EU candidates found nothing else
@@ -551,8 +552,16 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   appear in the feed gradually, not all at once. If the source reports `error`, read the
   message: "every country page failed" = Vercel egress blocked (unlikely — the sandbox
   reached it), "carry no JSON-LD" = Eventbrite changed markup.
-- **After deploy: check `hackathonhub` in the ingest summary** — expect ~35 on the first
-  run (prize-money slice) and `inserted` in the twenties. Enrichment will take several runs to give them
+- **After deploy: check `hackathonhub` in the ingest summary** — expect ~62 and
+  `inserted` in the forties on the first run; these rows appear in the feed immediately.
+- **Carry the Hub's travel/accommodation booleans.** `events_public` states
+  `travel_costs_covered` and `accommodation_provided` per event — exactly what enrichment
+  guesses from FAQ pages. Additive change: optional `travel_covered?` /
+  `accommodation_covered?` on `IngestRow`, written at insert when present, never
+  overwriting enrichment. Worth doing before widening this source.
+- **The prize dial.** 62 of the Hub's 246 English hackathons have a stated prize. If the
+  feed feels thin on Europe, the one-line change is dropping the prize rule in
+  `isWanted` (+~180 rows). Enrichment will take several runs to give them
   deadlines (30 rows/run), so the feed fills over a few days, not at once.
 - **Regions vs the daily digest.** The toggles apply to the feed only; a US event can
   still count toward "5 new hackathons" in the push. If that grates, `buildDigestPayload`

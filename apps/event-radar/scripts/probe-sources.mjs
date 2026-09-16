@@ -22,14 +22,14 @@ const probes = [
     url: 'https://www.eventbrite.com/d/germany/hackathon/',
   },
   {
+    // The site's public PostgREST view, read with the anon key from its own bundle
+    // (see lib/ingest/hackathonhub.ts). A 401 here = they rotated the key.
     id: 'hackathonhub',
-    url: 'https://hackathonhub.eu/sitemap-events.xml',
-    cards: (xml) => `${(xml.match(/<loc>/g) ?? []).length} event urls`,
-  },
-  {
-    id: 'hackathonhub-md',
-    url: 'https://hackathonhub.eu/events/aaltoai-hackathon-data-sovereignty-responsible-ai-espoo-2026.md',
-    cards: (md) => (/^type:/m.test(md) ? 'frontmatter ok' : 'NO FRONTMATTER'),
+    url: 'https://czcrgiykicowicoufthv.supabase.co/rest/v1/events_public?select=id,language,prize_money_eur&status=eq.published&limit=5',
+    headers: {
+      apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6Y3JnaXlraWNvd2ljb3VmdGh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMTI5MTksImV4cCI6MjA3ODg4ODkxOX0.6t6d8obiFjsa_gTsQMn43_ACEC7VRRlC72l-IpFO6y0',
+      Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6Y3JnaXlraWNvd2ljb3VmdGh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMTI5MTksImV4cCI6MjA3ODg4ODkxOX0.6t6d8obiFjsa_gTsQMn43_ACEC7VRRlC72l-IpFO6y0',
+    },
   },
   {
     id: 'garage48',

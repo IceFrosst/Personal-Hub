@@ -3,123 +3,143 @@ import { COUNTRY_NAMES } from './hacktrack'
 
 /**
  * Hackathon Hub (hackathonhub.eu) — curated directory of hackathons, challenges
- * and game jams across Europe, DACH-first, with English and German copy.
+ * and game jams across Europe, DACH-first.
  *
- * Asked for by Ignas on 2026-09-16. Probed the same day: the `/events` page is
- * an app shell with a 45-row prerender and no server-side paging, and there is
- * no JSON API — but every event has a **Markdown twin** at
- * `/events/<slug>.md` with YAML front matter: title, date, end_date,
- * location ("City, CC"), format (onsite/online/hybrid), type
- * (hackathon/challenge/competition/gamejam), level, prize, tags, and `url`,
- * which is the organiser's registration link (luma.com, eventbrite.com, the
- * event's own site). `/sitemap-events.xml` lists all 509 event pages.
+ * Asked for by Ignas on 2026-09-16, with two rules the same day: **English
+ * only** and **prize money only**.
  *
- * So the source is: sitemap → keep slugs whose year suffix is this year or
- * later (a cheap pre-filter; the sitemap carries past editions back to 2024)
- * → fetch each `.md?lang=en` (~1 KB) → keep type hackathon/gamejam, or anything
- * whose title says hackathon → **prize money stated** → future start.
+ * How it is read — and why not the HTML. The site is a Lovable-built React
+ * shell over Supabase. Its `/events` page renders 45 rows and pages
+ * client-side; the Markdown twins (`/events/<slug>.md`) carry dates and prize
+ * but **not the language**, which only lives in the data the shell loads. That
+ * data is the public PostgREST view `events_public`, read by every visitor's
+ * browser with the anon key embedded in the site bundle (`assets/index-*.js`).
+ * We read the same view the same way — one request, every field: exact
+ * start/end instants, `application_deadline` (a real registration deadline,
+ * which none of Luma/Eventbrite/HackTrack supply), `language`, `prize_money_eur`,
+ * `location_type`, city/state/country, organiser `url`, and even
+ * `travel_costs_covered` / `accommodation_provided` booleans (not yet carried —
+ * see CLAUDE.md → Next).
  *
- * Two rules from Ignas (2026-09-16), both deliberate narrowing:
- *   • **Prize money only.** `prize` must be a real amount ("€10,000.00",
- *     "CHF 7,000.00", "$150.00"); `N/A`, missing or zero drops the event.
- *     Measured on the day: 35 of 130 upcoming hackathons carry one. The other
- *     95 are still reachable through Luma/Eventbrite if they list there; this
- *     source is the "worth the trip" slice.
- *   • **English.** The `.md` is fetched with `?lang=en` so titles and copy are
- *     the English rendering whatever the caller's locale. Note the limit: the
- *     Hub records the *page* language, not the event's working language — a
- *     German-run hackathon still arrives with an English title. Nothing on the
- *     site distinguishes the two, so this is the strongest guarantee available.
+ * Same class of source as HackQuest (whose GraphQL operation was lifted from
+ * its bundle): public data through the site's own public read path. The anon
+ * key is theirs and can be rotated at any time; when that happens this source
+ * throws with the HTTP status and the ingest summary shows it. Do not "fix" a
+ * 401 by looking for another key — re-read the bundle constant `Nde` and
+ * update `ANON_KEY`, or drop the source.
  *
- * Two dedupe decisions:
- *   • Rows use the organiser's `url`, not the hackathonhub page. Dedupe is by
- *     URL alone (see CLAUDE.md), so this is what lets a Hub row converge on
- *     the Luma / Eventbrite row for the same event instead of doubling it.
- *   • Hub writes Luma links as `luma.com/<slug>`; our Luma source writes
- *     `lu.ma/<slug>`. Normalised to `lu.ma` here so they collide on purpose.
- *     Eventbrite TLDs (`.de` vs `.com`) are not normalised — the Eventbrite
- *     source keeps whatever TLD Eventbrite served, which we cannot predict.
+ * Filters, in order: published · starts in the future · type hackathon/gamejam
+ * or a hack-titled challenge · `language === 'en'` · a positive prize. On
+ * 2026-09-16 that was 358 → 332 → 246 → 62 rows. The prize rule is the sharp
+ * one: it leaves ~180 English European hackathons on the table. Ignas chose
+ * it; the count is here so the trade is visible.
  *
- * Date-only bounds get the same day-bounds treatment as Eventbrite: an
- * `end_date` at 00:00:00 is bumped to 23:59:59 so a two-day event reads as
- * multi-day and a one-day one does not.
+ * Rows use the organiser's `url` (Luma links normalised `luma.com` → `lu.ma`)
+ * so they merge with Luma/Eventbrite rows under the URL-only dedupe.
  */
 
 const UA = 'Mozilla/5.0 (compatible; EventRadar/1.0; personal hackathon tracker)'
-const ORIGIN = 'https://hackathonhub.eu'
-const SITEMAP = `${ORIGIN}/sitemap-events.xml`
-const CONCURRENCY = 8
-/** Hard ceiling on detail fetches per sweep — a runaway guard, not a coverage decision. */
-export const MAX_DETAIL_FETCHES = 400
+const SUPABASE_URL = 'https://czcrgiykicowicoufthv.supabase.co'
+/** Public anon key from hackathonhub.eu's own bundle — RLS on their side gates what it can see. */
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6Y3JnaXlraWNvd2ljb3VmdGh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMTI5MTksImV4cCI6MjA3ODg4ODkxOX0.6t6d8obiFjsa_gTsQMn43_ACEC7VRRlC72l-IpFO6y0'
+const VIEW = 'events_public'
+const PAGE = 1000
+export const MAX_PAGES = 5
 
 const HACK_RE = /\bhack|hackathon|hack[- ]?day|hack[- ]?night|game\s*jam|buildathon|hakaton|häkaton\b/i
-const KEEP_TYPES = new Set(['hackathon', 'gamejam', 'game jam', 'game-jam'])
+const KEEP_TYPES = new Set(['hackathon', 'gamejam'])
 
-export type HubFrontMatter = {
-  title: string | null
-  date: string | null
-  end_date: string | null
-  location: string | null
-  format: string | null
-  type: string | null
-  level: string | null
-  prize: string | null
-  tags: string | null
-  url: string | null
-  canonical: string | null
+export type HubEvent = {
+  id?: string
+  slug?: string | null
+  title?: string | null
+  title_en?: string | null
+  url?: string | null
+  type?: string | null
+  location_type?: string | null
+  city?: string | null
+  state?: string | null
+  country?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  application_deadline?: string | null
+  prize_money?: number | string | null
+  prize_money_currency?: string | null
+  prize_money_eur?: number | string | null
+  language?: string | null
+  tags?: unknown
+  status?: string | null
+  level?: string | null
 }
 
-const unquote = (v: string): string =>
-  v.trim().replace(/^"([\s\S]*)"$/, '$1').replace(/^'([\s\S]*)'$/, '$1').trim()
+const SELECT = [
+  'id', 'slug', 'title', 'title_en', 'url', 'type', 'location_type', 'city', 'state', 'country',
+  'start_date', 'end_date', 'application_deadline', 'prize_money', 'prize_money_currency',
+  'prize_money_eur', 'language', 'tags', 'status', 'level',
+].join(',')
 
-/** The YAML front matter is flat key: value lines — no nesting, no lists. */
-export function parseFrontMatter(md: string): HubFrontMatter | null {
-  const m = /^---\s*\n([\s\S]*?)\n---/.exec(md)
-  if (!m) return null
-  const kv: Record<string, string> = {}
-  for (const line of m[1].split('\n')) {
-    const i = line.indexOf(':')
-    if (i <= 0) continue
-    kv[line.slice(0, i).trim()] = unquote(line.slice(i + 1))
+const num = (v: unknown): number | null => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v.replace(/[^\d.-]/g, ''))
+    return Number.isFinite(n) ? n : null
   }
-  const get = (k: string): string | null => {
-    const v = kv[k]
-    return v && v !== 'N/A' && v !== 'null' ? v : null
-  }
-  return {
-    title: get('title'),
-    date: get('date'),
-    end_date: get('end_date'),
-    location: get('location'),
-    format: get('format'),
-    type: get('type'),
-    level: get('level'),
-    prize: get('prize'),
-    tags: get('tags'),
-    url: get('url'),
-    canonical: get('canonical'),
-  }
+  return null
+}
+const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null)
+
+/** EUR-normalised amount when the Hub computed one, else the raw amount. Zero and null are "no prize". */
+export function prizeEur(e: Pick<HubEvent, 'prize_money' | 'prize_money_eur'>): number | null {
+  const eur = num(e.prize_money_eur)
+  if (eur !== null && eur > 0) return eur
+  const raw = num(e.prize_money)
+  return raw !== null && raw > 0 ? raw : null
 }
 
-/** "Stubach, Salzburg, AT" → "Stubach, Salzburg, Austria" — names, because every downstream check is a substring test. */
-export function expandLocation(loc: string | null): string | null {
-  if (!loc) return null
-  const parts = loc.split(',').map((p) => p.trim()).filter(Boolean)
-  if (parts.length === 0) return null
-  const last = parts[parts.length - 1]
-  if (/^[A-Z]{2}$/.test(last)) parts[parts.length - 1] = COUNTRY_NAMES[last] ?? last
-  return parts.join(', ')
+export function prizeLabel(
+  e: Pick<HubEvent, 'prize_money' | 'prize_money_eur' | 'prize_money_currency'>
+): string | null {
+  const eur = num(e.prize_money_eur)
+  if (eur !== null && eur > 0) return `€${Math.round(eur).toLocaleString('en-GB')}`
+  const raw = num(e.prize_money)
+  if (raw !== null && raw > 0)
+    return `${Math.round(raw).toLocaleString('en-GB')} ${str(e.prize_money_currency) ?? ''}`.trim()
+  return null
+}
+
+export function isHackathonShaped(e: Pick<HubEvent, 'type' | 'title' | 'title_en'>): boolean {
+  if (KEEP_TYPES.has((e.type ?? '').toLowerCase())) return true
+  return HACK_RE.test(e.title_en ?? e.title ?? '')
+}
+
+/** The Hub's `language` is a lower-case ISO code ('en', 'de', 'it'…, or 'mixed'). English means 'en', strictly. */
+export function isEnglish(e: Pick<HubEvent, 'language'>): boolean {
+  return (e.language ?? '').trim().toLowerCase() === 'en'
+}
+
+/** All of Ignas's rules plus the hackathon-shape test. */
+export function isWanted(e: HubEvent): boolean {
+  return isHackathonShaped(e) && isEnglish(e) && prizeEur(e) !== null
+}
+
+/** "Stubach", "Salzburg", "AT" → "Stubach, Salzburg, Austria" — names, because downstream checks are substring tests. */
+export function placeOf(e: Pick<HubEvent, 'city' | 'state' | 'country'>): string | null {
+  const country = str(e.country)
+  const name = country ? (COUNTRY_NAMES[country.toUpperCase()] ?? country) : null
+  const parts = [str(e.city), str(e.state), name].filter((p): p is string => !!p)
+  // Drop a state that merely repeats the city ("Berlin, Berlin, Germany").
+  const dedup = parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase())
+  return dedup.join(', ') || null
 }
 
 /** Organiser URL as the row URL, normalised so it collides with our other sources. */
-export function normaliseUrl(raw: string | null, canonical: string | null): string | null {
-  const pick = raw ?? canonical
+export function normaliseUrl(raw: string | null | undefined, slug: string | null | undefined): string | null {
+  const pick = str(raw) ?? (slug ? `https://hackathonhub.eu/events/${slug}` : null)
   if (!pick) return null
   try {
     const u = new URL(pick)
     if (/^(www\.)?luma\.com$/i.test(u.hostname)) u.hostname = 'lu.ma'
     u.hash = ''
-    // Tracking noise only — keep real query strings (some organisers route on them).
     for (const k of [...u.searchParams.keys()]) if (/^utm_|^ref$|^aff$/i.test(k)) u.searchParams.delete(k)
     return u.toString().replace(/\/$/, '') || null
   } catch {
@@ -127,8 +147,9 @@ export function normaliseUrl(raw: string | null, canonical: string | null): stri
   }
 }
 
-export function dayBounds(start: string | null, end: string | null): { starts_at: string | null; ends_at: string | null } {
-  const toDate = (s: string | null): Date | null => {
+/** Real instants from the view; a midnight end on a multi-day span means "that whole day". */
+export function dayBounds(start: string | null | undefined, end: string | null | undefined) {
+  const toDate = (s: string | null | undefined): Date | null => {
     if (!s) return null
     const d = new Date(s)
     return Number.isNaN(d.getTime()) ? null : d
@@ -137,7 +158,6 @@ export function dayBounds(start: string | null, end: string | null): { starts_at
   let e = toDate(end) ?? s
   if (s && e) {
     if (e.getTime() < s.getTime()) e = s
-    // A midnight end on a date-only feed means "that whole day".
     if (e.getUTCHours() === 0 && e.getUTCMinutes() === 0 && e.getUTCSeconds() === 0) {
       e = new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate(), 23, 59, 59))
     }
@@ -145,135 +165,97 @@ export function dayBounds(start: string | null, end: string | null): { starts_at
   return { starts_at: s ? s.toISOString() : null, ends_at: e ? e.toISOString() : null }
 }
 
-function formatOf(f: string | null): IngestRow['format'] {
-  const v = (f ?? '').toLowerCase()
-  if (v === 'online' || v === 'virtual') return 'online'
+function formatOf(t: string | null | undefined): IngestRow['format'] {
+  const v = (t ?? '').toLowerCase()
+  if (v === 'online' || v === 'virtual' || v === 'remote') return 'online'
   if (v === 'hybrid') return 'hybrid'
   if (v === 'onsite' || v === 'on-site' || v === 'in-person' || v === 'offline') return 'in_person'
   return null
 }
 
-/**
- * "€10,000.00" → 10000; "CHF 7,000.00" → 7000; "N/A" / "TBA" / "0" → null.
- * Digits with thousands separators; a trailing ".00" is cents, not thousands.
- */
-export function prizeAmount(prize: string | null): number | null {
-  if (!prize) return null
-  const m = /(\d[\d,.\s\u00a0]*)/.exec(prize)
-  if (!m) return null
-  let digits = m[1].replace(/[\s\u00a0]/g, '')
-  // Strip a decimal fraction (".00" / ",50") before removing thousands separators.
-  digits = digits.replace(/[.,]\d{1,2}$/, '')
-  const n = parseInt(digits.replace(/[.,]/g, ''), 10)
-  return Number.isFinite(n) && n > 0 ? n : null
-}
-
-export function hasPrizeMoney(fm: Pick<HubFrontMatter, 'prize'>): boolean {
-  return prizeAmount(fm.prize) !== null
-}
-
-export function isHackathonShaped(fm: HubFrontMatter): boolean {
-  const type = (fm.type ?? '').toLowerCase()
-  if (KEEP_TYPES.has(type)) return true
-  return HACK_RE.test(fm.title ?? '')
-}
-
-/** Hackathon-shaped AND paying out — both rules, see the header. */
-export function isWanted(fm: HubFrontMatter): boolean {
-  return isHackathonShaped(fm) && hasPrizeMoney(fm)
-}
-
-export function frontMatterToRow(fm: HubFrontMatter, slug: string): IngestRow | null {
-  if (!fm.title) return null
-  const url = normaliseUrl(fm.url, fm.canonical)
-  if (!url) return null
-  const { starts_at, ends_at } = dayBounds(fm.date, fm.end_date)
-  const format = formatOf(fm.format)
-  const tags = (fm.tags ?? '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .slice(0, 6)
+export function toRow(e: HubEvent): IngestRow | null {
+  const title = str(e.title_en) ?? str(e.title)
+  const url = normaliseUrl(e.url, e.slug)
+  if (!title || !url) return null
+  const { starts_at, ends_at } = dayBounds(e.start_date, e.end_date)
+  // The Hub sometimes files an online event as onsite with city "Online" (seen:
+  // BR41N.IO, country AT). The city word is the truer signal.
+  const format = /^online$/i.test(e.city ?? '') ? 'online' : formatOf(e.location_type)
+  const tags = Array.isArray(e.tags)
+    ? e.tags.filter((t): t is string => typeof t === 'string' && t.trim() !== '').slice(0, 6)
+    : []
+  const deadline = str(e.application_deadline)
   return {
     source: 'hackathonhub',
-    source_id: slug,
-    title: fm.title,
+    source_id: str(e.slug) ?? str(e.id),
+    title,
     url,
     starts_at,
     ends_at,
-    location_raw: format === 'online' ? null : expandLocation(fm.location),
+    location_raw: format === 'online' ? null : placeOf(e),
     format,
-    prize_pool: fm.prize,
+    prize_pool: prizeLabel(e),
+    // The one aggregator that states it — rows go straight past the fail-closed gate.
+    registration_deadline:
+      deadline && !Number.isNaN(Date.parse(deadline)) ? new Date(deadline).toISOString() : null,
     themes: tags,
   }
 }
 
-export function slugsFromSitemap(xml: string): string[] {
-  const out: string[] = []
-  const re = /<loc>\s*https?:\/\/hackathonhub\.eu\/events\/([^<\s]+?)\s*<\/loc>/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml)) !== null) out.push(m[1])
-  return out
-}
-
-/** Slugs end in the edition year ("…-berlin-2026"); anything older than this year cannot be upcoming. */
-export function candidateSlugs(slugs: string[], now: Date = new Date()): string[] {
-  const year = now.getUTCFullYear()
-  return slugs.filter((s) => {
-    const m = /-(20\d{2})$/.exec(s)
-    return !m || parseInt(m[1], 10) >= year
-  })
-}
-
-async function fetchText(url: string, timeoutMs: number): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'text/markdown, text/plain, application/xml, */*' },
-      signal: AbortSignal.timeout(timeoutMs),
-      redirect: 'follow',
-    })
-    if (!res.ok) return null
-    return await res.text()
-  } catch {
-    return null
+export function selectRows(events: HubEvent[], now: Date = new Date()): IngestRow[] {
+  const t = now.getTime()
+  const byUrl = new Map<string, IngestRow>()
+  for (const e of events) {
+    if ((e.status ?? 'published') !== 'published') continue
+    if (!isWanted(e)) continue
+    const row = toRow(e)
+    if (!row) continue
+    const start = row.starts_at ? Date.parse(row.starts_at) : NaN
+    if (!Number.isFinite(start) || start <= t) continue
+    if (!byUrl.has(row.url)) byUrl.set(row.url, row)
   }
+  return [...byUrl.values()]
+}
+
+export function queryUrl(now: Date, page: number): string {
+  const p = new URLSearchParams({
+    select: SELECT,
+    status: 'eq.published',
+    start_date: `gte.${now.toISOString()}`,
+    order: 'start_date.asc',
+    limit: String(PAGE),
+    offset: String(page * PAGE),
+  })
+  return `${SUPABASE_URL}/rest/v1/${VIEW}?${p.toString()}`
 }
 
 export async function fetchHackathonHub(now: Date = new Date()): Promise<IngestRow[]> {
-  const xml = await fetchText(SITEMAP, 12000)
-  if (!xml) throw new Error('hackathonhub: sitemap-events.xml unreachable')
-  const all = slugsFromSitemap(xml)
-  if (all.length === 0) throw new Error(`hackathonhub: sitemap has no /events/ URLs (${xml.length} bytes) — moved?`)
-
-  const slugs = candidateSlugs(all, now).slice(0, MAX_DETAIL_FETCHES)
-  const rows: IngestRow[] = []
-  let fetched = 0
-  let next = 0
-  const worker = async () => {
-    while (next < slugs.length) {
-      const slug = slugs[next++]
-      const md = await fetchText(`${ORIGIN}/events/${slug}.md?lang=en`, 10000)
-      if (!md) continue
-      fetched++
-      const fm = parseFrontMatter(md)
-      if (!fm || !isWanted(fm)) continue
-      const row = frontMatterToRow(fm, slug)
-      if (row) rows.push(row)
+  const all: HubEvent[] = []
+  for (let page = 0; page < MAX_PAGES; page++) {
+    let res: Response
+    try {
+      res = await fetch(queryUrl(now, page), {
+        headers: {
+          apikey: ANON_KEY,
+          Authorization: `Bearer ${ANON_KEY}`,
+          Accept: 'application/json',
+          'User-Agent': UA,
+        },
+        signal: AbortSignal.timeout(15000),
+      })
+    } catch (err) {
+      throw new Error(`hackathonhub: fetch failed — ${err instanceof Error ? err.message : String(err)}`)
     }
+    if (!res.ok) {
+      // 401/403 here almost certainly means the site rotated its anon key — see header.
+      throw new Error(`hackathonhub: events_public -> ${res.status}`)
+    }
+    const body = (await res.json()) as unknown
+    if (!Array.isArray(body)) throw new Error('hackathonhub: response is not an array — view shape drifted?')
+    all.push(...(body as HubEvent[]))
+    if (body.length < PAGE) break
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, slugs.length) }, worker))
-
-  // The sitemap answered but not one detail page did: the .md twins moved.
-  if (slugs.length > 0 && fetched === 0) {
-    throw new Error(`hackathonhub: 0 of ${slugs.length} .md pages fetched — markdown twins gone?`)
-  }
-
-  const t = now.getTime()
-  const byUrl = new Map<string, IngestRow>()
-  for (const r of rows) {
-    const start = r.starts_at ? Date.parse(r.starts_at) : NaN
-    if (!Number.isFinite(start) || start <= t) continue
-    if (!byUrl.has(r.url)) byUrl.set(r.url, r)
-  }
-  return [...byUrl.values()]
+  // Upcoming published events are never zero on a live directory of this size.
+  if (all.length === 0) throw new Error('hackathonhub: 0 upcoming published events — filter or view drifted?')
+  return selectRows(all, now)
 }
