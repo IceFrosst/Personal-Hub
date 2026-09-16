@@ -37,7 +37,7 @@ const API = 'https://hacktrack-eu.vercel.app/api/hackathons?status=upcoming'
  * test against country NAMES — "FR" would never match "france". Mapping here
  * is what makes these rows scoreable at all.
  */
-const COUNTRY_NAMES: Record<string, string> = {
+export const COUNTRY_NAMES: Record<string, string> = {
   AL: 'Albania',
   AT: 'Austria',
   BA: 'Bosnia and Herzegovina',

@@ -125,7 +125,7 @@
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
   taikai, dorahacks, startuplithuania, allhackathons, hacktrack, eventbrite, garage48,
-  newsrss (`lib/ingest/*.ts`), plus known/watch.
+  hackathonhub (`lib/ingest/*.ts`), plus known/watch.
   **Domain/source status is tracked in `SOURCES.md`**. (Topcoder was removed — it
   threw on every production sweep and is low-value for a travel/in-person radar.)
   `IngestRow.registration_deadline` is optional — ETHGlobal and HackQuest provide it;
@@ -283,14 +283,15 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   script.mts` (Node ≥ 22.21; the `.mts` extension is needed for top-level await). A bare
   `405` from every host means the proxy saw a non-CONNECT request — that flag is the fix.
   Production Vercel has open egress with different IPs again.
-- **News rows never reach the main feed — by construction, not by accident.**
-  `lib/ingest/newsrss.ts` (Google News RSS, EN/LT queries) produces rows whose URL is a
-  `news.google.com` redirect that no server can resolve (post-mortem in `SOURCES.md`), so
-  `starts_at` is null and `isUpcomingAndOpen` is false forever. They live in the **New tab**
-  for 72 h (the one list that skips the date gate) as a press-mentions click-through
-  stream, and `run.ts` excludes `news.google.com` URLs from enrichment so they never burn
-  an LLM slot. Do not "fix" the null dates by guessing from the title. Language rule from
-  Ignas: **English and Lithuanian query words only** — a test enforces the character set.
+- **No date-less rows on purpose.** A Google News press-mentions source shipped on
+  2026-09-15 and was switched off by Ignas the next day: its rows had no resolvable URL
+  and therefore no dates, so they could only ever live in the New tab. He did not want
+  that. Rule going forward: a source that cannot supply `starts_at` (or a page enrichment
+  can read to get it) is not a source. `SOURCES.md` keeps the resolver post-mortem.
+- **Hackathon Hub rows use the organiser's URL, not the hub page** (`lib/ingest/hackathonhub.ts`),
+  with `luma.com` normalised to `lu.ma`, so they merge with Luma/Eventbrite rows under the
+  URL-only dedupe instead of doubling them. The `.md` twin per event is the whole source —
+  it throws if none fetch.
 - **Eventbrite** (`lib/ingest/eventbrite.ts`): the per-country search page's JSON-LD
   gives **calendar days, not instants** ("2026-09-21"). Parsed naively, a two-day event
   is exactly 24 h and fails the Multi-day chip's `> 24h`, and a one-day event is 0 h.
@@ -409,12 +410,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
-- **News (LT/EN) live as an ingest source** (`newsrss`, label "News (LT/EN)"): Google News
-  RSS, five EN/LT queries over the Baltics, Poland and the Nordics. Live 2026-09-15: 3
-  announcements in 45 days (Cyber Arena šaulių hakatonas; University of Latvia EUDIS
-  Defence Hackathon 2026; Google's Warsaw student AI hackathon) — none carried by any
-  other source. Rows surface in the **New tab only** (no resolvable URL → no dates); the
-  full resolver post-mortem is in `SOURCES.md`.
+- **Hackathon Hub live as an ingest source** (`hackathonhub`, label "Hackathon Hub"):
+  hackathonhub.eu's per-event Markdown twins via its sitemap. Live 2026-09-16: 130
+  upcoming rows in 34 s, 102 new to the catalog, 24 countries. Organiser URLs, so it
+  merges with Luma/Eventbrite rows. **Google News source built and then disabled** the
+  same week at Ignas's request (no dates → New tab only → not wanted); rows deleted.
 - **Garage48 live as an ingest source** (`garage48`): Estonian 48h hackathon organiser,
   server-rendered `/events`; 2 upcoming on 2026-09-09 (Future of Wood, Empowering Women —
   both Oct 16–18, Estonia). Round-two probe of ~60 more EU candidates found nothing else
@@ -545,11 +545,9 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   appear in the feed gradually, not all at once. If the source reports `error`, read the
   message: "every country page failed" = Vercel egress blocked (unlikely — the sandbox
   reached it), "carry no JSON-LD" = Eventbrite changed markup.
-- **Give news rows dates if Google's link resolver ever works again.** Watch the
-  `googlenewsdecoder` project; when its RPC payload succeeds, add a resolve step to
-  `newsrss.ts` and extend `enrich.ts` to extract `starts_at`/`ends_at` when null (it does
-  not today — enrichment fills format/city/country/deadline only). Until then the New tab
-  is the delivery surface; check it after the next few ingest runs to judge signal/noise.
+- **After deploy: check `hackathonhub` in the ingest summary** — expect ~130 on the first
+  run and a large `inserted` (≈100). Enrichment will take several runs to give them
+  deadlines (30 rows/run), so the feed fills over a few days, not at once.
 - **Regions vs the daily digest.** The toggles apply to the feed only; a US event can
   still count toward "5 new hackathons" in the push. If that grates, `buildDigestPayload`
   can read `filters.hidden_regions` alongside `notification_settings` — the classifier is

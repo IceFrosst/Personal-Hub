@@ -22,9 +22,14 @@ const probes = [
     url: 'https://www.eventbrite.com/d/germany/hackathon/',
   },
   {
-    id: 'newsrss-lt',
-    url: 'https://news.google.com/rss/search?q=hakatonas&hl=lt&gl=LT&ceid=LT:lt',
-    cards: (xml) => `${(xml.match(/<item>/g) ?? []).length} items`,
+    id: 'hackathonhub',
+    url: 'https://hackathonhub.eu/sitemap-events.xml',
+    cards: (xml) => `${(xml.match(/<loc>/g) ?? []).length} event urls`,
+  },
+  {
+    id: 'hackathonhub-md',
+    url: 'https://hackathonhub.eu/events/aaltoai-hackathon-data-sovereignty-responsible-ai-espoo-2026.md',
+    cards: (md) => (/^type:/m.test(md) ? 'frontmatter ok' : 'NO FRONTMATTER'),
   },
   {
     id: 'garage48',
