@@ -6,9 +6,11 @@ import {
   dayBounds,
   expandLocation,
   frontMatterToRow,
+  hasPrizeMoney,
   isWanted,
   normaliseUrl,
   parseFrontMatter,
+  prizeAmount,
   slugsFromSitemap,
 } from '../lib/ingest/hackathonhub'
 
@@ -74,6 +76,25 @@ test('type filter: hackathons and game jams stay; a hack-titled "competition" st
   assert.equal(isWanted({ ...fm, type: 'competition', title: 'Hackathon Future Smart City 2026' }), true)
   assert.equal(isWanted({ ...fm, type: 'competition', title: 'AI Pitch Competition' }), false)
   assert.equal(isWanted({ ...fm, type: 'challenge', title: 'MassChallenge Switzerland Accelerator 2026' }), false)
+})
+
+test('prize money is required: every currency shape the Hub uses parses, N/A and zero drop the event', () => {
+  const fm = parseFrontMatter(MD)!
+  assert.equal(prizeAmount('€10,000.00'), 10000)
+  assert.equal(prizeAmount('CHF\u00a07,000.00'), 7000)
+  assert.equal(prizeAmount('CZK\u00a0100,000.00'), 100000)
+  assert.equal(prizeAmount('$150.00'), 150)
+  assert.equal(prizeAmount('£2,000.00'), 2000)
+  assert.equal(prizeAmount('€1.500,50'), 1500, 'continental decimal comma')
+  assert.equal(prizeAmount('N/A'), null)
+  assert.equal(prizeAmount('TBA'), null)
+  assert.equal(prizeAmount('€0.00'), null)
+  assert.equal(prizeAmount(null), null)
+  // A real hackathon with no prize is not wanted from this source (Ignas, 2026-09-16).
+  assert.equal(isWanted({ ...fm, prize: null }), false)
+  assert.equal(isWanted({ ...fm, prize: 'N/A' }), false)
+  assert.equal(isWanted({ ...fm, prize: '€4,000.00' }), true)
+  assert.equal(hasPrizeMoney({ prize: 'Prizes worth 5.000 €' }), true, 'amount buried in prose still counts')
 })
 
 test('location expansion and URL normalisation edge cases', () => {

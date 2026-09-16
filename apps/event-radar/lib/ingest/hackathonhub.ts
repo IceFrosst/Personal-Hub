@@ -16,8 +16,20 @@ import { COUNTRY_NAMES } from './hacktrack'
  *
  * So the source is: sitemap → keep slugs whose year suffix is this year or
  * later (a cheap pre-filter; the sitemap carries past editions back to 2024)
- * → fetch each `.md` (~1 KB) → keep type hackathon/gamejam, or anything whose
- * title says hackathon → future start.
+ * → fetch each `.md?lang=en` (~1 KB) → keep type hackathon/gamejam, or anything
+ * whose title says hackathon → **prize money stated** → future start.
+ *
+ * Two rules from Ignas (2026-09-16), both deliberate narrowing:
+ *   • **Prize money only.** `prize` must be a real amount ("€10,000.00",
+ *     "CHF 7,000.00", "$150.00"); `N/A`, missing or zero drops the event.
+ *     Measured on the day: 35 of 130 upcoming hackathons carry one. The other
+ *     95 are still reachable through Luma/Eventbrite if they list there; this
+ *     source is the "worth the trip" slice.
+ *   • **English.** The `.md` is fetched with `?lang=en` so titles and copy are
+ *     the English rendering whatever the caller's locale. Note the limit: the
+ *     Hub records the *page* language, not the event's working language — a
+ *     German-run hackathon still arrives with an English title. Nothing on the
+ *     site distinguishes the two, so this is the strongest guarantee available.
  *
  * Two dedupe decisions:
  *   • Rows use the organiser's `url`, not the hackathonhub page. Dedupe is by
@@ -141,10 +153,34 @@ function formatOf(f: string | null): IngestRow['format'] {
   return null
 }
 
-export function isWanted(fm: HubFrontMatter): boolean {
+/**
+ * "€10,000.00" → 10000; "CHF 7,000.00" → 7000; "N/A" / "TBA" / "0" → null.
+ * Digits with thousands separators; a trailing ".00" is cents, not thousands.
+ */
+export function prizeAmount(prize: string | null): number | null {
+  if (!prize) return null
+  const m = /(\d[\d,.\s\u00a0]*)/.exec(prize)
+  if (!m) return null
+  let digits = m[1].replace(/[\s\u00a0]/g, '')
+  // Strip a decimal fraction (".00" / ",50") before removing thousands separators.
+  digits = digits.replace(/[.,]\d{1,2}$/, '')
+  const n = parseInt(digits.replace(/[.,]/g, ''), 10)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+export function hasPrizeMoney(fm: Pick<HubFrontMatter, 'prize'>): boolean {
+  return prizeAmount(fm.prize) !== null
+}
+
+export function isHackathonShaped(fm: HubFrontMatter): boolean {
   const type = (fm.type ?? '').toLowerCase()
   if (KEEP_TYPES.has(type)) return true
   return HACK_RE.test(fm.title ?? '')
+}
+
+/** Hackathon-shaped AND paying out — both rules, see the header. */
+export function isWanted(fm: HubFrontMatter): boolean {
+  return isHackathonShaped(fm) && hasPrizeMoney(fm)
 }
 
 export function frontMatterToRow(fm: HubFrontMatter, slug: string): IngestRow | null {
@@ -216,7 +252,7 @@ export async function fetchHackathonHub(now: Date = new Date()): Promise<IngestR
   const worker = async () => {
     while (next < slugs.length) {
       const slug = slugs[next++]
-      const md = await fetchText(`${ORIGIN}/events/${slug}.md`, 10000)
+      const md = await fetchText(`${ORIGIN}/events/${slug}.md?lang=en`, 10000)
       if (!md) continue
       fetched++
       const fm = parseFrontMatter(md)

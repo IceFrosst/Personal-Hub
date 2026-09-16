@@ -288,7 +288,12 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   and therefore no dates, so they could only ever live in the New tab. He did not want
   that. Rule going forward: a source that cannot supply `starts_at` (or a page enrichment
   can read to get it) is not a source. `SOURCES.md` keeps the resolver post-mortem.
-- **Hackathon Hub rows use the organiser's URL, not the hub page** (`lib/ingest/hackathonhub.ts`),
+- **Hackathon Hub is a prize-money-only, English-page source** (`lib/ingest/hackathonhub.ts`).
+  Ignas's rules (2026-09-16): keep an event only when the Hub's `prize` field is a real
+  amount (`prizeAmount` parses €/£/$/CHF/PLN/CZK/RON with either decimal convention; N/A,
+  TBA and zero drop it), and fetch the `.md?lang=en` twin so copy is English. The Hub does
+  not record an event's *working* language — a German-run hackathon still arrives with an
+  English title — so do not claim more than page language. Rows use the organiser's URL,
   with `luma.com` normalised to `lu.ma`, so they merge with Luma/Eventbrite rows under the
   URL-only dedupe instead of doubling them. The `.md` twin per event is the whole source —
   it throws if none fetch.
@@ -411,9 +416,10 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
 
 - **Hackathon Hub live as an ingest source** (`hackathonhub`, label "Hackathon Hub"):
-  hackathonhub.eu's per-event Markdown twins via its sitemap. Live 2026-09-16: 130
-  upcoming rows in 34 s, 102 new to the catalog, 24 countries. Organiser URLs, so it
-  merges with Luma/Eventbrite rows. **Google News source built and then disabled** the
+  hackathonhub.eu's per-event Markdown twins via its sitemap, **prize-money events
+  only** (Ignas, same day). Live 2026-09-16: 130 upcoming hackathons on the site, 35 with
+  a stated prize → 35 rows in ~34 s, most new to the catalog. English pages via
+  `?lang=en`. Organiser URLs, so it merges with Luma/Eventbrite rows. **Google News source built and then disabled** the
   same week at Ignas's request (no dates → New tab only → not wanted); rows deleted.
 - **Garage48 live as an ingest source** (`garage48`): Estonian 48h hackathon organiser,
   server-rendered `/events`; 2 upcoming on 2026-09-09 (Future of Wood, Empowering Women —
@@ -545,8 +551,8 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
   appear in the feed gradually, not all at once. If the source reports `error`, read the
   message: "every country page failed" = Vercel egress blocked (unlikely — the sandbox
   reached it), "carry no JSON-LD" = Eventbrite changed markup.
-- **After deploy: check `hackathonhub` in the ingest summary** — expect ~130 on the first
-  run and a large `inserted` (≈100). Enrichment will take several runs to give them
+- **After deploy: check `hackathonhub` in the ingest summary** — expect ~35 on the first
+  run (prize-money slice) and `inserted` in the twenties. Enrichment will take several runs to give them
   deadlines (30 rows/run), so the feed fills over a few days, not at once.
 - **Regions vs the daily digest.** The toggles apply to the feed only; a US event can
   still count toward "5 new hackathons" in the push. If that grates, `buildDigestPayload`
