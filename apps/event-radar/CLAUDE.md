@@ -120,9 +120,14 @@
   that do not exist. `summary.luma_queries`
   (`ok`/`blocked`/`failed`) makes the limiter visible in the cron report; a
   persistently high `blocked` means lower the window, not add retries.
-- Feed (`components/Feed.tsx`) fetches the newest **1000** catalog rows then filters with
-  `isUpcomingAndOpen` client-side. Raise this before the catalog outgrows it, or move the
-  future-start filter server-side (the limit is applied *before* eligibility filtering).
+- Feed (`components/Feed.tsx`) reads **every row that has not started yet**, in
+  1000-row pages (`lib/feed-query.ts`), plus the rows the user has a status on (so the
+  Applied tab keeps a hackathon that already ran), then filters with `isUpcomingAndOpen`
+  client-side. It used to fetch the newest 1000 rows and stop — PostgREST's per-response
+  cap — which on 2026-09-16 (catalog 1927 rows) hid **182 upcoming events** that were
+  simply older in the database. Past rows are not fetched at all: nothing lists them.
+  Payload is ~1.4 MB today for ~720 upcoming rows; if that grows uncomfortable on a
+  phone, the next step is `select` without `raw_description` and loading it on tap.
 - Ingest sources return `IngestRow[]` and throw on total failure; the cron reports
   per-source errors in its JSON response instead of dying (check the Vercel cron logs).
   Sources: devpost, mlh, ethglobal, hackerearth, hackclub, luma, hackquest, devfolio,
@@ -424,6 +429,11 @@ anon/authenticated/service_role — grants unlock the API, RLS gates the rows.
 ## Current state
 
 **Live on main** — production ships from `main` to `icefrosst-event-radar`.
+
+- **Feed shows the whole upcoming catalog** (2026-09-16): the 1000-row read cap was
+  binding — 182 of 576 upcoming eligible rows were invisible. Now paged
+  (`lib/feed-query.ts`), upcoming-only, statused rows fetched by id. Same day the
+  eligibility gate stopped requiring a registration deadline (see Conventions).
 
 - **Hackathon Hub live as an ingest source** (`hackathonhub`, label "Hackathon Hub"):
   the site's public `events_public` view, **English + (prize money OR travel/accommodation

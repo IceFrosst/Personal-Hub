@@ -9,6 +9,7 @@ import { selectNewArrivals } from '@/lib/new-arrivals'
 import { matchesFeedFilters, type FormatMode } from '@/lib/feed-filters'
 import { REGION_KEYS, REGION_LABELS, REGION_SHORT_LABELS, regionKeyOf, type RegionKey } from '@/lib/continents'
 import { coerceFeedPrefs, DEFAULT_FEED_PREFS, mergeFeedPrefs, type FeedPrefs } from '@/lib/feed-prefs'
+import { feedStartCutoff, fetchAllPages, PAGE_SIZE } from '@/lib/feed-query'
 import {
   coerceHackathon,
   coerceNotificationSettings,
@@ -51,13 +52,23 @@ export default function Feed({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const [{ data: rows }, { data: statusRows }, { data: prefRow }] = await Promise.all([
-      supabase
-        .schema('hackathon')
-        .from('hackathons')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000),
+    // Every row that has not started yet, in 1000-row pages — PostgREST caps a
+    // single response at 1000 and the old `.limit(1000)` on the newest rows
+    // silently hid 182 upcoming events once the catalog passed that size (see
+    // lib/feed-query.ts). Past rows are not fetched: nothing lists them except
+    // the Applied tab, whose rows are fetched by id below.
+    const cutoff = feedStartCutoff()
+    const [rows, { data: statusRows }, { data: prefRow }] = await Promise.all([
+      fetchAllPages(async (from, to) => {
+        const { data } = await supabase
+          .schema('hackathon')
+          .from('hackathons')
+          .select('*')
+          .gte('starts_at', cutoff)
+          .order('created_at', { ascending: false })
+          .range(from, to)
+        return data ?? []
+      }),
       supabase
         .schema('hackathon')
         .from('user_hackathon_status')
@@ -69,7 +80,24 @@ export default function Feed({ userId }: { userId: string }) {
         .eq('user_id', userId)
         .maybeSingle(),
     ])
-    setHackathons((rows ?? []).map((r) => coerceHackathon(r as Record<string, unknown>)))
+    // Rows the user has a status on but that already started (an applied
+    // hackathon from last month) are not in the upcoming set; fetch them so
+    // the Applied tab keeps showing them.
+    const loadedIds = new Set(rows.map((r) => (r as { id: string }).id))
+    const missingIds = (statusRows ?? [])
+      .map((r) => r.hackathon_id as string)
+      .filter((id) => !loadedIds.has(id))
+    const extra =
+      missingIds.length > 0
+        ? (
+            await supabase
+              .schema('hackathon')
+              .from('hackathons')
+              .select('*')
+              .in('id', missingIds.slice(0, PAGE_SIZE))
+          ).data ?? []
+        : []
+    setHackathons([...rows, ...extra].map((r) => coerceHackathon(r as Record<string, unknown>)))
     setStatuses(
       Object.fromEntries((statusRows ?? []).map((r) => [r.hackathon_id, r.status as UserStatus]))
     )
