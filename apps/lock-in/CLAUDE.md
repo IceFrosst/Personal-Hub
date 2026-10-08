@@ -51,8 +51,10 @@ archive view (`app/archive/page.tsx`). Deployed from `main`.
 **Game Plan** (`/game-plan`, linked from the home header) — AI day-scheduler over the task list.
 Connect Google Calendar → "Plan my day" reads open tasks + today's calendar, Gemini estimates
 durations and time-blocks a realistic day around existing events, and the blocks are written as
-real calendar events + shown as an in-app timeline. Work-hours + auto-plan toggle in settings.
-A daily Vercel cron (`vercel.json`, 05:00 UTC) plans every connected user automatically.
+real calendar events + shown as an in-app timeline. Work-hours live in settings; a prominent
+**Auto-plan each morning** button above the timeline switches the morning cron on/off, shows the
+saved state, and rolls back with an error if persistence fails. A daily Vercel cron (`vercel.json`,
+05:00 UTC) plans every connected user who has auto-plan enabled.
 
 **Add task from Game Plan** — the full `AddTaskBar` (one-off + recurring, voice, priority, due date,
 tag) lives at the **bottom** of the Game Plan page (today/tomorrow only), below the planned day.

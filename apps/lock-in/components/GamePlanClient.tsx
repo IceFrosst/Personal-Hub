@@ -51,6 +51,7 @@ export default function GamePlanClient() {
   const [day, setDay] = useState<Day>('today')
   const [loading, setLoading] = useState(true)
   const [planning, setPlanning] = useState(false)
+  const [savingAutoPlan, setSavingAutoPlan] = useState(false)
   const [reordering, setReordering] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -975,26 +976,51 @@ export default function GamePlanClient() {
     [providerToken]
   )
 
-  async function saveSettings(patch: Partial<PlanSettings>) {
-    if (!userId || !settings) return
+  async function saveSettings(patch: Partial<PlanSettings>): Promise<boolean> {
+    if (!userId || !settings) return false
     const next = { ...settings, ...patch, updated_at: new Date().toISOString() }
     setSettings(next)
-    await supabase
-      .schema('lock_in')
-      .from('plan_settings')
-      .upsert(
-        {
-          user_id: userId,
-          work_start: next.work_start,
-          work_end: next.work_end,
-          timezone: next.timezone,
-          auto_plan: next.auto_plan,
-          deep_work_count: next.deep_work_count ?? 2,
-          deep_work_min_minutes: next.deep_work_min_minutes ?? 120,
-          updated_at: next.updated_at,
-        },
-        { onConflict: 'user_id' }
-      )
+    try {
+      const { error: saveError } = await supabase
+        .schema('lock_in')
+        .from('plan_settings')
+        .upsert(
+          {
+            user_id: userId,
+            work_start: next.work_start,
+            work_end: next.work_end,
+            timezone: next.timezone,
+            auto_plan: next.auto_plan,
+            deep_work_count: next.deep_work_count ?? 2,
+            deep_work_min_minutes: next.deep_work_min_minutes ?? 120,
+            updated_at: next.updated_at,
+          },
+          { onConflict: 'user_id' }
+        )
+
+      if (saveError) throw saveError
+      return true
+    } catch {
+      setError('Could not save your planning settings. Try again.')
+      return false
+    }
+  }
+
+  async function toggleAutoPlan() {
+    if (!settings || savingAutoPlan) return
+    const wasEnabled = settings.auto_plan
+    setSavingAutoPlan(true)
+    setError(null)
+    try {
+      const saved = await saveSettings({ auto_plan: !wasEnabled })
+      if (!saved) {
+        setSettings((current) =>
+          current ? { ...current, auto_plan: wasEnabled } : current
+        )
+      }
+    } finally {
+      setSavingAutoPlan(false)
+    }
   }
 
   const connected = !!connection
@@ -1063,6 +1089,45 @@ export default function GamePlanClient() {
           <>
             {showSettings && settings && (
               <SettingsPanel settings={settings} onChange={saveSettings} />
+            )}
+
+            {settings && (
+              <button
+                type="button"
+                onClick={toggleAutoPlan}
+                disabled={savingAutoPlan}
+                aria-pressed={settings.auto_plan}
+                className={`w-full min-h-14 rounded-xl border px-4 py-3 flex items-center justify-between gap-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/70 disabled:opacity-60 ${
+                  settings.auto_plan
+                    ? 'bg-gold/10 border-gold/40 active:bg-gold/15'
+                    : 'bg-surface border-border active:bg-surface-elevated'
+                }`}
+              >
+                <span className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      settings.auto_plan ? 'bg-gold text-black' : 'bg-surface-elevated text-text-muted'
+                    }`}
+                  >
+                    <IconBolt size={19} stroke={2.2} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-text">Auto-plan each morning</span>
+                    <span className="block text-[11px] leading-snug text-text-low">
+                      {settings.auto_plan
+                        ? 'On — your day is built automatically'
+                        : 'Off — your schedule stays in your hands'}
+                    </span>
+                  </span>
+                </span>
+                <span
+                  className={`text-xs font-semibold shrink-0 ${
+                    settings.auto_plan ? 'text-gold' : 'text-text-muted'
+                  }`}
+                >
+                  {savingAutoPlan ? 'Saving…' : settings.auto_plan ? 'On' : 'Off'}
+                </span>
+              </button>
             )}
 
             {day === 'yesterday' ? (
@@ -1573,15 +1638,6 @@ function SettingsPanel({
           })}
         </div>
       </div>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-text-muted text-sm">Auto-plan each morning</span>
-        <input
-          type="checkbox"
-          checked={settings.auto_plan}
-          onChange={(e) => onChange({ auto_plan: e.target.checked })}
-          className="h-5 w-5 accent-gold"
-        />
-      </label>
     </div>
   )
 }
