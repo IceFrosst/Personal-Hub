@@ -117,10 +117,7 @@ class ReelsOverlayService : AccessibilityService() {
                 requestUpdate()
                 scheduleRechecks()
             }
-            false -> {
-                handler.removeCallbacks(recheck)
-                hideOverlay()
-            }
+            false -> confirmDeparture()
             null -> Unit
         }
     }
@@ -157,6 +154,23 @@ class ReelsOverlayService : AccessibilityService() {
     private val treeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var queryInFlight = false
     private var updateQueuedWhileBusy = false
+
+    /**
+     * Another app reported a full-screen window. That is usually leaving Instagram, but taps in
+     * the gesture-navigation strip make the Pixel launcher emit such events while Instagram stays
+     * in front; hiding then let the next tap reach the real Reels tab. Hide only after confirming
+     * that the active window really is no longer Instagram.
+     */
+    private fun confirmDeparture() {
+        treeExecutor.execute {
+            val active = try { rootInActiveWindow?.packageName?.toString() } catch (_: RuntimeException) { null }
+            if (active == INSTAGRAM_PACKAGE) return@execute
+            handler.post {
+                handler.removeCallbacks(recheck)
+                hideOverlay()
+            }
+        }
+    }
 
     private fun updateFromInstagramTree() {
         if (queryInFlight) {
