@@ -15,14 +15,17 @@ internal class LockIconView(context: Context) : View(context) {
     }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private var iconColor: Int = 0
+    private var patchColor: Int = 0
 
-    fun setIconColor(color: Int) {
-        iconColor = color
+    fun setColors(icon: Int, patch: Int) {
+        iconColor = icon
+        patchColor = patch
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        canvas.drawColor(patchColor)
         val w = width.toFloat()
         val h = height.toFloat()
         val unit = minOf(w, h)

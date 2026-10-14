@@ -1,10 +1,14 @@
 # Reels Lock (Android)
 
-A local, native Kotlin/Views utility for a personal Pixel 8 sideload (Android 11/API 30 or newer). It runs alongside the official Instagram app (`com.instagram.android`) and replaces the configured item in its five-item bottom bar with a monochrome lock (position 2 by default, matching the tested Pixel layout). The cell uses Instagram's dark or light navigation color, consumes every tap, and gives brief visual/text feedback.
+A personal, offline Kotlin utility (Android 11/API 30+) that runs beside the official Instagram app and replaces its Reels tab with a lock. Taps on the tab are consumed, so Reels cannot be opened from the navigation bar.
+
+## How it works
+
+An Accessibility Service locally finds Instagram's Reels tab (`clips_tab`) and its screen bounds, then places a touch-consuming accessibility overlay exactly over it. The lock follows the real tab and disappears on Instagram screens where the tab bar is hidden, and whenever you leave Instagram.
 
 ## Install and setup
 
-Build `app/build/outputs/apk/debug/app-debug.apk` with the Gradle command below and install the APK on your phone. On Pixel, Android may block Accessibility activation for sideloaded apps: if prompted/blocked, open **App info → ⋮ → Allow restricted settings** for this trusted personal APK. Then open Reels Lock, enable its Accessibility service in Android Settings, return to the app, then open Instagram. Confirm alignment on your device; choose the current Reels tab position and use the upward vertical calibration and dark-background controls as needed. The vertical offset is stored locally.
+Build `app/build/outputs/apk/debug/app-debug.apk` and install it. If Android blocks enabling the service for a sideloaded app, use **App info → ⋮ → Allow restricted settings**. Then enable **Reels Lock** in Accessibility settings and open Instagram. After every reinstall, toggle the service off and on.
 
 ## Build and tests
 
@@ -15,8 +19,6 @@ export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 ```
 
-## Privacy and limitations
+## Privacy
 
-The service subscribes only to window-state events and checks event package metadata to detect Instagram entry/departure. It does not retrieve the active window, accessibility root, or view content. The overlay is an `TYPE_ACCESSIBILITY_OVERLAY` and is removed outside Instagram, on interruption, and on service destruction. There is no Internet permission, account, backend, telemetry, VPN, root, Shizuku, modified Instagram, advertising, or subscription. Alignment and tab order depend on Instagram/device layout and should be verified after updates, rotation, and gesture/button navigation changes. Calibration changes appear after the next overlay presentation.
-
-This is an independent utility and is not affiliated with Instagram/Meta.
+The service can read Instagram's accessibility tree but uses it only to locate the Reels tab and its bounds, and reads one bar pixel from an accessibility screenshot to match colors. Nothing is logged, stored, or transmitted; the app has no Internet permission, account, telemetry, VPN, root, or modified Instagram. Not affiliated with Instagram/Meta.
