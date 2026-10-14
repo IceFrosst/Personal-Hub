@@ -43,6 +43,33 @@ class ReelsOverlayService : AccessibilityService() {
      * Instagram keeps reporting the old tab bar while screen transitions animate, and sends no
      * event once they finish. Re-check shortly after every change so the lock settles with it.
      */
+    /** Coalesce bursts of Instagram events into one tree query per frame. */
+    private var updatePending = false
+    private val coalescedUpdate = Runnable {
+        updatePending = false
+        updateFromInstagramTree()
+    }
+
+    private fun requestUpdate() {
+        if (updatePending) return
+        updatePending = true
+        handler.post(coalescedUpdate)
+    }
+
+    private var fastPollUntil = 0L
+    private val fastPoll = object : Runnable {
+        override fun run() {
+            updateFromInstagramTree()
+            if (SystemClock.uptimeMillis() < fastPollUntil) handler.postDelayed(this, FAST_POLL_INTERVAL_MS)
+        }
+    }
+
+    private fun startFastPolling() {
+        fastPollUntil = SystemClock.uptimeMillis() + FAST_POLL_WINDOW_MS
+        handler.removeCallbacks(fastPoll)
+        handler.postDelayed(fastPoll, FAST_POLL_INTERVAL_MS)
+    }
+
     private fun scheduleRechecks() {
         handler.removeCallbacks(recheck)
         recheckIndex = 0
@@ -50,7 +77,8 @@ class ReelsOverlayService : AccessibilityService() {
     }
     private var patchColor: Int = TabColors.HOME_PROFILE
     private var lastSampleAt = 0L
-    private var lastEjectAt = 0L
+    private val sampler = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var lastEjectAt = 0L
     private var lastSelectedTab: String? = null
     private var samplePending = false
     private var windowManager: WindowManager? = null
@@ -86,12 +114,12 @@ class ReelsOverlayService : AccessibilityService() {
             INSTAGRAM_PACKAGE, setOf(SYSTEM_UI_PACKAGE, defaultInputMethodPackage)
         )) {
             true -> {
-                updateFromInstagramTree()
+                requestUpdate()
                 scheduleRechecks()
             }
             false -> {
                 handler.removeCallbacks(recheck)
-                removeOverlay()
+                hideOverlay()
             }
             null -> Unit
         }
@@ -118,25 +146,67 @@ class ReelsOverlayService : AccessibilityService() {
         }
     }
 
+    private sealed interface TreeState {
+        object Ignore : TreeState
+        object Hide : TreeState
+        data class Show(val bounds: Rect, val selectedTab: String?) : TreeState
+    }
+
+    // Tree queries are answered on Instagram's UI thread and can block for 100ms+ during
+    // navigation; run them off our main thread so the lock window itself never stalls.
+    private val treeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var queryInFlight = false
+    private var updateQueuedWhileBusy = false
+
     private fun updateFromInstagramTree() {
-        val root = rootInActiveWindow ?: return
-        // Shade/keyboard/other transient windows can be active; only Instagram's tree decides.
-        if (root.packageName?.toString() != INSTAGRAM_PACKAGE) return
-        if (leaveReelsIfOpened(root)) return
-        val bounds = findReelsBounds(root)
-        if (bounds == null) {
-            removeOverlay()
+        if (queryInFlight) {
+            updateQueuedWhileBusy = true
             return
         }
-        // Tab changes get an immediate best guess; the screenshot sample then refines it.
-        val selected = selectedTabId(root)
-        if (selected != lastSelectedTab) {
-            lastSelectedTab = selected
-            patchColor = TabColors.patchFor(selected)
-            refreshMarkerStyle()
+        queryInFlight = true
+        treeExecutor.execute {
+            val state = try { readTree() } catch (_: RuntimeException) { TreeState.Ignore }
+            handler.post {
+                queryInFlight = false
+                applyTree(state)
+                if (updateQueuedWhileBusy) {
+                    updateQueuedWhileBusy = false
+                    requestUpdate()
+                }
+            }
         }
-        showOverlay(bounds)
-        scheduleColorSample()
+    }
+
+    /** Background thread: read Instagram's tree only. */
+    private fun readTree(): TreeState {
+        val root = rootInActiveWindow ?: return TreeState.Ignore
+        // Shade/keyboard/other transient windows can be active; only Instagram's tree decides.
+        if (root.packageName?.toString() != INSTAGRAM_PACKAGE) return TreeState.Ignore
+        if (leaveReelsIfOpened(root)) return TreeState.Ignore
+        // Instagram marks the tab bar not-visible before it drops the Reels node, so this is the
+        // earliest tree signal that a screen without the bar is opening.
+        if (!hasTabBar(root)) return TreeState.Hide
+        // With the bar present, a momentarily missing Reels node (fast tab switching) keeps the lock.
+        val bounds = findReelsBounds(root)?.takeIf(::isRestingTabBounds) ?: return TreeState.Ignore
+        return TreeState.Show(bounds, selectedTabId(root))
+    }
+
+    /** Main thread: apply the result to the lock window. */
+    private fun applyTree(state: TreeState) {
+        when (state) {
+            TreeState.Ignore -> Unit
+            TreeState.Hide -> hideOverlay()
+            is TreeState.Show -> {
+                // Tab changes get an immediate best guess; the screenshot sample then refines it.
+                if (state.selectedTab != lastSelectedTab) {
+                    lastSelectedTab = state.selectedTab
+                    patchColor = TabColors.patchFor(state.selectedTab)
+                    refreshMarkerStyle()
+                }
+                showOverlay(state.bounds)
+                scheduleColorSample()
+            }
+        }
     }
 
     /** Throttled: Instagram's bar is translucent, so its color drifts while content scrolls. */
@@ -153,25 +223,31 @@ class ReelsOverlayService : AccessibilityService() {
 
     /** Reads one bar pixel beside the lock (inside our transparent cell); nothing is kept. */
     private fun sampleBarColor() {
+        if (!shown) return
         val bounds = tabBounds ?: return
+        val x0 = bounds.left + dp(6)
+        val y0 = bounds.centerY()
         lastSampleAt = SystemClock.uptimeMillis()
-        takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+        // Decode on a background thread: copying a full-screen bitmap takes ~100ms and would
+        // otherwise stall the tree polls that hide the lock when the tab bar disappears.
+        takeScreenshot(Display.DEFAULT_DISPLAY, sampler, object : TakeScreenshotCallback {
             override fun onSuccess(result: ScreenshotResult) {
                 val buffer = result.hardwareBuffer
-                try {
+                val color = try {
                     val hardware = Bitmap.wrapHardwareBuffer(buffer, result.colorSpace) ?: return
                     val soft = hardware.copy(Bitmap.Config.ARGB_8888, false)
                     hardware.recycle()
-                    val x = (bounds.left + dp(6)).coerceIn(0, soft.width - 1)
-                    val y = bounds.centerY().coerceIn(0, soft.height - 1)
-                    val color = soft.getPixel(x, y) or 0xFF000000.toInt()
+                    val c = soft.getPixel(x0.coerceIn(0, soft.width - 1), y0.coerceIn(0, soft.height - 1))
                     soft.recycle()
-                    if (overlay != null && color != patchColor) {
+                    c or 0xFF000000.toInt()
+                } finally {
+                    buffer.close()
+                }
+                handler.post {
+                    if (overlay != null && shown && color != patchColor) {
                         patchColor = color
                         refreshMarkerStyle()
                     }
-                } finally {
-                    buffer.close()
                 }
             }
 
@@ -205,10 +281,23 @@ class ReelsOverlayService : AccessibilityService() {
     private fun findReelsBounds(root: AccessibilityNodeInfo): Rect? {
         val byId = root.findAccessibilityNodeInfosByViewId(REELS_VIEW_ID)
             .firstOrNull { it.isVisibleToUser && it.isClickable }
-        val target = byId ?: findByDescription(root)
+        // The description walk is slow (one IPC per node) and can hit stale nodes mid-transition,
+        // so only use it as a fallback while Instagram's tab bar actually exists.
+        val target = byId ?: if (hasTabBar(root)) findByDescription(root) else null
         return target?.let {
             Rect().also(it::getBoundsInScreen).takeIf { rect -> !rect.isEmpty }
         }
+    }
+
+    private fun hasTabBar(root: AccessibilityNodeInfo): Boolean =
+        root.findAccessibilityNodeInfosByViewId(TAB_BAR_VIEW_ID).any { it.isVisibleToUser }
+
+    /** Ignore bounds caught mid-animation (sliding screens), so the lock never flies around. */
+    private fun isRestingTabBounds(bounds: Rect): Boolean {
+        val screen = (getSystemService(WINDOW_SERVICE) as WindowManager).currentWindowMetrics.bounds
+        return bounds.left >= screen.left && bounds.right <= screen.right &&
+            bounds.bottom <= screen.bottom && bounds.top >= screen.bottom - screen.height() / 5 &&
+            bounds.width() in 1..(screen.width() / 3)
     }
 
     private fun findByDescription(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -234,10 +323,17 @@ class ReelsOverlayService : AccessibilityService() {
         targetBounds = Rect(bounds.left, bounds.top - dp(8), bounds.right, maxOf(bounds.bottom, screenBottom))
         if (overlay != null) {
             positionWindow()
+            setShown(true)
             return
         }
         val manager = getSystemService(WINDOW_SERVICE) as WindowManager
         val root = FrameLayout(this).apply {
+            // A tap elsewhere in Instagram may open a screen without the tab bar. Instagram's
+            // accessibility events lag its UI by ~100ms, so poll the live tree right away.
+            setOnTouchListener { _, motion ->
+                if (motion.actionMasked == android.view.MotionEvent.ACTION_OUTSIDE) startFastPolling()
+                false
+            }
             isClickable = true
             isFocusable = false
             setBackgroundColor(Color.TRANSPARENT)
@@ -258,15 +354,21 @@ class ReelsOverlayService : AccessibilityService() {
             isFocusable = false
         }
         root.addView(icon, FrameLayout.LayoutParams(dp(36), dp(36), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+        val target = targetBounds!!
         val params = WindowManager.LayoutParams(
-            1, 1, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            target.width(), target.height(), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.LEFT
+            // Created directly at its final spot with no window animation: nothing flies in.
+            x = target.left
+            y = target.top
+            windowAnimations = 0
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             }
@@ -274,11 +376,12 @@ class ReelsOverlayService : AccessibilityService() {
         }
         try {
             manager.addView(root, params)
+            shown = true
             windowManager = manager
             overlay = root
             button = icon
             refreshMarkerStyle()
-            root.post { positionWindow() }
+            positionWindow()
         } catch (_: WindowManager.BadTokenException) {
             overlay = null
             button = null
@@ -325,7 +428,28 @@ class ReelsOverlayService : AccessibilityService() {
         icon.layoutParams = icon.layoutParams.apply { width = dp(36); height = dp(36) }
     }
 
+    private var shown = false
+
+    /** Hidden = invisible and touch-transparent, but the window stays so re-showing is instant. */
+    private fun setShown(visible: Boolean) {
+        val root = overlay ?: return
+        val manager = windowManager ?: return
+        if (shown == visible && root.visibility == (if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE)) return
+        shown = visible
+        root.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        val params = root.layoutParams as WindowManager.LayoutParams
+        params.flags = if (visible) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        manager.updateViewLayout(root, params)
+    }
+
+    private fun hideOverlay() = setShown(false)
+
     private fun removeOverlay() {
+        shown = false
         val root = overlay ?: run {
             targetBounds = null
             return
@@ -348,9 +472,12 @@ class ReelsOverlayService : AccessibilityService() {
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
         private const val REELS_VIEW_ID = "com.instagram.android:id/clips_tab"
         private const val HOME_VIEW_ID = "com.instagram.android:id/feed_tab"
+        private const val TAB_BAR_VIEW_ID = "com.instagram.android:id/tab_bar"
         private const val EJECT_COOLDOWN_MS = 600L
         private const val MAX_SEARCHED_NODES = 500
         private const val SAMPLE_INTERVAL_MS = 400L
         private val RECHECK_DELAYS_MS = longArrayOf(100, 250, 500)
+        private const val FAST_POLL_INTERVAL_MS = 32L
+        private const val FAST_POLL_WINDOW_MS = 600L
     }
 }
