@@ -50,6 +50,7 @@ class ReelsOverlayService : AccessibilityService() {
     }
     private var patchColor: Int = TabColors.HOME_PROFILE
     private var lastSampleAt = 0L
+    private var lastEjectAt = 0L
     private var lastSelectedTab: String? = null
     private var samplePending = false
     private var windowManager: WindowManager? = null
@@ -121,6 +122,7 @@ class ReelsOverlayService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         // Shade/keyboard/other transient windows can be active; only Instagram's tree decides.
         if (root.packageName?.toString() != INSTAGRAM_PACKAGE) return
+        if (leaveReelsIfOpened(root)) return
         val bounds = findReelsBounds(root)
         if (bounds == null) {
             removeOverlay()
@@ -182,6 +184,23 @@ class ReelsOverlayService : AccessibilityService() {
             root.findAccessibilityNodeInfosByViewId("$INSTAGRAM_PACKAGE:id/$id")
                 .any { it.isSelected }
         }
+
+    /**
+     * Second line of defence: a tap can land in the brief gap before the lock reappears after a
+     * transition. If the Reels tab ever becomes selected, immediately switch Instagram to Home.
+     */
+    private fun leaveReelsIfOpened(root: AccessibilityNodeInfo): Boolean {
+        val reelsSelected = root.findAccessibilityNodeInfosByViewId(REELS_VIEW_ID).any { it.isSelected }
+        if (!reelsSelected) return false
+        val now = SystemClock.uptimeMillis()
+        if (now - lastEjectAt < EJECT_COOLDOWN_MS) return true
+        lastEjectAt = now
+        val home = root.findAccessibilityNodeInfosByViewId(HOME_VIEW_ID).firstOrNull { it.isClickable }
+        if (home?.performAction(AccessibilityNodeInfo.ACTION_CLICK) != true) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        }
+        return true
+    }
 
     private fun findReelsBounds(root: AccessibilityNodeInfo): Rect? {
         val byId = root.findAccessibilityNodeInfosByViewId(REELS_VIEW_ID)
@@ -328,6 +347,8 @@ class ReelsOverlayService : AccessibilityService() {
         private const val INSTAGRAM_PACKAGE = "com.instagram.android"
         private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
         private const val REELS_VIEW_ID = "com.instagram.android:id/clips_tab"
+        private const val HOME_VIEW_ID = "com.instagram.android:id/feed_tab"
+        private const val EJECT_COOLDOWN_MS = 600L
         private const val MAX_SEARCHED_NODES = 500
         private const val SAMPLE_INTERVAL_MS = 400L
         private val RECHECK_DELAYS_MS = longArrayOf(100, 250, 500)

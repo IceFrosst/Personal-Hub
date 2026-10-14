@@ -17,6 +17,8 @@ No backend or account. SharedPreferences stores only the dark/light lock-patch s
 - HDR: when Instagram's feed shows HDR media it renders with `desiredHdrHeadroom=1.7`, so the display dims plain sRGB layers (SurfaceFlinger `dimmingRatio` 0.588) relative to Instagram's undimmed layer. Screenshots can't show this (pre-composition). `HdrMatch` brightens the patch in linear light by the display's live HDR/SDR ratio (capped at 1.7). Do **not** set the overlay window to `COLOR_MODE_HDR`: that requests unlimited headroom, boosts the whole panel, and mismatches non-HDR tabs.
 - Touch shield spans the Reels column from 8dp above the tab to the screen bottom, because Instagram's Reels hit area extends below the visible tab; the lock glyph stays centred on the real tab.
 - Instagram keeps reporting the old tab bar during screen transitions and sends no event when they end, so every Instagram event schedules tree re-checks at 100/250/500ms. Re-checks ignore non-Instagram active windows (e.g. the notification shade) so they can't remove the lock behind it.
+- Second line of defence: a fast tap can land in the ~100ms gap before the lock reappears after a transition. If `clips_tab` is ever selected, the service clicks `feed_tab` (fallback: global Back), with a 600ms cooldown.
+- Testing: `uiautomator dump` temporarily suspends other accessibility services, so the lock vanishes right after it; check the overlay with `dumpsys window` instead.
 - `adb shell settings put secure enabled_accessibility_services` (null, then the component) rebinds the service after a reinstall without touching the phone.
 - If Instagram renames `clips_tab`, the content-description fallback still finds the tab; if both change, update `REELS_VIEW_ID` in `ReelsOverlayService`.
 
