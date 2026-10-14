@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Reels Lock</string>
+    <string name="accessibility_description">Places a tap-blocking lock over Instagram’s Reels tab while Instagram is in the foreground. Does not inspect screen content.</string>
+</resources>
