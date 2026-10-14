@@ -8,31 +8,26 @@ internal object OverlayGeometry {
     }
     data class Insets(val left: Int, val top: Int, val right: Int, val bottom: Int)
 
-    /** Convert a screen-coordinate hit rectangle into a window/frame-local rectangle. */
-    fun toFrameCoordinates(screenRect: Rect, frameScreenX: Int, frameScreenY: Int): Rect = Rect(
-        screenRect.left - frameScreenX,
-        screenRect.top - frameScreenY,
-        screenRect.right - frameScreenX,
-        screenRect.bottom - frameScreenY
-    )
-
-    fun fourthCell(
+    fun tabCell(
         display: Rect,
         leftInset: Int,
         topInset: Int,
         rightInset: Int,
         bottomInset: Int,
         tabHeightPx: Int,
-        verticalOffsetPx: Int
+        verticalOffsetPx: Int,
+        tabIndex: Int,
+        tabCount: Int = 5
     ): Rect {
         require(display.width > 0 && display.height > 0 && tabHeightPx > 0)
+        require(tabCount > 0 && tabIndex in 0 until tabCount)
         val safeLeft = (display.left + leftInset).coerceAtMost(display.right)
         val safeTop = (display.top + topInset).coerceAtMost(display.bottom)
         val safeRight = (display.right - rightInset).coerceAtLeast(safeLeft)
         val safeBottom = (display.bottom - bottomInset).coerceAtLeast(safeTop)
         val usableWidth = safeRight - safeLeft
-        val cellLeft = safeLeft + usableWidth * 3 / 5
-        val cellRight = safeLeft + usableWidth * 4 / 5
+        val cellLeft = safeLeft + usableWidth * tabIndex / tabCount
+        val cellRight = safeLeft + usableWidth * (tabIndex + 1) / tabCount
         val height = tabHeightPx.coerceAtMost(safeBottom - safeTop)
         val centerY = (safeBottom - height / 2 + verticalOffsetPx)
             .coerceIn(safeTop + height / 2, safeBottom - (height - height / 2))
@@ -54,5 +49,6 @@ internal object ForegroundPolicy {
 internal object LockPreferences {
     const val NAME = "calibration"
     const val OFFSET_DP = "vertical_offset_dp"
+    const val TAB_INDEX = "tab_index"
     const val DARK = "dark_calibration"
 }

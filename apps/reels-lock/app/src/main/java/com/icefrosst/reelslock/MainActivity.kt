@@ -46,7 +46,24 @@ class MainActivity : Activity() {
         })
         content.addView(button("Open Instagram") { openInstagram() })
         content.addView(label("Setup", 20, true))
-        content.addView(label("1. Enable Reels Lock in Android Accessibility settings.\n2. Return here and open Instagram.\n3. Check the lock sits on the fourth bottom tab. Use calibration below if needed.", 16))
+        content.addView(label("1. Enable Reels Lock in Android Accessibility settings.\n2. Return here and open Instagram.\n3. Check the lock sits on the Reels tab. Use calibration below if needed.", 16))
+        content.addView(label("Reels tab position", 18, true))
+        content.addView(label("Choose where Reels appears in Instagram’s five-item bottom bar. Changes apply the next time the lock appears.", 14))
+        val initialTab = prefs.getInt(LockPreferences.TAB_INDEX, 1).coerceIn(0, 4)
+        val tabLabel = label("Position: ${initialTab + 1} of 5", 14)
+        content.addView(tabLabel)
+        content.addView(SeekBar(this).apply {
+            max = 4
+            progress = initialTab
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    tabLabel.text = "Position: ${progress + 1} of 5"
+                    if (fromUser) prefs.edit().putInt(LockPreferences.TAB_INDEX, progress).apply()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        })
         content.addView(label("Vertical calibration", 18, true))
         content.addView(label("Move the marker upward if Instagram’s bar sits higher on your device. Saved on this device.", 14))
         val initial = prefs.getInt(LockPreferences.OFFSET_DP, 0).coerceIn(-48, 0)
@@ -66,8 +83,8 @@ class MainActivity : Activity() {
             })
         })
         content.addView(Switch(this).apply {
-            text = "Dark-background calibration (light lock icon)"
-            isChecked = prefs.getBoolean(LockPreferences.DARK, false)
+            text = "Instagram uses a dark navigation background"
+            isChecked = prefs.getBoolean(LockPreferences.DARK, true)
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean(LockPreferences.DARK, checked).apply() }
         })
         content.addView(label("The marker is an accessibility overlay and remains visible only while Instagram is foreground. Android may show its standard accessibility indicator.", 14))

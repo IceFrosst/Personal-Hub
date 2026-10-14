@@ -3,8 +3,6 @@ package com.icefrosst.reelslock
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Point
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.View
@@ -12,13 +10,12 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.FrameLayout
-import android.widget.TextView
 import android.widget.Toast
 import kotlin.math.roundToInt
 
 class ReelsOverlayService : AccessibilityService() {
     private var overlay: FrameLayout? = null
-    private var button: TextView? = null
+    private var button: LockIconView? = null
     private var windowManager: WindowManager? = null
 
     override fun onServiceConnected() { serviceInfo = serviceInfo.apply { flags = 0 } }
@@ -55,9 +52,7 @@ class ReelsOverlayService : AccessibilityService() {
                 Toast.makeText(this@ReelsOverlayService, "Reels is locked", Toast.LENGTH_SHORT).show()
             }
         }
-        val icon = TextView(this).apply {
-            text = "🔒"
-            gravity = Gravity.CENTER
+        val icon = LockIconView(this).apply {
             contentDescription = "Reels locked"
             isClickable = false
             isFocusable = false
@@ -86,7 +81,6 @@ class ReelsOverlayService : AccessibilityService() {
                 root.post { positionWindow() }
                 insets
             }
-            root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> positionWindow() }
             root.post { positionWindow() }
         } catch (_: WindowManager.BadTokenException) {
             overlay = null
@@ -98,28 +92,25 @@ class ReelsOverlayService : AccessibilityService() {
     private fun positionWindow() {
         val root = overlay ?: return
         val manager = windowManager ?: return
-        val displaySize = Point()
-        @Suppress("DEPRECATION")
-        manager.defaultDisplay.getRealSize(displaySize)
+        val bounds = manager.currentWindowMetrics.bounds
         val insets = readInsets()
         val prefs = getSharedPreferences(LockPreferences.NAME, MODE_PRIVATE)
-        val desired = OverlayGeometry.fourthCell(
-            OverlayGeometry.Rect(0, 0, displaySize.x, displaySize.y),
-            insets.left, insets.top, insets.right, insets.bottom, dp(56),
-            (prefs.getInt(LockPreferences.OFFSET_DP, 0) * resources.displayMetrics.density).roundToInt()
+        val desired = OverlayGeometry.tabCell(
+            OverlayGeometry.Rect(bounds.left, bounds.top, bounds.right, bounds.bottom),
+            insets.left, insets.top, insets.right, insets.bottom, dp(48),
+            (prefs.getInt(LockPreferences.OFFSET_DP, DEFAULT_OFFSET_DP) * resources.displayMetrics.density).roundToInt(),
+            prefs.getInt(LockPreferences.TAB_INDEX, 1).coerceIn(0, 4)
         )
-        val origin = IntArray(2)
-        root.getLocationOnScreen(origin)
-        val desiredLocal = OverlayGeometry.toFrameCoordinates(desired, origin[0], origin[1])
         val params = root.layoutParams as WindowManager.LayoutParams
-        val dx = desiredLocal.left
-        val dy = desiredLocal.top
-        if (params.width != desired.width || params.height != desired.height || dx != 0 || dy != 0) {
+        if (params.width != desired.width || params.height != desired.height ||
+            params.x != desired.left || params.y != desired.top
+        ) {
             params.width = desired.width
             params.height = desired.height
-            // Correct for the measured frame origin; do not assume params coordinates equal screen coordinates.
-            params.x += dx
-            params.y += dy
+            // This overlay opts out of inset fitting, and dumpsys verifies its parent frame is
+            // the full display. Assign absolute coordinates; never accumulate layout deltas.
+            params.x = desired.left
+            params.y = desired.top
             manager.updateViewLayout(root, params)
         }
     }
@@ -136,15 +127,10 @@ class ReelsOverlayService : AccessibilityService() {
 
     private fun refreshMarkerStyle() {
         val icon = button ?: return
-        val dark = getSharedPreferences(LockPreferences.NAME, MODE_PRIVATE).getBoolean(LockPreferences.DARK, false)
-        icon.textSize = 25f
-        icon.setTextColor(if (dark) Color.WHITE else Color.BLACK)
-        icon.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(if (dark) 0xDD252525.toInt() else 0xDDF8F8F8.toInt())
-            setStroke(dp(1), if (dark) Color.WHITE else Color.BLACK)
-        }
-        icon.layoutParams = icon.layoutParams.apply { width = dp(48); height = dp(48) }
+        val dark = getSharedPreferences(LockPreferences.NAME, MODE_PRIVATE).getBoolean(LockPreferences.DARK, true)
+        overlay?.setBackgroundColor(if (dark) INSTAGRAM_DARK else Color.WHITE)
+        icon.setIconColor(if (dark) 0xFFF5F5F5.toInt() else 0xFF111111.toInt())
+        icon.layoutParams = icon.layoutParams.apply { width = dp(40); height = dp(40) }
     }
 
     private fun removeOverlay() {
@@ -157,5 +143,9 @@ class ReelsOverlayService : AccessibilityService() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
-    companion object { private const val INSTAGRAM_PACKAGE = "com.instagram.android" }
+    companion object {
+        private const val INSTAGRAM_PACKAGE = "com.instagram.android"
+        private const val DEFAULT_OFFSET_DP = 0
+        private const val INSTAGRAM_DARK = 0xFF0D1014.toInt()
+    }
 }
