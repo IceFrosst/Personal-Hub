@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "id": "pennapps",
+    "label": "PennApps",
+    "siteUrl": "https://pennapps.com/",
+    "confidence": 0.9,
+    "auto_promote": true,
+    "registration_deadline": "2026-12-06T00:00:00.000Z",
+    "deadline_raw": "2026-12-06",
+    "signals": [
+      "reg_open_language",
+      "mentions_2026",
+      "travel_language",
+      "deadline_parsed"
+    ],
+    "starts_at": null,
+    "ends_at": null,
+    "format": "in_person",
+    "location_raw": null,
+    "promoted_at": "2026-11-09T17:43:22.008Z",
+    "source": "auto-dormant-probe"
+  }
+]
